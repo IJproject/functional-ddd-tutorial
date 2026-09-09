@@ -79,7 +79,7 @@ export function LoginPage() {
 					password: String(form.get("password")),
 				},
 			});
-			await navigate({ to: "/billing/list" });
+			await navigate({ to: "/subscription/edit" });
 		} catch (e) {
 			setError(e instanceof Error ? e.message : "ログインに失敗しました");
 		}

@@ -88,8 +88,11 @@ export function HomePage() {
 						<p className="demo-muted">
 							現在: {data.planName}（{data.status}）
 						</p>
-						<Link className="demo-button mt-6 inline-block" to="/billing/list">
-							請求・契約状況を見る
+						<Link
+							className="demo-button mt-6 inline-block"
+							to="/subscription/edit"
+						>
+							契約を見る
 						</Link>
 					</>
 				) : (

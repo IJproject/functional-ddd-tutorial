@@ -11,10 +11,8 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AboutRouteImport } from './routes/about'
-import { Route as AccountSettingRouteImport } from './routes/account/setting'
 import { Route as AuthLoginRouteImport } from './routes/auth/login'
 import { Route as AuthSignupRouteImport } from './routes/auth/signup'
-import { Route as BillingListRouteImport } from './routes/billing/list'
 import { Route as SubscriptionApplyRouteImport } from './routes/subscription/apply'
 import { Route as SubscriptionEditRouteImport } from './routes/subscription/edit'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
@@ -29,11 +27,6 @@ const AboutRoute = AboutRouteImport.update({
   path: '/about',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AccountSettingRoute = AccountSettingRouteImport.update({
-  id: '/account/setting',
-  path: '/account/setting',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AuthLoginRoute = AuthLoginRouteImport.update({
   id: '/auth/login',
   path: '/auth/login',
@@ -42,11 +35,6 @@ const AuthLoginRoute = AuthLoginRouteImport.update({
 const AuthSignupRoute = AuthSignupRouteImport.update({
   id: '/auth/signup',
   path: '/auth/signup',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BillingListRoute = BillingListRouteImport.update({
-  id: '/billing/list',
-  path: '/billing/list',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SubscriptionApplyRoute = SubscriptionApplyRouteImport.update({
@@ -68,10 +56,8 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
-  '/account/setting': typeof AccountSettingRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/signup': typeof AuthSignupRoute
-  '/billing/list': typeof BillingListRoute
   '/subscription/apply': typeof SubscriptionApplyRoute
   '/subscription/edit': typeof SubscriptionEditRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -79,10 +65,8 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
-  '/account/setting': typeof AccountSettingRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/signup': typeof AuthSignupRoute
-  '/billing/list': typeof BillingListRoute
   '/subscription/apply': typeof SubscriptionApplyRoute
   '/subscription/edit': typeof SubscriptionEditRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -91,10 +75,8 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
-  '/account/setting': typeof AccountSettingRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/signup': typeof AuthSignupRoute
-  '/billing/list': typeof BillingListRoute
   '/subscription/apply': typeof SubscriptionApplyRoute
   '/subscription/edit': typeof SubscriptionEditRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
@@ -104,10 +86,8 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/about'
-    | '/account/setting'
     | '/auth/login'
     | '/auth/signup'
-    | '/billing/list'
     | '/subscription/apply'
     | '/subscription/edit'
     | '/api/auth/$'
@@ -115,10 +95,8 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/about'
-    | '/account/setting'
     | '/auth/login'
     | '/auth/signup'
-    | '/billing/list'
     | '/subscription/apply'
     | '/subscription/edit'
     | '/api/auth/$'
@@ -126,10 +104,8 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/about'
-    | '/account/setting'
     | '/auth/login'
     | '/auth/signup'
-    | '/billing/list'
     | '/subscription/apply'
     | '/subscription/edit'
     | '/api/auth/$'
@@ -138,10 +114,8 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
-  AccountSettingRoute: typeof AccountSettingRoute
   AuthLoginRoute: typeof AuthLoginRoute
   AuthSignupRoute: typeof AuthSignupRoute
-  BillingListRoute: typeof BillingListRoute
   SubscriptionApplyRoute: typeof SubscriptionApplyRoute
   SubscriptionEditRoute: typeof SubscriptionEditRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -163,13 +137,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AboutRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/account/setting': {
-      id: '/account/setting'
-      path: '/account/setting'
-      fullPath: '/account/setting'
-      preLoaderRoute: typeof AccountSettingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/auth/login': {
       id: '/auth/login'
       path: '/auth/login'
@@ -182,13 +149,6 @@ declare module '@tanstack/react-router' {
       path: '/auth/signup'
       fullPath: '/auth/signup'
       preLoaderRoute: typeof AuthSignupRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/billing/list': {
-      id: '/billing/list'
-      path: '/billing/list'
-      fullPath: '/billing/list'
-      preLoaderRoute: typeof BillingListRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/subscription/apply': {
@@ -218,10 +178,8 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
-  AccountSettingRoute: AccountSettingRoute,
   AuthLoginRoute: AuthLoginRoute,
   AuthSignupRoute: AuthSignupRoute,
-  BillingListRoute: BillingListRoute,
   SubscriptionApplyRoute: SubscriptionApplyRoute,
   SubscriptionEditRoute: SubscriptionEditRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,

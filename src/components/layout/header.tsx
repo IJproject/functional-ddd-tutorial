@@ -42,21 +42,7 @@ export default function Header() {
 						className="nav-link"
 						activeProps={{ className: "nav-link is-active" }}
 					>
-						プラン変更
-					</Link>
-					<Link
-						to="/billing/list"
-						className="nav-link"
-						activeProps={{ className: "nav-link is-active" }}
-					>
-						請求
-					</Link>
-					<Link
-						to="/account/setting"
-						className="nav-link"
-						activeProps={{ className: "nav-link is-active" }}
-					>
-						アカウント
+						契約
 					</Link>
 					<Link
 						to="/auth/login"

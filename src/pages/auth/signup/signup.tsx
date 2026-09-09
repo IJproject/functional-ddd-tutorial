@@ -82,7 +82,7 @@ export function SignupPage() {
 					password: String(form.get("password")),
 				},
 			});
-			await navigate({ to: "/billing/list" });
+			await navigate({ to: "/subscription/edit" });
 		} catch (e) {
 			setError(e instanceof Error ? e.message : "登録に失敗しました");
 		}

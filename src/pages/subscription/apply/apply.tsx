@@ -110,7 +110,7 @@ export function ApplyPage() {
 	async function apply(planId: PlanId) {
 		try {
 			await applySubscription({ data: { planId } });
-			await navigate({ to: "/billing/list" });
+			await navigate({ to: "/subscription/edit" });
 		} catch (e) {
 			setError(e instanceof Error ? e.message : "申し込みに失敗しました");
 		}
@@ -140,7 +140,7 @@ export function ApplyPage() {
 				{data.status !== "free" ? (
 					<>
 						<p>すでに契約中のため申し込みできません。</p>
-						<Link to="/billing/list">請求・契約状況へ</Link>
+						<Link to="/subscription/edit">契約へ</Link>
 					</>
 				) : (
 					<div className="space-y-3">

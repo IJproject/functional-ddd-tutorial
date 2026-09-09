@@ -11,13 +11,13 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AboutRouteImport } from './routes/about'
-import { Route as DemoBetterAuthRouteImport } from './routes/demo/better-auth'
-import { Route as DemoDrizzleRouteImport } from './routes/demo/drizzle'
-import { Route as DemoTanstackQueryRouteImport } from './routes/demo/tanstack-query'
+import { Route as AccountSettingRouteImport } from './routes/account/setting'
+import { Route as AuthLoginRouteImport } from './routes/auth/login'
+import { Route as AuthSignupRouteImport } from './routes/auth/signup'
+import { Route as BillingListRouteImport } from './routes/billing/list'
+import { Route as SubscriptionApplyRouteImport } from './routes/subscription/apply'
+import { Route as SubscriptionEditRouteImport } from './routes/subscription/edit'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
-import { Route as DemoFormAddressRouteImport } from './routes/demo/form.address'
-import { Route as DemoFormSimpleRouteImport } from './routes/demo/form.simple'
-import { Route as DemoSentryTestingRouteImport } from './routes/demo/sentry.testing'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -29,19 +29,34 @@ const AboutRoute = AboutRouteImport.update({
   path: '/about',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DemoBetterAuthRoute = DemoBetterAuthRouteImport.update({
-  id: '/demo/better-auth',
-  path: '/demo/better-auth',
+const AccountSettingRoute = AccountSettingRouteImport.update({
+  id: '/account/setting',
+  path: '/account/setting',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DemoDrizzleRoute = DemoDrizzleRouteImport.update({
-  id: '/demo/drizzle',
-  path: '/demo/drizzle',
+const AuthLoginRoute = AuthLoginRouteImport.update({
+  id: '/auth/login',
+  path: '/auth/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DemoTanstackQueryRoute = DemoTanstackQueryRouteImport.update({
-  id: '/demo/tanstack-query',
-  path: '/demo/tanstack-query',
+const AuthSignupRoute = AuthSignupRouteImport.update({
+  id: '/auth/signup',
+  path: '/auth/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BillingListRoute = BillingListRouteImport.update({
+  id: '/billing/list',
+  path: '/billing/list',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SubscriptionApplyRoute = SubscriptionApplyRouteImport.update({
+  id: '/subscription/apply',
+  path: '/subscription/apply',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SubscriptionEditRoute = SubscriptionEditRouteImport.update({
+  id: '/subscription/edit',
+  path: '/subscription/edit',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
@@ -49,102 +64,87 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DemoFormAddressRoute = DemoFormAddressRouteImport.update({
-  id: '/demo/form/address',
-  path: '/demo/form/address',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DemoFormSimpleRoute = DemoFormSimpleRouteImport.update({
-  id: '/demo/form/simple',
-  path: '/demo/form/simple',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DemoSentryTestingRoute = DemoSentryTestingRouteImport.update({
-  id: '/demo/sentry/testing',
-  path: '/demo/sentry/testing',
-  getParentRoute: () => rootRouteImport,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
-  '/demo/better-auth': typeof DemoBetterAuthRoute
-  '/demo/drizzle': typeof DemoDrizzleRoute
-  '/demo/tanstack-query': typeof DemoTanstackQueryRoute
+  '/account/setting': typeof AccountSettingRoute
+  '/auth/login': typeof AuthLoginRoute
+  '/auth/signup': typeof AuthSignupRoute
+  '/billing/list': typeof BillingListRoute
+  '/subscription/apply': typeof SubscriptionApplyRoute
+  '/subscription/edit': typeof SubscriptionEditRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/demo/form/address': typeof DemoFormAddressRoute
-  '/demo/form/simple': typeof DemoFormSimpleRoute
-  '/demo/sentry/testing': typeof DemoSentryTestingRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
-  '/demo/better-auth': typeof DemoBetterAuthRoute
-  '/demo/drizzle': typeof DemoDrizzleRoute
-  '/demo/tanstack-query': typeof DemoTanstackQueryRoute
+  '/account/setting': typeof AccountSettingRoute
+  '/auth/login': typeof AuthLoginRoute
+  '/auth/signup': typeof AuthSignupRoute
+  '/billing/list': typeof BillingListRoute
+  '/subscription/apply': typeof SubscriptionApplyRoute
+  '/subscription/edit': typeof SubscriptionEditRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/demo/form/address': typeof DemoFormAddressRoute
-  '/demo/form/simple': typeof DemoFormSimpleRoute
-  '/demo/sentry/testing': typeof DemoSentryTestingRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
-  '/demo/better-auth': typeof DemoBetterAuthRoute
-  '/demo/drizzle': typeof DemoDrizzleRoute
-  '/demo/tanstack-query': typeof DemoTanstackQueryRoute
+  '/account/setting': typeof AccountSettingRoute
+  '/auth/login': typeof AuthLoginRoute
+  '/auth/signup': typeof AuthSignupRoute
+  '/billing/list': typeof BillingListRoute
+  '/subscription/apply': typeof SubscriptionApplyRoute
+  '/subscription/edit': typeof SubscriptionEditRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/demo/form/address': typeof DemoFormAddressRoute
-  '/demo/form/simple': typeof DemoFormSimpleRoute
-  '/demo/sentry/testing': typeof DemoSentryTestingRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/about'
-    | '/demo/better-auth'
-    | '/demo/drizzle'
-    | '/demo/tanstack-query'
+    | '/account/setting'
+    | '/auth/login'
+    | '/auth/signup'
+    | '/billing/list'
+    | '/subscription/apply'
+    | '/subscription/edit'
     | '/api/auth/$'
-    | '/demo/form/address'
-    | '/demo/form/simple'
-    | '/demo/sentry/testing'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/about'
-    | '/demo/better-auth'
-    | '/demo/drizzle'
-    | '/demo/tanstack-query'
+    | '/account/setting'
+    | '/auth/login'
+    | '/auth/signup'
+    | '/billing/list'
+    | '/subscription/apply'
+    | '/subscription/edit'
     | '/api/auth/$'
-    | '/demo/form/address'
-    | '/demo/form/simple'
-    | '/demo/sentry/testing'
   id:
     | '__root__'
     | '/'
     | '/about'
-    | '/demo/better-auth'
-    | '/demo/drizzle'
-    | '/demo/tanstack-query'
+    | '/account/setting'
+    | '/auth/login'
+    | '/auth/signup'
+    | '/billing/list'
+    | '/subscription/apply'
+    | '/subscription/edit'
     | '/api/auth/$'
-    | '/demo/form/address'
-    | '/demo/form/simple'
-    | '/demo/sentry/testing'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
-  DemoBetterAuthRoute: typeof DemoBetterAuthRoute
-  DemoDrizzleRoute: typeof DemoDrizzleRoute
-  DemoTanstackQueryRoute: typeof DemoTanstackQueryRoute
+  AccountSettingRoute: typeof AccountSettingRoute
+  AuthLoginRoute: typeof AuthLoginRoute
+  AuthSignupRoute: typeof AuthSignupRoute
+  BillingListRoute: typeof BillingListRoute
+  SubscriptionApplyRoute: typeof SubscriptionApplyRoute
+  SubscriptionEditRoute: typeof SubscriptionEditRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
-  DemoFormAddressRoute: typeof DemoFormAddressRoute
-  DemoFormSimpleRoute: typeof DemoFormSimpleRoute
-  DemoSentryTestingRoute: typeof DemoSentryTestingRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -163,25 +163,46 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AboutRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/demo/better-auth': {
-      id: '/demo/better-auth'
-      path: '/demo/better-auth'
-      fullPath: '/demo/better-auth'
-      preLoaderRoute: typeof DemoBetterAuthRouteImport
+    '/account/setting': {
+      id: '/account/setting'
+      path: '/account/setting'
+      fullPath: '/account/setting'
+      preLoaderRoute: typeof AccountSettingRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/demo/drizzle': {
-      id: '/demo/drizzle'
-      path: '/demo/drizzle'
-      fullPath: '/demo/drizzle'
-      preLoaderRoute: typeof DemoDrizzleRouteImport
+    '/auth/login': {
+      id: '/auth/login'
+      path: '/auth/login'
+      fullPath: '/auth/login'
+      preLoaderRoute: typeof AuthLoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/demo/tanstack-query': {
-      id: '/demo/tanstack-query'
-      path: '/demo/tanstack-query'
-      fullPath: '/demo/tanstack-query'
-      preLoaderRoute: typeof DemoTanstackQueryRouteImport
+    '/auth/signup': {
+      id: '/auth/signup'
+      path: '/auth/signup'
+      fullPath: '/auth/signup'
+      preLoaderRoute: typeof AuthSignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/billing/list': {
+      id: '/billing/list'
+      path: '/billing/list'
+      fullPath: '/billing/list'
+      preLoaderRoute: typeof BillingListRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/subscription/apply': {
+      id: '/subscription/apply'
+      path: '/subscription/apply'
+      fullPath: '/subscription/apply'
+      preLoaderRoute: typeof SubscriptionApplyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/subscription/edit': {
+      id: '/subscription/edit'
+      path: '/subscription/edit'
+      fullPath: '/subscription/edit'
+      preLoaderRoute: typeof SubscriptionEditRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/auth/$': {
@@ -191,41 +212,29 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/demo/form/address': {
-      id: '/demo/form/address'
-      path: '/demo/form/address'
-      fullPath: '/demo/form/address'
-      preLoaderRoute: typeof DemoFormAddressRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/demo/form/simple': {
-      id: '/demo/form/simple'
-      path: '/demo/form/simple'
-      fullPath: '/demo/form/simple'
-      preLoaderRoute: typeof DemoFormSimpleRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/demo/sentry/testing': {
-      id: '/demo/sentry/testing'
-      path: '/demo/sentry/testing'
-      fullPath: '/demo/sentry/testing'
-      preLoaderRoute: typeof DemoSentryTestingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
-  DemoBetterAuthRoute: DemoBetterAuthRoute,
-  DemoDrizzleRoute: DemoDrizzleRoute,
-  DemoTanstackQueryRoute: DemoTanstackQueryRoute,
+  AccountSettingRoute: AccountSettingRoute,
+  AuthLoginRoute: AuthLoginRoute,
+  AuthSignupRoute: AuthSignupRoute,
+  BillingListRoute: BillingListRoute,
+  SubscriptionApplyRoute: SubscriptionApplyRoute,
+  SubscriptionEditRoute: SubscriptionEditRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
-  DemoFormAddressRoute: DemoFormAddressRoute,
-  DemoFormSimpleRoute: DemoFormSimpleRoute,
-  DemoSentryTestingRoute: DemoSentryTestingRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}

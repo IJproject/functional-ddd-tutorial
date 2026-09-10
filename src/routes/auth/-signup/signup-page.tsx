@@ -1,13 +1,13 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
+import { getRequestHeaders } from "@tanstack/react-start/server";
+import { APIError } from "better-auth/api";
 import { type FormEvent, useState } from "react";
+import { auth } from "#/external/better-auth/auth";
 
 type PlanId = "free" | "basic" | "pro";
 type Account = {
 	id: string;
-	email: string;
-	password: string;
-	name: string;
 	billingAddress: string;
 	paymentMethod: string;
 	trialUsed: boolean;
@@ -35,37 +35,46 @@ type Store = {
 	accounts: Account[];
 	subscriptions: Subscription[];
 	invoices: Invoice[];
-	currentAccountId: string | null;
 };
 const globalStore = globalThis as { __subscStore?: Store };
 globalStore.__subscStore ??= {
 	accounts: [],
 	subscriptions: [],
 	invoices: [],
-	currentAccountId: null,
 };
 const store: Store = globalStore.__subscStore;
 
 const signup = createServerFn({ method: "POST" })
-	.validator(
-		(d: unknown) => d as { email: string; password: string; name: string },
-	)
+	.validator((d: unknown) => d as Record<"email" | "password" | "name", string>)
 	.handler(async ({ data }) => {
-		if (store.accounts.some((account) => account.email === data.email))
-			throw new Error("そのメールアドレスは登録済みです");
-		const id = crypto.randomUUID();
-		store.accounts.push({
-			id,
-			email: data.email,
-			password: data.password,
-			name: data.name,
-			billingAddress: "",
-			paymentMethod: "",
-			trialUsed: false,
-			createdAt: new Date().toISOString(),
-		});
-		store.subscriptions.push({ accountId: id, status: "free", planId: "free" });
-		store.currentAccountId = id;
+		try {
+			const result = await auth.api.signUpEmail({
+				body: data,
+				headers: getRequestHeaders(),
+			});
+			const id = result.user.id;
+			store.accounts.push({
+				id,
+				billingAddress: "",
+				paymentMethod: "",
+				trialUsed: false,
+				createdAt: new Date().toISOString(),
+			});
+			store.subscriptions.push({
+				accountId: id,
+				status: "free",
+				planId: "free",
+			});
+		} catch (error) {
+			if (
+				error instanceof APIError &&
+				(error.body?.code === "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL" ||
+					error.body?.code === "USER_ALREADY_EXISTS")
+			) {
+				throw new Error("そのメールアドレスは登録済みです");
+			}
+			throw new Error("登録に失敗しました");
+		}
 	});
 
 export function SignupPage() {

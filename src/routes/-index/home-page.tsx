@@ -1,6 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
+import { getRequestHeaders } from "@tanstack/react-start/server";
 import { useEffect, useState } from "react";
+import { auth } from "#/external/better-auth/auth";
 
 type PlanId = "free" | "basic" | "pro";
 const PLANS = [
@@ -10,9 +12,6 @@ const PLANS = [
 ] as const;
 type Account = {
 	id: string;
-	email: string;
-	password: string;
-	name: string;
 	billingAddress: string;
 	paymentMethod: string;
 	trialUsed: boolean;
@@ -40,31 +39,29 @@ type Store = {
 	accounts: Account[];
 	subscriptions: Subscription[];
 	invoices: Invoice[];
-	currentAccountId: string | null;
 };
 const globalStore = globalThis as { __subscStore?: Store };
 globalStore.__subscStore ??= {
 	accounts: [],
 	subscriptions: [],
 	invoices: [],
-	currentAccountId: null,
 };
 const store: Store = globalStore.__subscStore;
 
 const getHome = createServerFn({ method: "GET" }).handler(async () => {
-	const account = store.accounts.find(
-		(item) => item.id === store.currentAccountId,
-	);
+	const session = await auth.api.getSession({ headers: getRequestHeaders() });
+	if (!session) return { loggedIn: false as const };
 	const subscription = store.subscriptions.find(
-		(item) => item.accountId === store.currentAccountId,
+		(item) => item.accountId === session.user.id,
 	);
-	if (!account || !subscription) return { loggedIn: false as const };
 	return {
 		loggedIn: true as const,
-		email: account.email,
-		name: account.name,
-		status: subscription.status,
-		planName: PLANS.find((plan) => plan.id === subscription.planId)?.name ?? "",
+		email: session.user.email,
+		name: session.user.name,
+		status: subscription?.status ?? "free",
+		planName:
+			PLANS.find((plan) => plan.id === subscription?.planId)?.name ??
+			"無料プラン",
 	};
 });
 

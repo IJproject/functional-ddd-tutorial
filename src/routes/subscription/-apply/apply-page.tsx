@@ -1,6 +1,8 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
+import { getRequestHeaders } from "@tanstack/react-start/server";
 import { useEffect, useState } from "react";
+import { auth } from "#/external/better-auth/auth";
 
 type PlanId = "free" | "basic" | "pro";
 const PLANS = [
@@ -11,9 +13,6 @@ const PLANS = [
 const TRIAL_DAYS = 14;
 type Account = {
 	id: string;
-	email: string;
-	password: string;
-	name: string;
 	billingAddress: string;
 	paymentMethod: string;
 	trialUsed: boolean;
@@ -41,22 +40,41 @@ type Store = {
 	accounts: Account[];
 	subscriptions: Subscription[];
 	invoices: Invoice[];
-	currentAccountId: string | null;
 };
 const globalStore = globalThis as { __subscStore?: Store };
 globalStore.__subscStore ??= {
 	accounts: [],
 	subscriptions: [],
 	invoices: [],
-	currentAccountId: null,
 };
 const store: Store = globalStore.__subscStore;
 
+const currentUserId = async () => {
+	const session = await auth.api.getSession({ headers: getRequestHeaders() });
+	return session?.user.id ?? null;
+};
+const ensureStoreRecords = (id: string) => {
+	if (!store.accounts.some((item) => item.id === id)) {
+		store.accounts.push({
+			id,
+			billingAddress: "",
+			paymentMethod: "",
+			trialUsed: false,
+			createdAt: new Date().toISOString(),
+		});
+	}
+	if (!store.subscriptions.some((item) => item.accountId === id)) {
+		store.subscriptions.push({ accountId: id, status: "free", planId: "free" });
+	}
+};
+
 const getApplyContext = createServerFn({ method: "GET" }).handler(async () => {
-	const id = store.currentAccountId;
+	const id = await currentUserId();
+	if (!id) return { loggedIn: false as const };
+	ensureStoreRecords(id);
 	const sub = store.subscriptions.find((item) => item.accountId === id);
 	const account = store.accounts.find((item) => item.id === id);
-	return id && sub && account
+	return sub && account
 		? {
 				loggedIn: true as const,
 				status: sub.status,
@@ -68,7 +86,9 @@ const getApplyContext = createServerFn({ method: "GET" }).handler(async () => {
 const applySubscription = createServerFn({ method: "POST" })
 	.validator((d: unknown) => d as { planId: PlanId })
 	.handler(async ({ data }) => {
-		const id = store.currentAccountId;
+		const id = await currentUserId();
+		if (!id) throw new Error("ログインしてください");
+		ensureStoreRecords(id);
 		const sub = store.subscriptions.find((item) => item.accountId === id);
 		const account = store.accounts.find((item) => item.id === id);
 		if (!sub || !account) throw new Error("ログインしてください");
@@ -85,7 +105,7 @@ const applySubscription = createServerFn({ method: "POST" })
 			const plan = PLANS.find((item) => item.id === data.planId);
 			const invoice = {
 				id: crypto.randomUUID(),
-				accountId: id as string,
+				accountId: id,
 				planId: data.planId,
 				amount: plan?.monthlyPrice ?? 0,
 				kind: "new" as const,

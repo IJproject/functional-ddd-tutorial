@@ -1,6 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
+import { getRequestHeaders } from "@tanstack/react-start/server";
 import { useCallback, useEffect, useState } from "react";
+import { auth } from "#/external/better-auth/auth";
 
 type PlanId = "free" | "basic" | "pro";
 const PLANS = [
@@ -10,9 +12,6 @@ const PLANS = [
 ] as const;
 type Account = {
 	id: string;
-	email: string;
-	password: string;
-	name: string;
 	billingAddress: string;
 	paymentMethod: string;
 	trialUsed: boolean;
@@ -40,24 +39,37 @@ type Store = {
 	accounts: Account[];
 	subscriptions: Subscription[];
 	invoices: Invoice[];
-	currentAccountId: string | null;
 };
 const globalStore = globalThis as { __subscStore?: Store };
 globalStore.__subscStore ??= {
 	accounts: [],
 	subscriptions: [],
 	invoices: [],
-	currentAccountId: null,
 };
 const store: Store = globalStore.__subscStore;
 
-const accountId = () => {
-	if (!store.currentAccountId) return null;
-	return store.currentAccountId;
+const currentUserId = async () => {
+	const session = await auth.api.getSession({ headers: getRequestHeaders() });
+	return session?.user.id ?? null;
+};
+const ensureStoreRecords = (id: string) => {
+	if (!store.accounts.some((item) => item.id === id)) {
+		store.accounts.push({
+			id,
+			billingAddress: "",
+			paymentMethod: "",
+			trialUsed: false,
+			createdAt: new Date().toISOString(),
+		});
+	}
+	if (!store.subscriptions.some((item) => item.accountId === id)) {
+		store.subscriptions.push({ accountId: id, status: "free", planId: "free" });
+	}
 };
 const getSubscription = createServerFn({ method: "GET" }).handler(async () => {
-	const id = accountId();
+	const id = await currentUserId();
 	if (!id) return { loggedIn: false as const };
+	ensureStoreRecords(id);
 	const subscription = store.subscriptions.find(
 		(item) => item.accountId === id,
 	);
@@ -76,9 +88,9 @@ const getSubscription = createServerFn({ method: "GET" }).handler(async () => {
 const requestPlanChange = createServerFn({ method: "POST" })
 	.validator((d: unknown) => d as { planId: PlanId })
 	.handler(async ({ data }) => {
-		const sub = store.subscriptions.find(
-			(item) => item.accountId === store.currentAccountId,
-		);
+		const id = await currentUserId();
+		if (!id) throw new Error("ログインしてください");
+		const sub = store.subscriptions.find((item) => item.accountId === id);
 		if (!sub) throw new Error("ログインしてください");
 		if (sub.status === "free")
 			throw new Error("先にサブスクを申し込んでください");
@@ -95,7 +107,7 @@ const requestPlanChange = createServerFn({ method: "POST" })
 		if (sub.status === "trial") {
 			const invoice = {
 				id: crypto.randomUUID(),
-				accountId: store.currentAccountId as string,
+				accountId: id,
 				planId: data.planId,
 				amount: next,
 				kind: "new" as const,
@@ -109,7 +121,7 @@ const requestPlanChange = createServerFn({ method: "POST" })
 		} else if (next > current) {
 			const invoice = {
 				id: crypto.randomUUID(),
-				accountId: store.currentAccountId as string,
+				accountId: id,
 				planId: data.planId,
 				amount: next - current,
 				kind: "upgrade_diff" as const,
@@ -123,7 +135,8 @@ const requestPlanChange = createServerFn({ method: "POST" })
 		}
 	});
 const cancelTrial = createServerFn({ method: "POST" }).handler(async () => {
-	const id = accountId();
+	const id = await currentUserId();
+	if (!id) throw new Error("ログインしてください");
 	const sub = store.subscriptions.find((item) => item.accountId === id);
 	if (!sub || sub.status !== "trial")
 		throw new Error("トライアル中ではありません");
@@ -133,9 +146,9 @@ const cancelTrial = createServerFn({ method: "POST" }).handler(async () => {
 });
 const reserveCancellation = createServerFn({ method: "POST" }).handler(
 	async () => {
-		const sub = store.subscriptions.find(
-			(item) => item.accountId === accountId(),
-		);
+		const id = await currentUserId();
+		if (!id) throw new Error("ログインしてください");
+		const sub = store.subscriptions.find((item) => item.accountId === id);
 		if (!sub || sub.status !== "paid")
 			throw new Error("有料契約中ではありません");
 		sub.reservation = { kind: "cancel" };
@@ -146,12 +159,12 @@ const payInvoice = createServerFn({ method: "POST" })
 		(d: unknown) => d as { invoiceId: string; result: "success" | "failure" },
 	)
 	.handler(async ({ data }) => {
+		const id = await currentUserId();
+		if (!id) throw new Error("ログインしてください");
 		const invoice = store.invoices.find(
-			(item) => item.id === data.invoiceId && item.accountId === accountId(),
+			(item) => item.id === data.invoiceId && item.accountId === id,
 		);
-		const sub = store.subscriptions.find(
-			(item) => item.accountId === accountId(),
-		);
+		const sub = store.subscriptions.find((item) => item.accountId === id);
 		if (!invoice || !sub) throw new Error("請求が見つかりません");
 		if (invoice.status !== "unpaid")
 			throw new Error("この請求はすでに処理済みです");
@@ -173,14 +186,15 @@ const payInvoice = createServerFn({ method: "POST" })
 	});
 const simulateTrialEnd = createServerFn({ method: "POST" }).handler(
 	async () => {
-		const id = accountId();
+		const id = await currentUserId();
+		if (!id) throw new Error("ログインしてください");
 		const sub = store.subscriptions.find((item) => item.accountId === id);
 		if (!sub || sub.status !== "trial")
 			throw new Error("トライアル中ではありません");
 		const plan = PLANS.find((item) => item.id === sub.planId);
 		const invoice: Invoice = {
 			id: crypto.randomUUID(),
-			accountId: id as string,
+			accountId: id,
 			planId: sub.planId,
 			amount: plan?.monthlyPrice ?? 0,
 			kind: "new",
@@ -195,7 +209,8 @@ const simulateTrialEnd = createServerFn({ method: "POST" }).handler(
 );
 const simulatePeriodEnd = createServerFn({ method: "POST" }).handler(
 	async () => {
-		const id = accountId();
+		const id = await currentUserId();
+		if (!id) throw new Error("ログインしてください");
 		const sub = store.subscriptions.find((item) => item.accountId === id);
 		if (!sub || sub.status !== "paid")
 			throw new Error("有料契約中ではありません");
@@ -213,7 +228,7 @@ const simulatePeriodEnd = createServerFn({ method: "POST" }).handler(
 		const plan = PLANS.find((item) => item.id === planId);
 		const invoice: Invoice = {
 			id: crypto.randomUUID(),
-			accountId: id as string,
+			accountId: id,
 			planId,
 			amount: plan?.monthlyPrice ?? 0,
 			kind: "renewal",

@@ -1,13 +1,13 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
+import { getRequestHeaders } from "@tanstack/react-start/server";
+import { APIError } from "better-auth/api";
 import { type FormEvent, useEffect, useState } from "react";
+import { auth } from "#/external/better-auth/auth";
 
 type PlanId = "free" | "basic" | "pro";
 type Account = {
 	id: string;
-	email: string;
-	password: string;
-	name: string;
 	billingAddress: string;
 	paymentMethod: string;
 	trialUsed: boolean;
@@ -35,31 +35,38 @@ type Store = {
 	accounts: Account[];
 	subscriptions: Subscription[];
 	invoices: Invoice[];
-	currentAccountId: string | null;
 };
 const globalStore = globalThis as { __subscStore?: Store };
 globalStore.__subscStore ??= {
 	accounts: [],
 	subscriptions: [],
 	invoices: [],
-	currentAccountId: null,
 };
-const store: Store = globalStore.__subscStore;
+
+const currentUserId = async () => {
+	const session = await auth.api.getSession({ headers: getRequestHeaders() });
+	return session?.user.id ?? null;
+};
 
 const login = createServerFn({ method: "POST" })
-	.validator((d: unknown) => d as { email: string; password: string })
+	.validator((d: unknown) => d as Record<"email" | "password", string>)
 	.handler(async ({ data }) => {
-		const account = store.accounts.find(
-			(item) => item.email === data.email && item.password === data.password,
-		);
-		if (!account) throw new Error("メールアドレスまたはパスワードが違います");
-		store.currentAccountId = account.id;
+		try {
+			await auth.api.signInEmail({
+				body: data,
+				headers: getRequestHeaders(),
+			});
+		} catch (error) {
+			if (error instanceof APIError)
+				throw new Error("メールアドレスまたはパスワードが違います");
+			throw error;
+		}
 	});
 const logout = createServerFn({ method: "POST" }).handler(async () => {
-	store.currentAccountId = null;
+	await auth.api.signOut({ headers: getRequestHeaders() });
 });
 const getLoginState = createServerFn({ method: "GET" }).handler(async () => ({
-	loggedIn: store.currentAccountId !== null,
+	loggedIn: (await currentUserId()) !== null,
 }));
 
 export function LoginPage() {

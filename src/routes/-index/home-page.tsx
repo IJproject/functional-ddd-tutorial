@@ -73,22 +73,17 @@ export function HomePage() {
 		getHome().then(setData);
 	}, []);
 	return (
-		<main className="page-wrap px-4 pb-8 pt-14">
-			<section className="island-shell rounded-[2rem] px-6 py-10 sm:px-10">
+		<main className="demo-page">
+			<section className="demo-panel">
 				<p className="island-kicker">Subscription management</p>
-				<h1 className="display-title mb-5 text-4xl font-bold">
-					サブスク管理をシンプルに。
-				</h1>
+				<h1 className="demo-title">サブスク管理をシンプルに。</h1>
 				{data?.loggedIn ? (
 					<>
-						<p>{data.name}さん</p>
+						<p className="m-0">{data.name}さん</p>
 						<p className="demo-muted">
 							現在: {data.planName}（{data.status}）
 						</p>
-						<Link
-							className="demo-button mt-6 inline-block"
-							to="/subscription/edit"
-						>
+						<Link className="demo-button mt-4" to="/subscription/edit">
 							契約を見る
 						</Link>
 					</>
@@ -97,7 +92,7 @@ export function HomePage() {
 						<p className="demo-muted">
 							サブスクリプションの申し込み、変更、請求をまとめて管理できます。
 						</p>
-						<div className="mt-6 flex gap-3">
+						<div className="mt-6 flex flex-wrap gap-3">
 							<Link className="demo-button" to="/auth/signup">
 								アカウント登録
 							</Link>

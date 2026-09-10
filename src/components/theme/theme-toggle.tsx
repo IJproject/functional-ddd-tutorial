@@ -22,11 +22,7 @@ function applyThemeMode(mode: ThemeMode) {
 	document.documentElement.classList.remove("light", "dark");
 	document.documentElement.classList.add(resolved);
 
-	if (mode === "auto") {
-		document.documentElement.removeAttribute("data-theme");
-	} else {
-		document.documentElement.setAttribute("data-theme", mode);
-	}
+	document.documentElement.setAttribute("data-theme", resolved);
 
 	document.documentElement.style.colorScheme = resolved;
 }
@@ -73,7 +69,7 @@ export default function ThemeToggle() {
 			onClick={toggleMode}
 			aria-label={label}
 			title={label}
-			className="rounded-full border border-[var(--chip-line)] bg-[var(--chip-bg)] px-3 py-1.5 text-sm font-semibold text-[var(--sea-ink)] shadow-[0_8px_22px_rgba(30,90,72,0.08)] transition hover:-translate-y-0.5"
+			className="rounded-md border border-[var(--line-strong)] bg-[var(--surface)] px-3 py-1.5 text-sm font-semibold text-[var(--text)] transition hover:border-[var(--primary)] hover:text-[var(--primary)]"
 		>
 			{mode === "auto" ? "Auto" : mode === "dark" ? "Dark" : "Light"}
 		</button>

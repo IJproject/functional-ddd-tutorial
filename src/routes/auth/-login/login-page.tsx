@@ -3,7 +3,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { APIError } from "better-auth/api";
 import { type FormEvent, useEffect, useState } from "react";
-import type { Account } from "#/domain/subscription/model/account";
+import type { Account } from "#/domain/subscription/model/account.choice";
 import { auth } from "#/external/better-auth/auth";
 
 type PlanId = "free" | "basic" | "pro";

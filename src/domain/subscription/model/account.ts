@@ -6,6 +6,7 @@ export type PaymentMethod = Primitive<
 	"PaymentMethod",
 	"CreditCard" | "BankTransfer"
 >;
+export type TrialUsedAt = Primitive<"TrialUsedAt", Date>;
 
 export type Account = TrialUnusedAccount | TrialUsedAccount;
 export type TrialUnusedAccount = Variant<
@@ -22,6 +23,6 @@ export type TrialUsedAccount = Variant<
 		id: AccountId;
 		billingAddress: BillingAddress;
 		paymentMethod: PaymentMethod;
-		trialUsedAt: Date;
+		trialUsedAt: TrialUsedAt;
 	}
 >;

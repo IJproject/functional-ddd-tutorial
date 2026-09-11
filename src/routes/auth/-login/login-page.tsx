@@ -3,16 +3,10 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { APIError } from "better-auth/api";
 import { type FormEvent, useEffect, useState } from "react";
+import type { Account } from "#/domain/subscription/model/account";
 import { auth } from "#/external/better-auth/auth";
 
 type PlanId = "free" | "basic" | "pro";
-type Account = {
-	id: string;
-	billingAddress: string;
-	paymentMethod: string;
-	trialUsed: boolean;
-	createdAt: string;
-};
 type Subscription = {
 	accountId: string;
 	status: "free" | "trial" | "pending_payment" | "paid";

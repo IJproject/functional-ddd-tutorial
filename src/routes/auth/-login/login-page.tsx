@@ -3,39 +3,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { APIError } from "better-auth/api";
 import { type FormEvent, useEffect, useState } from "react";
-import type { Account } from "#/domain/subscription/model/account.choice";
 import { auth } from "#/external/better-auth/auth";
-
-type PlanId = "free" | "basic" | "pro";
-type Subscription = {
-	accountId: string;
-	status: "free" | "trial" | "pending_payment" | "paid";
-	planId: PlanId;
-	trialEndsAt?: string;
-	periodEndsAt?: string;
-	reservation?: { kind: "cancel" } | { kind: "change_plan"; planId: PlanId };
-	pendingInvoiceId?: string;
-};
-type Invoice = {
-	id: string;
-	accountId: string;
-	planId: PlanId;
-	amount: number;
-	kind: "new" | "renewal" | "upgrade_diff";
-	status: "unpaid" | "paid" | "failed";
-	createdAt: string;
-};
-type Store = {
-	accounts: Account[];
-	subscriptions: Subscription[];
-	invoices: Invoice[];
-};
-const globalStore = globalThis as { __subscStore?: Store };
-globalStore.__subscStore ??= {
-	accounts: [],
-	subscriptions: [],
-	invoices: [],
-};
 
 const currentUserId = async () => {
 	const session = await auth.api.getSession({ headers: getRequestHeaders() });

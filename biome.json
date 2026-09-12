@@ -27,10 +27,51 @@
 			"recommended": true
 		}
 	},
+	"overrides": [
+		{
+			"includes": ["**/src/domain/auth/**"],
+			"linter": {
+				"rules": {
+					"style": {
+						"noRestrictedImports": {
+							"level": "error",
+							"options": {
+								"patterns": [
+									{
+										"group": ["#/domain/subscription/**"],
+										"message": "BC を跨ぐ import は禁止。必要な概念は auth BC 内で定義し、翻訳は境界層（src/routes 配下）で行う。"
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"includes": ["**/src/domain/subscription/**"],
+			"linter": {
+				"rules": {
+					"style": {
+						"noRestrictedImports": {
+							"level": "error",
+							"options": {
+								"patterns": [
+									{
+										"group": ["#/domain/auth/**"],
+										"message": "BC を跨ぐ import は禁止。必要な概念は subscription BC 内で定義し、翻訳は境界層（src/routes 配下）で行う。"
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		}
+	],
 	"javascript": {
 		"formatter": {
 			"quoteStyle": "double"
 		}
 	}
 }
-

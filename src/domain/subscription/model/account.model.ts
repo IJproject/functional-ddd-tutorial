@@ -1,4 +1,4 @@
-import type { Choice } from "#/domain/building-blocks";
+import type { Case } from "#/domain/building-blocks";
 import type {
 	AccountId,
 	BillingAddress,
@@ -7,7 +7,7 @@ import type {
 } from "#/domain/subscription/model/account.primitive";
 
 export type Account = TrialUnusedAccount | TrialUsedAccount;
-export type TrialUnusedAccount = Choice<
+export type TrialUnusedAccount = Case<
 	"TrialUnusedAccount",
 	{
 		id: AccountId;
@@ -15,7 +15,7 @@ export type TrialUnusedAccount = Choice<
 		paymentMethod: PaymentMethod;
 	}
 >;
-export type TrialUsedAccount = Choice<
+export type TrialUsedAccount = Case<
 	"TrialUsedAccount",
 	{
 		id: AccountId;

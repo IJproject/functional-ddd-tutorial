@@ -1,4 +1,4 @@
-import type { Choice } from "#/domain/building-blocks";
+import type { Case } from "#/domain/building-blocks";
 import type { AccountId } from "#/domain/subscription/model/account.primitive";
 import type { PlanId } from "#/domain/subscription/model/plan.primitive";
 import type {
@@ -16,13 +16,13 @@ export type Subscription =
 	| CancelReservedSubscription
 	| PlanChangeReservedSubscription;
 
-export type FreeSubscription = Choice<
+export type FreeSubscription = Case<
 	"FreeSubscription",
 	{
 		accountId: AccountId;
 	}
 >;
-export type TrialSubscription = Choice<
+export type TrialSubscription = Case<
 	"TrialSubscription",
 	{
 		accountId: AccountId;
@@ -30,7 +30,7 @@ export type TrialSubscription = Choice<
 		trialEndsAt: TrialEndsAt;
 	}
 >;
-export type PendingPaymentSubscription = Choice<
+export type PendingPaymentSubscription = Case<
 	"PendingPaymentSubscription",
 	{
 		accountId: AccountId;
@@ -38,7 +38,7 @@ export type PendingPaymentSubscription = Choice<
 		pendingInvoiceId: InvoiceId;
 	}
 >;
-export type PaidSubscription = Choice<
+export type PaidSubscription = Case<
 	"PaidSubscription",
 	{
 		accountId: AccountId;
@@ -46,7 +46,7 @@ export type PaidSubscription = Choice<
 		periodEndsAt: PeriodEndsAt;
 	}
 >;
-export type UpgradePendingSubscription = Choice<
+export type UpgradePendingSubscription = Case<
 	"UpgradePendingSubscription",
 	{
 		accountId: AccountId;
@@ -55,7 +55,7 @@ export type UpgradePendingSubscription = Choice<
 		pendingInvoiceId: InvoiceId;
 	}
 >;
-export type CancelReservedSubscription = Choice<
+export type CancelReservedSubscription = Case<
 	"CancelReservedSubscription",
 	{
 		accountId: AccountId;
@@ -63,7 +63,7 @@ export type CancelReservedSubscription = Choice<
 		periodEndsAt: PeriodEndsAt;
 	}
 >;
-export type PlanChangeReservedSubscription = Choice<
+export type PlanChangeReservedSubscription = Case<
 	"PlanChangeReservedSubscription",
 	{
 		accountId: AccountId;

@@ -4,7 +4,12 @@ import type {
 	AuthenticatedSession,
 	Session,
 } from "#/domain/auth/model/session.model";
-import { err, ok, type Result } from "#/domain/building-blocks";
+import {
+	type AsyncResult,
+	err,
+	matchChoice,
+	ok,
+} from "#/domain/building-blocks";
 
 // ===========================================================================
 // 型定義（仕様）
@@ -34,7 +39,7 @@ export type LogoutWorkflowDeps = {
  */
 export type LogoutWorkflow = (
 	session: Session,
-) => Promise<Result<LoggedOut, LogoutError>>;
+) => AsyncResult<LoggedOut, LogoutError>;
 
 export type CreateLogoutWorkflow = (deps: LogoutWorkflowDeps) => LogoutWorkflow;
 
@@ -50,11 +55,12 @@ export const createLoggedOutEvent: CreateLoggedOutEvent = (
 	loggedOutAt,
 });
 
-export const createLogoutWorkflow: CreateLogoutWorkflow =
-	(deps) => async (session) => {
-		if (session.kind === "AnonymousSession")
-			return err({ kind: "NotAuthenticated" });
-
-		await deps.discardSession(session);
-		return ok(deps.createLoggedOutEvent(session, deps.now()));
-	};
+// Session に case が増えたとき認証状態の解釈漏れを型で検出するため、網羅的に分岐する。
+export const createLogoutWorkflow: CreateLogoutWorkflow = (deps) => (session) =>
+	matchChoice<Session, AsyncResult<LoggedOut, LogoutError>>(session, {
+		AnonymousSession: async () => err({ kind: "NotAuthenticated" }),
+		AuthenticatedSession: async (authenticated) => {
+			await deps.discardSession(authenticated);
+			return ok(deps.createLoggedOutEvent(authenticated, deps.now()));
+		},
+	});

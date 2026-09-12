@@ -1,5 +1,5 @@
 import type { LoggedOut, LogoutError } from "#/domain/auth/model/logout.model";
-import { match, type Result } from "#/domain/building-blocks";
+import { Result } from "#/domain/building-blocks";
 
 // ===========================================================================
 // 型定義（仕様）
@@ -19,7 +19,7 @@ const NOT_AUTHENTICATED_MESSAGE = "すでにログアウトしています";
 export const encodeLogoutResult = (
 	result: Result<LoggedOut, LogoutError>,
 ): LogoutResult =>
-	match<LoggedOut, LogoutError, LogoutResult>(result, {
+	Result.match<LoggedOut, LogoutError, LogoutResult>(result, {
 		ok: (loggedOut) => ({ ok: true, userId: loggedOut.userId }),
 		err: () => ({ ok: false, message: NOT_AUTHENTICATED_MESSAGE }),
 	});

@@ -13,19 +13,13 @@ import {
 } from "#/domain/auth/model/login.primitive";
 import type { AuthenticatedUser } from "#/domain/auth/model/user.model";
 import { EmailAddress } from "#/domain/auth/model/user.primitive";
-import {
-	combineAll,
-	flatMapAsync,
-	map,
-	mapErr,
-	type Result,
-} from "#/domain/building-blocks";
+import { AsyncResult, pipe, Result } from "#/domain/building-blocks";
 
 // ===========================================================================
 // 型定義（仕様）
 // ===========================================================================
 
-/** ① 未検証 → ② 形式検証済み。純粋関数（Promise を返さないことで I/O 不在を型で示す）。 */
+/** ① 未検証 → ② 形式検証済み。Result を返す純粋関数（AsyncResult との対比で I/O 不在を型で示す）。 */
 export type ValidateLoginRequest = (
 	request: UnvalidatedLoginRequest,
 ) => Result<ValidatedLoginRequest, ValidationFailed>;
@@ -33,7 +27,7 @@ export type ValidateLoginRequest = (
 /** ② 形式検証済み → ③ 認証済み。I/O を伴うためドメインは型だけを定め、実装は外から注入する。 */
 export type VerifyCredentials = (
 	request: ValidatedLoginRequest,
-) => Promise<Result<AuthenticatedUser, AuthenticationFailed>>;
+) => AsyncResult<AuthenticatedUser, AuthenticationFailed>;
 
 /** ③ 認証済み → 出力イベント。純粋関数。 */
 export type CreateLoggedInEvent = (
@@ -51,7 +45,7 @@ export type LoginWorkflowDeps = {
 /** パイプライン全体。 */
 export type LoginWorkflow = (
 	request: UnvalidatedLoginRequest,
-) => Promise<Result<LoggedIn, LoginError>>;
+) => AsyncResult<LoggedIn, LoginError>;
 
 export type CreateLoginWorkflow = (deps: LoginWorkflowDeps) => LoginWorkflow;
 
@@ -60,22 +54,26 @@ export type CreateLoginWorkflow = (deps: LoginWorkflowDeps) => LoginWorkflow;
 // ===========================================================================
 
 export const validateLoginRequest: ValidateLoginRequest = (request) => {
-	const email = mapErr(
+	const email = pipe(
 		EmailAddress.create(request.email),
-		(message): LoginValidationError => ({ kind: "InvalidEmail", message }),
+		Result.mapErr(
+			(message): LoginValidationError => ({ kind: "InvalidEmail", message }),
+		),
 	);
-	const password = mapErr(
+	const password = pipe(
 		RawPassword.create(request.password),
-		(message): LoginValidationError => ({ kind: "InvalidPassword", message }),
+		Result.mapErr(
+			(message): LoginValidationError => ({ kind: "InvalidPassword", message }),
+		),
 	);
 
 	// 1件目のエラーだけ返してもフォームとして使えないので combineAll を使う。
-	return mapErr(
-		map(combineAll([email, password]), ([email, password]) => ({
-			email,
-			password,
-		})),
-		(errors): ValidationFailed => ({ kind: "ValidationFailed", errors }),
+	return pipe(
+		Result.combineAll([email, password]),
+		Result.map(([email, password]) => ({ email, password })),
+		Result.mapErr(
+			(errors): ValidationFailed => ({ kind: "ValidationFailed", errors }),
+		),
 	);
 };
 
@@ -84,12 +82,9 @@ export const createLoggedInEvent: CreateLoggedInEvent = (user, loggedInAt) => ({
 	loggedInAt,
 });
 
-export const createLoginWorkflow: CreateLoginWorkflow =
-	(deps) => async (request) =>
-		map(
-			await flatMapAsync<ValidatedLoginRequest, AuthenticatedUser, LoginError>(
-				deps.validateLoginRequest(request),
-				deps.verifyCredentials,
-			),
-			(user) => deps.createLoggedInEvent(user, deps.now()),
-		);
+export const createLoginWorkflow: CreateLoginWorkflow = (deps) => (request) =>
+	pipe(
+		deps.validateLoginRequest(request),
+		AsyncResult.flatMap(deps.verifyCredentials),
+		AsyncResult.map((user) => deps.createLoggedInEvent(user, deps.now())),
+	);

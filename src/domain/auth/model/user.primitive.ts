@@ -1,4 +1,11 @@
-import { err, ok, type Primitive, type Result } from "#/domain/building-blocks";
+import {
+	brandPrimitive,
+	err,
+	ok,
+	type Primitive,
+	type Result,
+	type Unbranded,
+} from "#/domain/building-blocks";
 
 // ===========================================================================
 // 型定義（仕様）
@@ -15,8 +22,9 @@ export const UserId = {
 	/**
 	 * 信頼境界の内側（自前の認証基盤が発行した id）からの変換。
 	 * 検証の必要がないので Result を返さない。戻り値の型が「失敗しない」ことを語る。
+	 * Unbranded により、他の Primitive を誤って渡すのを型で止める。
 	 */
-	create: (input: string): UserId => input as UserId,
+	create: (input: Unbranded<string>): UserId => brandPrimitive<UserId>(input),
 	value: (userId: UserId): string => userId,
 };
 
@@ -28,12 +36,12 @@ export const EmailAddress = {
 	 * 誤りの内容はメッセージのみを返し、「どのフィールドか」は呼び出し側（検証関数）が付与する。
 	 * プリミティブがフォームの構造を知らないようにするため。
 	 */
-	create: (input: string): Result<EmailAddress, string> => {
+	create: (input: Unbranded<string>): Result<EmailAddress, string> => {
 		const trimmed = input.trim();
 		if (trimmed === "") return err("メールアドレスを入力してください");
 		if (!EMAIL_PATTERN.test(trimmed))
 			return err("メールアドレスの形式が正しくありません");
-		return ok(trimmed as EmailAddress);
+		return ok(brandPrimitive<EmailAddress>(trimmed));
 	},
 	value: (email: EmailAddress): string => email,
 };

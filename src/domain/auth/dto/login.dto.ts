@@ -6,7 +6,7 @@ import type {
 	UnvalidatedLoginRequest,
 } from "#/domain/auth/model/login.model";
 import type { Session } from "#/domain/auth/model/session.model";
-import { match, type Result } from "#/domain/building-blocks";
+import { matchChoice, Result } from "#/domain/building-blocks";
 
 // ===========================================================================
 // 型定義（仕様）
@@ -46,7 +46,10 @@ const AUTHENTICATION_FAILED_MESSAGE =
 
 /** ドメインのエラーを、フォームのどの項目に出すかへ翻訳する。 */
 const toFieldName = (error: LoginValidationError): "email" | "password" =>
-	error.kind === "InvalidEmail" ? "email" : "password";
+	matchChoice(error, {
+		InvalidEmail: () => "email",
+		InvalidPassword: () => "password",
+	});
 
 /** LoginCommand → ドメインの未検証入力。 */
 export const decodeLoginCommand = (
@@ -60,25 +63,30 @@ export const decodeLoginCommand = (
 export const encodeLoginResult = (
 	result: Result<LoggedIn, LoginError>,
 ): LoginResult =>
-	match<LoggedIn, LoginError, LoginResult>(result, {
+	Result.match<LoggedIn, LoginError, LoginResult>(result, {
 		ok: (loggedIn) => ({ ok: true, userId: loggedIn.userId }),
 		err: (error) =>
-			error.kind === "ValidationFailed"
-				? {
-						ok: false,
-						errors: error.errors.map((validationError) => ({
-							field: toFieldName(validationError),
-							message: validationError.message,
-						})),
-					}
-				: {
-						ok: false,
-						errors: [{ field: null, message: AUTHENTICATION_FAILED_MESSAGE }],
-					},
+			matchChoice<LoginError, LoginResult>(error, {
+				ValidationFailed: (validationFailed) => ({
+					ok: false,
+					errors: validationFailed.errors.map((validationError) => ({
+						field: toFieldName(validationError),
+						message: validationError.message,
+					})),
+				}),
+				AuthenticationFailed: () => ({
+					ok: false,
+					errors: [{ field: null, message: AUTHENTICATION_FAILED_MESSAGE }],
+				}),
+			}),
 	});
 
 /** ドメインの Session → SessionView。 */
 export const encodeSessionView = (session: Session): SessionView =>
-	session.kind === "AuthenticatedSession"
-		? { loggedIn: true, userId: session.userId }
-		: { loggedIn: false };
+	matchChoice(session, {
+		AuthenticatedSession: (authenticated) => ({
+			loggedIn: true,
+			userId: authenticated.userId,
+		}),
+		AnonymousSession: () => ({ loggedIn: false }),
+	});

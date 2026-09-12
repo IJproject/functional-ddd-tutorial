@@ -1,10 +1,9 @@
-import type { LogoutError } from "#/domain/auth/model/logout.choice";
+import type { LoggedOut, LogoutError } from "#/domain/auth/model/logout.model";
 import type { LoggedOutAt } from "#/domain/auth/model/logout.primitive";
-import type { LoggedOut } from "#/domain/auth/model/logout.record";
 import type {
 	AuthenticatedSession,
 	Session,
-} from "#/domain/auth/model/session.choice";
+} from "#/domain/auth/model/session.model";
 import { err, ok, type Result } from "#/domain/building-blocks";
 
 // ===========================================================================

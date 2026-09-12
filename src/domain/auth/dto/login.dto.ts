@@ -1,37 +1,35 @@
 import * as z from "zod";
 import type {
+	LoggedIn,
 	LoginError,
 	LoginValidationError,
-} from "#/domain/auth/model/login.choice";
-import type {
-	LoggedIn,
 	UnvalidatedLoginRequest,
-} from "#/domain/auth/model/login.record";
-import type { Session } from "#/domain/auth/model/session.choice";
+} from "#/domain/auth/model/login.model";
+import type { Session } from "#/domain/auth/model/session.model";
 import { match, type Result } from "#/domain/building-blocks";
 
 // ===========================================================================
 // 型定義（仕様）
 // ===========================================================================
 
-/** 境界（JSON）での parse。「メールとして妥当か」はドメインの createEmailAddress の仕事。 */
-export const loginInputSchema = z.object({
+/** 境界（JSON）での parse。「メールとして妥当か」はドメインの EmailAddress.create の仕事。 */
+export const loginCommandSchema = z.object({
 	email: z.string(),
 	password: z.string(),
 });
 
-export type LoginInputDto = z.infer<typeof loginInputSchema>;
+export type LoginCommand = z.infer<typeof loginCommandSchema>;
 
-export type LoginErrorDto = {
+export type LoginFieldError = {
 	field: "email" | "password" | null;
 	message: string;
 };
 
-export type LoginOutputDto =
+export type LoginResult =
 	| { ok: true; userId: string }
-	| { ok: false; errors: LoginErrorDto[] };
+	| { ok: false; errors: LoginFieldError[] };
 
-export type SessionDto =
+export type SessionView =
 	| { loggedIn: false }
 	| { loggedIn: true; userId: string };
 
@@ -50,19 +48,19 @@ const AUTHENTICATION_FAILED_MESSAGE =
 const toFieldName = (error: LoginValidationError): "email" | "password" =>
 	error.kind === "InvalidEmail" ? "email" : "password";
 
-/** 入力 DTO → ドメインの未検証入力。 */
-export const toUnvalidatedLoginRequest = (
-	dto: LoginInputDto,
+/** LoginCommand → ドメインの未検証入力。 */
+export const decodeLoginCommand = (
+	command: LoginCommand,
 ): UnvalidatedLoginRequest => ({
-	email: dto.email,
-	password: dto.password,
+	email: command.email,
+	password: command.password,
 });
 
-/** ドメインの結果 → 出力 DTO。 */
-export const toLoginOutputDto = (
+/** ドメインの結果 → LoginResult。 */
+export const encodeLoginResult = (
 	result: Result<LoggedIn, LoginError>,
-): LoginOutputDto =>
-	match<LoggedIn, LoginError, LoginOutputDto>(result, {
+): LoginResult =>
+	match<LoggedIn, LoginError, LoginResult>(result, {
 		ok: (loggedIn) => ({ ok: true, userId: loggedIn.userId }),
 		err: (error) =>
 			error.kind === "ValidationFailed"
@@ -79,8 +77,8 @@ export const toLoginOutputDto = (
 					},
 	});
 
-/** ドメインの Session → 出力 DTO。 */
-export const toSessionDto = (session: Session): SessionDto =>
+/** ドメインの Session → SessionView。 */
+export const encodeSessionView = (session: Session): SessionView =>
 	session.kind === "AuthenticatedSession"
 		? { loggedIn: true, userId: session.userId }
 		: { loggedIn: false };

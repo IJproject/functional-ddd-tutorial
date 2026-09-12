@@ -10,4 +10,7 @@ export type LoggedOutAt = Primitive<"LoggedOutAt", Date>;
 // 実装
 // ===========================================================================
 
-export const toLoggedOutAt = (value: Date): LoggedOutAt => value as LoggedOutAt;
+export const LoggedOutAt = {
+	create: (input: Date): LoggedOutAt => input as LoggedOutAt,
+	value: (loggedOutAt: LoggedOutAt): Date => loggedOutAt,
+};

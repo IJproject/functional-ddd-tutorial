@@ -2,16 +2,16 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { type FormEvent, useEffect, useState } from "react";
 import {
-	type LoginErrorDto,
-	loginInputSchema,
-	type SessionDto,
-	toLoginOutputDto,
-	toSessionDto,
-	toUnvalidatedLoginRequest,
+	decodeLoginCommand,
+	encodeLoginResult,
+	encodeSessionView,
+	type LoginFieldError,
+	loginCommandSchema,
+	type SessionView,
 } from "#/domain/auth/dto/login.dto";
-import { toLogoutOutputDto } from "#/domain/auth/dto/logout.dto";
-import { toLoggedInAt } from "#/domain/auth/model/login.primitive";
-import { toLoggedOutAt } from "#/domain/auth/model/logout.primitive";
+import { encodeLogoutResult } from "#/domain/auth/dto/logout.dto";
+import { LoggedInAt } from "#/domain/auth/model/login.primitive";
+import { LoggedOutAt } from "#/domain/auth/model/logout.primitive";
 import {
 	createLoggedInEvent,
 	createLoginWorkflow,
@@ -30,37 +30,37 @@ const loginWorkflow = createLoginWorkflow({
 	validateLoginRequest,
 	verifyCredentials,
 	createLoggedInEvent,
-	now: () => toLoggedInAt(new Date()),
+	now: () => LoggedInAt.create(new Date()),
 });
 
 const logoutWorkflow = createLogoutWorkflow({
 	discardSession,
 	createLoggedOutEvent,
-	now: () => toLoggedOutAt(new Date()),
+	now: () => LoggedOutAt.create(new Date()),
 });
 
 const login = createServerFn({ method: "POST" })
-	.validator(loginInputSchema)
+	.validator(loginCommandSchema)
 	.handler(async ({ data }) =>
-		toLoginOutputDto(await loginWorkflow(toUnvalidatedLoginRequest(data))),
+		encodeLoginResult(await loginWorkflow(decodeLoginCommand(data))),
 	);
 const logout = createServerFn({ method: "POST" }).handler(async () =>
-	toLogoutOutputDto(await logoutWorkflow(await currentSession())),
+	encodeLogoutResult(await logoutWorkflow(await currentSession())),
 );
 
 const fetchSession = createServerFn({ method: "GET" }).handler(async () =>
-	toSessionDto(await currentSession()),
+	encodeSessionView(await currentSession()),
 );
 
-const UNEXPECTED_ERROR: LoginErrorDto = {
+const UNEXPECTED_ERROR: LoginFieldError = {
 	field: null,
 	message: "ログインに失敗しました",
 };
 
 export function LoginPage() {
 	const navigate = useNavigate();
-	const [errors, setErrors] = useState<LoginErrorDto[]>([]);
-	const [session, setSession] = useState<SessionDto>({ loggedIn: false });
+	const [errors, setErrors] = useState<LoginFieldError[]>([]);
+	const [session, setSession] = useState<SessionView>({ loggedIn: false });
 	useEffect(() => {
 		fetchSession().then(setSession);
 	}, []);

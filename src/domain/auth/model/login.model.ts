@@ -1,5 +1,24 @@
-import type { EmailAddress } from "#/domain/auth/model/user.primitive";
+import type {
+	LoggedInAt,
+	RawPassword,
+} from "#/domain/auth/model/login.primitive";
+import type { EmailAddress, UserId } from "#/domain/auth/model/user.primitive";
 import type { Choice, NonEmptyArray } from "#/domain/building-blocks";
+
+export type UnvalidatedLoginRequest = {
+	email: string;
+	password: string;
+};
+
+export type ValidatedLoginRequest = {
+	email: EmailAddress;
+	password: RawPassword;
+};
+
+export type LoggedIn = {
+	userId: UserId;
+	loggedInAt: LoggedInAt;
+};
 
 export type LoginError = ValidationFailed | AuthenticationFailed;
 

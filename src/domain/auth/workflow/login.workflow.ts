@@ -1,20 +1,18 @@
 import type {
 	AuthenticationFailed,
+	LoggedIn,
 	LoginError,
 	LoginValidationError,
-	ValidationFailed,
-} from "#/domain/auth/model/login.choice";
-import {
-	createRawPassword,
-	type LoggedInAt,
-} from "#/domain/auth/model/login.primitive";
-import type {
-	LoggedIn,
 	UnvalidatedLoginRequest,
 	ValidatedLoginRequest,
-} from "#/domain/auth/model/login.record";
-import { createEmailAddress } from "#/domain/auth/model/user.primitive";
-import type { AuthenticatedUser } from "#/domain/auth/model/user.record";
+	ValidationFailed,
+} from "#/domain/auth/model/login.model";
+import {
+	type LoggedInAt,
+	RawPassword,
+} from "#/domain/auth/model/login.primitive";
+import type { AuthenticatedUser } from "#/domain/auth/model/user.model";
+import { EmailAddress } from "#/domain/auth/model/user.primitive";
 import {
 	combineAll,
 	flatMapAsync,
@@ -63,11 +61,11 @@ export type CreateLoginWorkflow = (deps: LoginWorkflowDeps) => LoginWorkflow;
 
 export const validateLoginRequest: ValidateLoginRequest = (request) => {
 	const email = mapErr(
-		createEmailAddress(request.email),
+		EmailAddress.create(request.email),
 		(message): LoginValidationError => ({ kind: "InvalidEmail", message }),
 	);
 	const password = mapErr(
-		createRawPassword(request.password),
+		RawPassword.create(request.password),
 		(message): LoginValidationError => ({ kind: "InvalidPassword", message }),
 	);
 

@@ -1,12 +1,16 @@
-import type { FieldError } from "#/domain/auth/model/login.record";
 import type { EmailAddress } from "#/domain/auth/model/user.primitive";
-import type { Choice } from "#/domain/building-blocks";
+import type { Choice, NonEmptyArray } from "#/domain/building-blocks";
 
 export type LoginError = ValidationFailed | AuthenticationFailed;
 
+/** 入力値の形式が不正。フォーム項目ではなく、どの値オブジェクトの構築に失敗したかを表す。 */
+export type LoginValidationError = InvalidEmail | InvalidPassword;
+export type InvalidEmail = Choice<"InvalidEmail", { message: string }>;
+export type InvalidPassword = Choice<"InvalidPassword", { message: string }>;
+
 export type ValidationFailed = Choice<
 	"ValidationFailed",
-	{ errors: FieldError[] }
+	{ errors: NonEmptyArray<LoginValidationError> }
 >;
 
 export type AuthenticationFailed = Choice<

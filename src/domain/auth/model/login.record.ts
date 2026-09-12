@@ -18,8 +18,3 @@ export type LoggedIn = {
 	userId: UserId;
 	loggedInAt: LoggedInAt;
 };
-
-export type FieldError = {
-	field: "email" | "password";
-	message: string;
-};

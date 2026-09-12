@@ -6,7 +6,47 @@ To run this application:
 
 ```bash
 npm install
-npm run dev
+docker compose up -d --wait   # ローカル Postgres を起動
+npm run db:push               # スキーマを DB に反映
+npm run dev                   # http://localhost:3000
+```
+
+## Local Database (Docker)
+
+開発用の PostgreSQL は `compose.yml` で管理しています。データは名前付きボリューム
+`db-data` に永続化されるので、`docker compose down` しても中身は残ります。
+
+```bash
+docker compose up -d --wait   # 起動（healthcheck が通るまで待つ）
+docker compose ps             # 状態確認
+docker compose logs -f db     # ログ
+docker compose down           # 停止（データは残る）
+docker compose down -v        # 停止＋データ破棄（作り直したいとき）
+```
+
+接続情報（`.env.local` の `DATABASE_URL` と対応）:
+
+| 項目 | 値 |
+| --- | --- |
+| host | `localhost` |
+| port | `5433` |
+| user / password | `app` / `app` |
+| database | `app` |
+
+ホスト側ポートを 5433 にしているのは、5432 が他プロジェクトのコンテナと衝突しやすいためです。
+
+psql に入る:
+
+```bash
+docker compose exec db psql -U app -d app
+```
+
+スキーマ（`src/external/db/schema.ts`）を変更したら:
+
+```bash
+npm run db:generate   # マイグレーション SQL を drizzle/ に生成
+npm run db:migrate    # DB に適用
+npm run db:studio     # Drizzle Studio で中身を確認
 ```
 
 # Building For Production
@@ -48,10 +88,10 @@ This project uses Nitro as a generic server adapter, so it can run on any Node-c
 
 ```bash
 npm run build
-node dist/server/index.mjs
+npm run start   # node --import ./.output/server/instrument.server.mjs .output/server/index.mjs
 ```
 
-The build output is a self-contained Node server. To deploy, push the `dist/` directory to your host (Render, Fly.io, your own VPS, etc.) and run the server command above.
+The build output is a self-contained Node server. To deploy, push the `.output/` directory to your host (Render, Fly.io, your own VPS, etc.) and run the server command above.
 
 For host-specific presets (Vercel, Netlify, Cloudflare, AWS Lambda, etc.) and tuning, see https://v3.nitro.build/deploy.
 

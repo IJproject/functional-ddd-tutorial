@@ -3,10 +3,7 @@ import type { Choice } from "#/domain/building-blocks";
 
 export type Session = AnonymousSession | AuthenticatedSession;
 
-export type AnonymousSession = Choice<
-	"AnonymousSession",
-	Record<string, never>
->;
+export type AnonymousSession = Choice<"AnonymousSession">;
 
 export type AuthenticatedSession = Choice<
 	"AuthenticatedSession",

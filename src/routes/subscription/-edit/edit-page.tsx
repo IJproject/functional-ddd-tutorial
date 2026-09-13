@@ -29,6 +29,7 @@ import {
 } from "#/domain/subscription/dto/schedule.dto";
 import {
 	encodeSubscriptionView,
+	STORE_UNAVAILABLE_MESSAGE,
 	SUBSCRIPTION_EDIT_TEXT,
 	type SubscriptionView,
 } from "#/domain/subscription/dto/subscription-view.dto";
@@ -101,17 +102,36 @@ const endPeriodWorkflow = createEndPeriodWorkflow({
 const toAccountId = (userId: UserId): AccountId =>
 	AccountId.create(UserId.value(userId));
 
+/** StoreError の reason は内部情報なので捨て、どの操作でも同じ公開文言へ落とす。 */
+const STORE_UNAVAILABLE_RESPONSE = {
+	ok: false,
+	message: STORE_UNAVAILABLE_MESSAGE,
+} as const;
+
+const STORE_UNAVAILABLE_CHANGE_PLAN_RESPONSE: ChangePlanResponse = {
+	ok: false,
+	errors: [{ field: null, message: STORE_UNAVAILABLE_MESSAGE }],
+};
+
 const getSubscriptionView = createServerFn({ method: "GET" }).handler(
 	async () => {
 		const session = await currentSession();
-		return matchChoice<typeof session, SubscriptionView>(session, {
-			AnonymousSession: () => ({ loggedIn: false }),
-			AuthenticatedSession: ({ userId }) => {
+		return matchChoice<typeof session, Promise<SubscriptionView>>(session, {
+			AnonymousSession: async () => ({ loggedIn: false }),
+			AuthenticatedSession: async ({ userId }) => {
 				const accountId = toAccountId(userId);
-				return encodeSubscriptionView(
+				const [subscription, invoices] = await Promise.all([
 					loadSubscription(accountId),
 					loadInvoices(accountId),
-				);
+				]);
+				return Result.match(Result.combine([subscription, invoices]), {
+					// クライアントへ StoreError の reason を運ばないため、公開文言だけで失敗させる。
+					err: () => {
+						throw new Error(STORE_UNAVAILABLE_MESSAGE);
+					},
+					ok: ([domainSubscription, domainInvoices]) =>
+						encodeSubscriptionView(domainSubscription, domainInvoices),
+				});
 			},
 		});
 	},
@@ -121,36 +141,53 @@ const requestPlanChange = createServerFn({ method: "POST" })
 	.validator(changePlanCommandSchema)
 	.handler(async ({ data }) => {
 		const session = await currentSession();
-		return matchChoice<typeof session, ChangePlanResponse>(session, {
-			AnonymousSession: () => ({
+		return matchChoice<typeof session, Promise<ChangePlanResponse>>(session, {
+			AnonymousSession: async () => ({
 				ok: false,
 				errors: [
 					{ field: null, message: SUBSCRIPTION_EDIT_TEXT.loginRequired },
 				],
 			}),
-			AuthenticatedSession: ({ userId }) => {
-				const subscription = loadSubscription(toAccountId(userId));
-				const result = changePlanWorkflow(
-					decodeChangePlanCommand(data),
-					subscription,
-				);
-				Result.match(result, { ok: savePlanChanged, err: () => undefined });
-				return encodeChangePlanResponse(result);
+			AuthenticatedSession: async ({ userId }) => {
+				const loaded = await loadSubscription(toAccountId(userId));
+				return Result.match(loaded, {
+					err: async () => STORE_UNAVAILABLE_CHANGE_PLAN_RESPONSE,
+					ok: async (subscription): Promise<ChangePlanResponse> => {
+						const result = changePlanWorkflow(
+							decodeChangePlanCommand(data),
+							subscription,
+						);
+						await Result.match(result, {
+							ok: savePlanChanged,
+							err: async () => undefined,
+						});
+						return encodeChangePlanResponse(result);
+					},
+				});
 			},
 		});
 	});
 
 const cancelTrial = createServerFn({ method: "POST" }).handler(async () => {
 	const session = await currentSession();
-	return matchChoice<typeof session, CancelResponse>(session, {
-		AnonymousSession: () => ({
+	return matchChoice<typeof session, Promise<CancelResponse>>(session, {
+		AnonymousSession: async () => ({
 			ok: false,
 			message: SUBSCRIPTION_EDIT_TEXT.loginRequired,
 		}),
-		AuthenticatedSession: ({ userId }) => {
-			const result = cancelTrialWorkflow(loadSubscription(toAccountId(userId)));
-			Result.match(result, { ok: saveTrialCancelled, err: () => undefined });
-			return encodeCancelTrialResponse(result);
+		AuthenticatedSession: async ({ userId }) => {
+			const loaded = await loadSubscription(toAccountId(userId));
+			return Result.match(loaded, {
+				err: async () => STORE_UNAVAILABLE_RESPONSE,
+				ok: async (subscription): Promise<CancelResponse> => {
+					const result = cancelTrialWorkflow(subscription);
+					await Result.match(result, {
+						ok: saveTrialCancelled,
+						err: async () => undefined,
+					});
+					return encodeCancelTrialResponse(result);
+				},
+			});
 		},
 	});
 });
@@ -158,20 +195,24 @@ const cancelTrial = createServerFn({ method: "POST" }).handler(async () => {
 const reserveCancellation = createServerFn({ method: "POST" }).handler(
 	async () => {
 		const session = await currentSession();
-		return matchChoice<typeof session, CancelResponse>(session, {
-			AnonymousSession: () => ({
+		return matchChoice<typeof session, Promise<CancelResponse>>(session, {
+			AnonymousSession: async () => ({
 				ok: false,
 				message: SUBSCRIPTION_EDIT_TEXT.loginRequired,
 			}),
-			AuthenticatedSession: ({ userId }) => {
-				const result = reserveCancellationWorkflow(
-					loadSubscription(toAccountId(userId)),
-				);
-				Result.match(result, {
-					ok: saveCancellationReserved,
-					err: () => undefined,
+			AuthenticatedSession: async ({ userId }) => {
+				const loaded = await loadSubscription(toAccountId(userId));
+				return Result.match(loaded, {
+					err: async () => STORE_UNAVAILABLE_RESPONSE,
+					ok: async (subscription): Promise<CancelResponse> => {
+						const result = reserveCancellationWorkflow(subscription);
+						await Result.match(result, {
+							ok: saveCancellationReserved,
+							err: async () => undefined,
+						});
+						return encodeReserveCancellationResponse(result);
+					},
 				});
-				return encodeReserveCancellationResponse(result);
 			},
 		});
 	},
@@ -181,56 +222,83 @@ const payInvoice = createServerFn({ method: "POST" })
 	.validator(payInvoiceCommandSchema)
 	.handler(async ({ data }) => {
 		const session = await currentSession();
-		return matchChoice<typeof session, PaymentResponse>(session, {
-			AnonymousSession: () => ({
+		return matchChoice<typeof session, Promise<PaymentResponse>>(session, {
+			AnonymousSession: async () => ({
 				ok: false,
 				message: SUBSCRIPTION_EDIT_TEXT.loginRequired,
 			}),
-			AuthenticatedSession: ({ userId }) => {
+			AuthenticatedSession: async ({ userId }) => {
 				const accountId = toAccountId(userId);
-				const invoice = findInvoice(
-					accountId,
-					InvoiceId.create(data.invoiceId),
-				);
-				if (!invoice) return { ok: false, message: INVOICE_NOT_FOUND_MESSAGE };
-				const result = payInvoiceWorkflow(
-					invoice,
+				const [invoice, subscription] = await Promise.all([
+					findInvoice(accountId, InvoiceId.create(data.invoiceId)),
 					loadSubscription(accountId),
-					decodePaymentOutcome(data),
-					{ now: now() },
-				);
-				Result.match(result, { ok: savePaymentSettled, err: () => undefined });
-				return encodePaymentResponse(result);
+				]);
+				return Result.match(Result.combine([invoice, subscription]), {
+					err: async () => STORE_UNAVAILABLE_RESPONSE,
+					ok: async ([domainInvoice, domainSubscription]) => {
+						if (!domainInvoice)
+							return { ok: false, message: INVOICE_NOT_FOUND_MESSAGE };
+						const result = payInvoiceWorkflow(
+							domainInvoice,
+							domainSubscription,
+							decodePaymentOutcome(data),
+							{ now: now() },
+						);
+						await Result.match(result, {
+							ok: savePaymentSettled,
+							err: async () => undefined,
+						});
+						return encodePaymentResponse(result);
+					},
+				});
 			},
 		});
 	});
 
 const endTrial = createServerFn({ method: "POST" }).handler(async () => {
 	const session = await currentSession();
-	return matchChoice<typeof session, ScheduleResponse>(session, {
-		AnonymousSession: () => ({
+	return matchChoice<typeof session, Promise<ScheduleResponse>>(session, {
+		AnonymousSession: async () => ({
 			ok: false,
 			message: SUBSCRIPTION_EDIT_TEXT.loginRequired,
 		}),
-		AuthenticatedSession: ({ userId }) => {
-			const result = endTrialWorkflow(loadSubscription(toAccountId(userId)));
-			Result.match(result, { ok: saveTrialEnded, err: () => undefined });
-			return encodeEndTrialResponse(result);
+		AuthenticatedSession: async ({ userId }) => {
+			const loaded = await loadSubscription(toAccountId(userId));
+			return Result.match(loaded, {
+				err: async () => STORE_UNAVAILABLE_RESPONSE,
+				ok: async (subscription): Promise<ScheduleResponse> => {
+					const result = endTrialWorkflow(subscription);
+					await Result.match(result, {
+						ok: saveTrialEnded,
+						err: async () => undefined,
+					});
+					return encodeEndTrialResponse(result);
+				},
+			});
 		},
 	});
 });
 
 const endPeriod = createServerFn({ method: "POST" }).handler(async () => {
 	const session = await currentSession();
-	return matchChoice<typeof session, ScheduleResponse>(session, {
-		AnonymousSession: () => ({
+	return matchChoice<typeof session, Promise<ScheduleResponse>>(session, {
+		AnonymousSession: async () => ({
 			ok: false,
 			message: SUBSCRIPTION_EDIT_TEXT.loginRequired,
 		}),
-		AuthenticatedSession: ({ userId }) => {
-			const result = endPeriodWorkflow(loadSubscription(toAccountId(userId)));
-			Result.match(result, { ok: savePeriodEnded, err: () => undefined });
-			return encodeEndPeriodResponse(result);
+		AuthenticatedSession: async ({ userId }) => {
+			const loaded = await loadSubscription(toAccountId(userId));
+			return Result.match(loaded, {
+				err: async () => STORE_UNAVAILABLE_RESPONSE,
+				ok: async (subscription): Promise<ScheduleResponse> => {
+					const result = endPeriodWorkflow(subscription);
+					await Result.match(result, {
+						ok: savePeriodEnded,
+						err: async () => undefined,
+					});
+					return encodeEndPeriodResponse(result);
+				},
+			});
 		},
 	});
 });
@@ -248,7 +316,7 @@ export function EditPage() {
 		() =>
 			getSubscriptionView()
 				.then(setData)
-				.catch(() => setErrors([SUBSCRIPTION_EDIT_TEXT.loadFailed])),
+				.catch(() => setErrors([STORE_UNAVAILABLE_MESSAGE])),
 		[],
 	);
 	useEffect(() => {

@@ -32,7 +32,7 @@ const signup = createServerFn({ method: "POST" })
 			await signupWorkflow(decodeSignupCommand(data)),
 		);
 		// subscription BC の口座開設。BC を跨ぐ型の翻訳は境界層で行う。
-		if (response.ok) openAccount(AccountId.create(response.userId));
+		if (response.ok) await openAccount(AccountId.create(response.userId));
 		return response;
 	});
 

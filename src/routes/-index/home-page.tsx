@@ -2,23 +2,49 @@ import { Link } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { UserId } from "#/domain/auth/model/user.primitive";
-import { encodeSubscriptionSummary } from "#/domain/subscription/dto/subscription-view.dto";
+import { Result } from "#/domain/building-blocks";
+import {
+	encodeSubscriptionSummary,
+	STORE_UNAVAILABLE_MESSAGE,
+} from "#/domain/subscription/dto/subscription-view.dto";
 import { AccountId } from "#/domain/subscription/model/account.primitive";
 import { currentUser } from "#/external/better-auth/current-user";
 import { loadSubscription } from "#/external/subscription-store/subscription-store";
 
+type AuthenticatedHome =
+	| { loggedIn: true; name: string; subscriptionLoaded: false }
+	| {
+			loggedIn: true;
+			name: string;
+			subscriptionLoaded: true;
+			statusLabel: string;
+			planName: string | null;
+	  };
+
 const getHome = createServerFn({ method: "GET" }).handler(async () => {
 	const user = await currentUser();
 	if (!user) return { loggedIn: false as const };
-	const summary = encodeSubscriptionSummary(
-		loadSubscription(AccountId.create(UserId.value(user.userId))),
+	const loaded = await loadSubscription(
+		AccountId.create(UserId.value(user.userId)),
 	);
-	return {
-		loggedIn: true as const,
-		name: user.name,
-		statusLabel: summary.statusLabel,
-		planName: summary.planName,
-	};
+	return Result.match(loaded, {
+		// 認証情報は読めているため、契約だけを隠してユーザー名は表示し続ける。
+		err: (): AuthenticatedHome => ({
+			loggedIn: true as const,
+			name: user.name,
+			subscriptionLoaded: false as const,
+		}),
+		ok: (subscription): AuthenticatedHome => {
+			const summary = encodeSubscriptionSummary(subscription);
+			return {
+				loggedIn: true as const,
+				name: user.name,
+				subscriptionLoaded: true as const,
+				statusLabel: summary.statusLabel,
+				planName: summary.planName,
+			};
+		},
+	});
 });
 
 export function HomePage() {
@@ -38,10 +64,14 @@ export function HomePage() {
 				{data?.loggedIn ? (
 					<>
 						<p className="m-0">{data.name}さん</p>
-						<p className="demo-muted">
-							現在: {data.planName ?? data.statusLabel}
-							{data.planName ? `（${data.statusLabel}）` : null}
-						</p>
+						{data.subscriptionLoaded ? (
+							<p className="demo-muted">
+								現在: {data.planName ?? data.statusLabel}
+								{data.planName ? `（${data.statusLabel}）` : null}
+							</p>
+						) : (
+							<p className="demo-muted">{STORE_UNAVAILABLE_MESSAGE}</p>
+						)}
 						<Link className="demo-button mt-4" to="/subscription/edit">
 							契約を見る
 						</Link>

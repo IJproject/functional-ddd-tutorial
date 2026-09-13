@@ -110,8 +110,6 @@ export const applyToSubscription: ApplyToSubscription = (
 								account: {
 									kind: "TrialUsedAccount",
 									id: account.id,
-									billingAddress: account.billingAddress,
-									paymentMethod: account.paymentMethod,
 									trialUsedAt: TrialUsedAt.create(issued.now),
 								},
 								subscription: {

@@ -14,6 +14,7 @@ import {
 	PAYMENT_REQUIRED_MESSAGE,
 	TRIAL_AVAILABLE_MESSAGE,
 } from "#/domain/subscription/dto/apply.dto";
+import { STORE_UNAVAILABLE_MESSAGE } from "#/domain/subscription/dto/subscription-view.dto";
 import { AccountId } from "#/domain/subscription/model/account.primitive";
 import { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
 import {
@@ -33,6 +34,12 @@ const UNEXPECTED_APPLY_ERROR: ApplyFieldError = {
 	message: "申し込みに失敗しました",
 };
 
+/** StoreError の開発者向け reason は捨て、画面には一律の文言だけを渡す。 */
+const STORE_UNAVAILABLE_APPLY_ERROR: ApplyFieldError = {
+	field: null,
+	message: STORE_UNAVAILABLE_MESSAGE,
+};
+
 // composition root: ドメインのポートに具体的な実装を差し込むのはここだけ。
 const applyWorkflow = createApplyWorkflow({
 	validateApplyRequest,
@@ -47,11 +54,18 @@ const toAccountId = (userId: UserId): AccountId =>
 
 const getApplyContext = createServerFn({ method: "GET" }).handler(async () => {
 	const session = await currentSession();
-	return matchChoice<typeof session, ApplyContextView>(session, {
-		AnonymousSession: () => ({ loggedIn: false }),
-		AuthenticatedSession: ({ userId }) => {
-			const context = loadApplyContext(toAccountId(userId));
-			return encodeApplyContextView(context.account, context.subscription);
+	return matchChoice<typeof session, Promise<ApplyContextView>>(session, {
+		AnonymousSession: async () => ({ loggedIn: false }),
+		AuthenticatedSession: async ({ userId }) => {
+			const loaded = await loadApplyContext(toAccountId(userId));
+			return Result.match(loaded, {
+				// 例外にも内部理由を載せず、クライアント側の一律表示へ委ねる。
+				err: () => {
+					throw new Error(STORE_UNAVAILABLE_MESSAGE);
+				},
+				ok: (context) =>
+					encodeApplyContextView(context.account, context.subscription),
+			});
 		},
 	});
 });
@@ -67,16 +81,24 @@ const applySubscription = createServerFn({ method: "POST" })
 			}),
 			AuthenticatedSession: async ({ userId }) => {
 				const accountId = toAccountId(userId);
-				const context = loadApplyContext(accountId);
-				const result = applyWorkflow(
-					decodeApplyCommand(data, AccountId.value(accountId)),
-					context,
-				);
-				Result.match(result, {
-					ok: saveApplied,
-					err: () => undefined,
+				const loaded = await loadApplyContext(accountId);
+				return Result.match(loaded, {
+					err: async (): Promise<ApplyResponse> => ({
+						ok: false,
+						errors: [STORE_UNAVAILABLE_APPLY_ERROR],
+					}),
+					ok: async (context): Promise<ApplyResponse> => {
+						const result = applyWorkflow(
+							decodeApplyCommand(data, AccountId.value(accountId)),
+							context,
+						);
+						await Result.match(result, {
+							ok: saveApplied,
+							err: async () => undefined,
+						});
+						return encodeApplyResponse(result);
+					},
 				});
-				return encodeApplyResponse(result);
 			},
 		});
 	});
@@ -88,7 +110,7 @@ export function ApplyPage() {
 	useEffect(() => {
 		getApplyContext()
 			.then(setData)
-			.catch(() => setErrors([UNEXPECTED_APPLY_ERROR]));
+			.catch(() => setErrors([STORE_UNAVAILABLE_APPLY_ERROR]));
 	}, []);
 
 	/** field ごとの振り分け。field: null はフォーム全体のエラー。 */

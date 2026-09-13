@@ -1,4 +1,12 @@
-import { matchChoice } from "#/domain/building-blocks";
+import { desc, eq } from "drizzle-orm";
+import {
+	type AsyncResult,
+	err,
+	matchChoice,
+	ok,
+	Result,
+	type Result as ResultType,
+} from "#/domain/building-blocks";
 import { AccountId } from "#/domain/subscription/model/account.primitive";
 import type {
 	Applied,
@@ -10,295 +18,296 @@ import type {
 } from "#/domain/subscription/model/cancel.model";
 import type { PlanChanged } from "#/domain/subscription/model/change-plan.model";
 import type { Invoice } from "#/domain/subscription/model/invoice.model";
-import {
-	Amount,
-	InvoiceId,
-	IssuedAt,
-} from "#/domain/subscription/model/invoice.primitive";
+import { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
 import type { PaymentSettled } from "#/domain/subscription/model/payment.model";
 import type {
 	PeriodEnded,
 	TrialEnded,
 } from "#/domain/subscription/model/schedule.model";
 import type { Subscription } from "#/domain/subscription/model/subscription.model";
+import { db } from "#/external/db/client";
 import {
-	PeriodEndsAt,
-	TrialEndsAt,
-} from "#/domain/subscription/model/subscription.primitive";
-import {
-	type Subscription as StoredSubscription,
-	store,
-} from "#/external/subscription-store/store";
+	subscriptionAccount as subscriptionAccountTable,
+	subscriptionInvoice as subscriptionInvoiceTable,
+	subscription as subscriptionTable,
+} from "#/external/db/schema";
+import type { StoreError } from "#/external/subscription-store/store-error";
 import {
 	toDomainAccount,
 	toDomainInvoice,
 	toDomainSubscription,
-	toStoredInvoicePurpose,
-	toStoredInvoiceStatus,
-	toStoredPlanId,
+	toStoredInvoice,
+	toStoredSubscription,
 } from "#/external/subscription-store/translate";
+
+// ===========================================================================
+// 型定義
+// ===========================================================================
+
+type WriteExecutor = Pick<typeof db, "insert" | "update">;
 
 // ===========================================================================
 // 実装
 // ===========================================================================
 
+const freeSubscription = (accountId: AccountId): Subscription => ({
+	kind: "FreeSubscription",
+	accountId,
+});
+
+const trialUnusedAccount = (accountId: AccountId): ApplyContext["account"] => ({
+	kind: "TrialUnusedAccount",
+	id: accountId,
+});
+
+/**
+ * ドメインの Subscription を upsert する。
+ * toStoredSubscription が未使用列にも null を入れるため、遷移前の値は残らない。
+ */
+const saveSubscription = async (
+	executor: WriteExecutor,
+	subscription: Subscription,
+): Promise<void> => {
+	const values = toStoredSubscription(subscription);
+	await executor
+		.insert(subscriptionTable)
+		.values(values)
+		.onConflictDoUpdate({
+			target: subscriptionTable.accountId,
+			set: {
+				status: values.status,
+				planId: values.planId,
+				trialEndsAt: values.trialEndsAt,
+				periodEndsAt: values.periodEndsAt,
+				pendingInvoiceId: values.pendingInvoiceId,
+				nextPlanId: values.nextPlanId,
+			},
+		});
+};
+
+/** ドメインの Invoice を upsert する。 */
+const saveInvoice = async (
+	executor: WriteExecutor,
+	invoice: Invoice,
+): Promise<void> => {
+	const values = toStoredInvoice(invoice);
+	await executor
+		.insert(subscriptionInvoiceTable)
+		.values(values)
+		.onConflictDoUpdate({
+			target: subscriptionInvoiceTable.invoiceId,
+			set: {
+				accountId: values.accountId,
+				planId: values.planId,
+				amount: values.amount,
+				purpose: values.purpose,
+				status: values.status,
+				issuedAt: values.issuedAt,
+			},
+		});
+};
+
 /**
  * 新規登録に伴う口座開設。
  * auth BC から subscription BC を import できないため、境界層がこのポートを呼ぶ。
- * 名前どおりの ensure 動作にするため、同じ accountId の既存レコードがあれば
- * そのレコードは追加せず、不足しているレコードだけを作る。
+ * 口座と無料契約を同じトランザクションで作り、競合時は何もしないことで冪等にする。
  */
-export const openAccount = (accountId: AccountId): void => {
+export const openAccount = async (accountId: AccountId): Promise<void> => {
 	const id = AccountId.value(accountId);
-	if (!store.accounts.some((item) => item.id === id)) {
-		store.accounts.push({
-			id,
-			billingAddress: "",
-			paymentMethod: "",
-			trialUsed: false,
-			createdAt: new Date().toISOString(),
-		});
-	}
-	if (!store.subscriptions.some((item) => item.accountId === id)) {
-		store.subscriptions.push({
-			accountId: id,
-			status: "free",
-			planId: "free",
-		});
-	}
-};
-
-/** ドメインの ApplyContext をストアから組み立てる。無ければ既定のレコードを作る。 */
-export const loadApplyContext = (accountId: AccountId): ApplyContext => {
-	const id = AccountId.value(accountId);
-	let account = store.accounts.find((item) => item.id === id);
-	if (!account) {
-		account = {
-			id,
-			billingAddress: "",
-			paymentMethod: "",
-			trialUsed: false,
-			createdAt: new Date().toISOString(),
-		};
-		store.accounts.push(account);
-	}
-
-	let subscription = store.subscriptions.find((item) => item.accountId === id);
-	if (!subscription) {
-		subscription = {
-			accountId: id,
-			status: "free",
-			planId: "free",
-		};
-		store.subscriptions.push(subscription);
-	}
-
-	return {
-		account: toDomainAccount(account),
-		subscription: toDomainSubscription(subscription),
-	};
-};
-
-/** 現在の契約状態だけを読む。 */
-export const loadSubscription = (accountId: AccountId): Subscription => {
-	const id = AccountId.value(accountId);
-	let subscription = store.subscriptions.find((item) => item.accountId === id);
-	if (!subscription) {
-		subscription = {
-			accountId: id,
-			status: "free",
-			planId: "free",
-		};
-		store.subscriptions.push(subscription);
-	}
-	return toDomainSubscription(subscription);
-};
-
-/** 請求の一覧。新しい順。 */
-export const loadInvoices = (accountId: AccountId): Invoice[] =>
-	store.invoices
-		.filter((item) => item.accountId === AccountId.value(accountId))
-		.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-		.map(toDomainInvoice);
-
-/** 指定 ID の請求。アカウントが一致しなければ undefined。 */
-export const findInvoice = (
-	accountId: AccountId,
-	invoiceId: InvoiceId,
-): Invoice | undefined => {
-	const invoice = store.invoices.find(
-		(item) =>
-			item.id === InvoiceId.value(invoiceId) &&
-			item.accountId === AccountId.value(accountId),
-	);
-	return invoice ? toDomainInvoice(invoice) : undefined;
+	await db.transaction(async (tx) => {
+		await tx
+			.insert(subscriptionAccountTable)
+			.values({ accountId: id, trialUsedAt: null })
+			.onConflictDoNothing();
+		await tx
+			.insert(subscriptionTable)
+			.values(toStoredSubscription(freeSubscription(accountId)))
+			.onConflictDoNothing();
+	});
 };
 
 /**
- * ドメインの Subscription をストアのレコードへ書き戻す。
- * ドメインは新しい Case を返すが、永続化層の実装ではストアの可変更新を許容する。
+ * 申し込みに必要な契約者と契約を読む。
+ * subscription_account が無い場合も読み取りでは作成せず、未使用アカウントと無料契約を返す。
+ * signup 時の openAccount が完了していない状態でも画面自体を壊さず、作成経路を
+ * openAccount だけに保つためである。
  */
-export const saveSubscription = (subscription: Subscription): void => {
-	const record = matchChoice<Subscription, StoredSubscription>(subscription, {
-		FreeSubscription: (value) => ({
-			accountId: AccountId.value(value.accountId),
-			status: "free" as const,
-			planId: "free" as const,
-			trialEndsAt: undefined,
-			periodEndsAt: undefined,
-			pendingInvoiceId: undefined,
-			reservation: undefined,
-		}),
-		TrialSubscription: (value) => ({
-			accountId: AccountId.value(value.accountId),
-			status: "trial" as const,
-			planId: toStoredPlanId(value.planId),
-			trialEndsAt: TrialEndsAt.value(value.trialEndsAt).toISOString(),
-			periodEndsAt: undefined,
-			pendingInvoiceId: undefined,
-			reservation: undefined,
-		}),
-		PendingPaymentSubscription: (value) => ({
-			accountId: AccountId.value(value.accountId),
-			status: "pending_payment" as const,
-			planId: toStoredPlanId(value.planId),
-			trialEndsAt: undefined,
-			periodEndsAt: undefined,
-			pendingInvoiceId: InvoiceId.value(value.pendingInvoiceId),
-			reservation: undefined,
-		}),
-		PaidSubscription: (value) => ({
-			accountId: AccountId.value(value.accountId),
-			status: "paid" as const,
-			planId: toStoredPlanId(value.planId),
-			trialEndsAt: undefined,
-			periodEndsAt: PeriodEndsAt.value(value.periodEndsAt).toISOString(),
-			pendingInvoiceId: undefined,
-			reservation: undefined,
-		}),
-		UpgradePendingSubscription: (value) => ({
-			accountId: AccountId.value(value.accountId),
-			status: "paid" as const,
-			planId: toStoredPlanId(value.planId),
-			trialEndsAt: undefined,
-			periodEndsAt: PeriodEndsAt.value(value.periodEndsAt).toISOString(),
-			pendingInvoiceId: InvoiceId.value(value.pendingInvoiceId),
-			reservation: undefined,
-		}),
-		CancelReservedSubscription: (value) => ({
-			accountId: AccountId.value(value.accountId),
-			status: "paid" as const,
-			planId: toStoredPlanId(value.planId),
-			trialEndsAt: undefined,
-			periodEndsAt: PeriodEndsAt.value(value.periodEndsAt).toISOString(),
-			pendingInvoiceId: undefined,
-			reservation: { kind: "cancel" as const },
-		}),
-		PlanChangeReservedSubscription: (value) => ({
-			accountId: AccountId.value(value.accountId),
-			status: "paid" as const,
-			planId: toStoredPlanId(value.planId),
-			trialEndsAt: undefined,
-			periodEndsAt: PeriodEndsAt.value(value.periodEndsAt).toISOString(),
-			pendingInvoiceId: undefined,
-			reservation: {
-				kind: "change_plan" as const,
-				planId: toStoredPlanId(value.nextPlanId),
-			},
-		}),
+export const loadApplyContext = async (
+	accountId: AccountId,
+): AsyncResult<ApplyContext, StoreError> => {
+	const id = AccountId.value(accountId);
+	const accountRows = await db
+		.select()
+		.from(subscriptionAccountTable)
+		.where(eq(subscriptionAccountTable.accountId, id))
+		.limit(1);
+	const accountRow = accountRows[0];
+	if (!accountRow)
+		return ok({
+			account: trialUnusedAccount(accountId),
+			subscription: freeSubscription(accountId),
+		});
+
+	const subscriptionRows = await db
+		.select()
+		.from(subscriptionTable)
+		.where(eq(subscriptionTable.accountId, id))
+		.limit(1);
+	const subscriptionRow = subscriptionRows[0];
+	const account = toDomainAccount(accountRow);
+	const subscription = subscriptionRow
+		? toDomainSubscription(subscriptionRow)
+		: ok(freeSubscription(accountId));
+
+	return Result.match<
+		ApplyContext["account"],
+		StoreError,
+		ResultType<ApplyContext, StoreError>
+	>(account, {
+		err,
+		ok: (domainAccount) =>
+			Result.match<
+				Subscription,
+				StoreError,
+				ResultType<ApplyContext, StoreError>
+			>(subscription, {
+				err,
+				ok: (domainSubscription) =>
+					ok({
+						account: domainAccount,
+						subscription: domainSubscription,
+					}),
+			}),
 	});
-	const current = store.subscriptions.find(
-		(item) => item.accountId === record.accountId,
-	);
-	if (current) Object.assign(current, record);
-	else store.subscriptions.push(record);
 };
 
-/** ドメインの Invoice をストアのレコードへ書き戻す。 */
-export const saveInvoice = (invoice: Invoice): void => {
-	const id = InvoiceId.value(invoice.id);
-	const current = store.invoices.find((item) => item.id === id);
-	if (current) {
-		current.status = toStoredInvoiceStatus(invoice);
-		return;
-	}
-	store.invoices.push({
-		id,
-		accountId: AccountId.value(invoice.accountId),
-		planId: toStoredPlanId(invoice.planId),
-		amount: Amount.value(invoice.amount),
-		kind: toStoredInvoicePurpose(invoice.purpose),
-		status: toStoredInvoiceStatus(invoice),
-		createdAt: IssuedAt.value(invoice.issuedAt).toISOString(),
-	});
+/**
+ * 現在の契約状態だけを読む。
+ * 行が無い場合は読み取りで補完せず FreeSubscription と解釈する。
+ */
+export const loadSubscription = async (
+	accountId: AccountId,
+): AsyncResult<Subscription, StoreError> => {
+	const rows = await db
+		.select()
+		.from(subscriptionTable)
+		.where(eq(subscriptionTable.accountId, AccountId.value(accountId)))
+		.limit(1);
+	const row = rows[0];
+	return row ? toDomainSubscription(row) : ok(freeSubscription(accountId));
 };
+
+/** 請求の一覧。issued_at の新しい順に読み、壊れた行が1件でもあれば失敗する。 */
+export const loadInvoices = async (
+	accountId: AccountId,
+): AsyncResult<Invoice[], StoreError> => {
+	const rows = await db
+		.select()
+		.from(subscriptionInvoiceTable)
+		.where(eq(subscriptionInvoiceTable.accountId, AccountId.value(accountId)))
+		.orderBy(desc(subscriptionInvoiceTable.issuedAt));
+	return Result.combine(rows.map(toDomainInvoice));
+};
+
+/** 指定 ID の請求。見つからない場合と壊れている場合を区別する。 */
+export const findInvoice = async (
+	accountId: AccountId,
+	invoiceId: InvoiceId,
+): AsyncResult<Invoice | null, StoreError> => {
+	const rows = await db
+		.select()
+		.from(subscriptionInvoiceTable)
+		.where(eq(subscriptionInvoiceTable.invoiceId, InvoiceId.value(invoiceId)))
+		.limit(1);
+	const row = rows[0];
+	if (!row || row.accountId !== AccountId.value(accountId)) return ok(null);
+	return toDomainInvoice(row);
+};
+
+/**
+ * 書き込みは Promise<void> とし、接続断などのインフラ障害は例外で呼び出し元へ伝える。
+ * 壊れた行を型で扱う読み取りとは異なり、保存失敗はドメインの想定内エラーではないためである。
+ */
 
 /** 申し込み結果をストアへ反映する。 */
-export const saveApplied = (applied: Applied): void =>
-	matchChoice<Applied, void>(applied, {
-		TrialStarted: ({ account, subscription }) => {
-			const accountRecord = store.accounts.find(
-				(item) => item.id === AccountId.value(account.id),
-			);
-			if (accountRecord) accountRecord.trialUsed = true;
-			saveSubscription(subscription);
-		},
-		PaymentRequested: ({ subscription, invoice }) => {
-			saveInvoice(invoice);
-			saveSubscription(subscription);
-		},
+export const saveApplied = (applied: Applied): Promise<void> =>
+	matchChoice<Applied, Promise<void>>(applied, {
+		TrialStarted: ({ account, subscription }) =>
+			db.transaction(async (tx) => {
+				await tx
+					.update(subscriptionAccountTable)
+					.set({ trialUsedAt: account.trialUsedAt })
+					.where(
+						eq(subscriptionAccountTable.accountId, AccountId.value(account.id)),
+					);
+				await saveSubscription(tx, subscription);
+			}),
+		PaymentRequested: ({ subscription, invoice }) =>
+			db.transaction(async (tx) => {
+				await saveInvoice(tx, invoice);
+				await saveSubscription(tx, subscription);
+			}),
 	});
 
 /** プラン変更結果をストアへ反映する。 */
-export const savePlanChanged = (planChanged: PlanChanged): void =>
-	matchChoice<PlanChanged, void>(planChanged, {
-		PaymentRequested: ({ subscription, invoice }) => {
-			saveInvoice(invoice);
-			saveSubscription(subscription);
-		},
-		UpgradeRequested: ({ subscription, invoice }) => {
-			saveInvoice(invoice);
-			saveSubscription(subscription);
-		},
-		PlanChangeReserved: ({ subscription }) => saveSubscription(subscription),
+export const savePlanChanged = (planChanged: PlanChanged): Promise<void> =>
+	matchChoice<PlanChanged, Promise<void>>(planChanged, {
+		PaymentRequested: ({ subscription, invoice }) =>
+			db.transaction(async (tx) => {
+				await saveInvoice(tx, invoice);
+				await saveSubscription(tx, subscription);
+			}),
+		UpgradeRequested: ({ subscription, invoice }) =>
+			db.transaction(async (tx) => {
+				await saveInvoice(tx, invoice);
+				await saveSubscription(tx, subscription);
+			}),
+		PlanChangeReserved: ({ subscription }) =>
+			saveSubscription(db, subscription),
 	});
 
 /** トライアル解約結果をストアへ反映する。 */
-export const saveTrialCancelled = (result: TrialCancelled): void =>
-	matchChoice<TrialCancelled, void>(result, {
-		TrialCancelled: ({ subscription }) => saveSubscription(subscription),
+export const saveTrialCancelled = (result: TrialCancelled): Promise<void> =>
+	matchChoice<TrialCancelled, Promise<void>>(result, {
+		TrialCancelled: ({ subscription }) => saveSubscription(db, subscription),
 	});
 
 /** 解約予約結果をストアへ反映する。 */
-export const saveCancellationReserved = (result: CancellationReserved): void =>
-	matchChoice<CancellationReserved, void>(result, {
-		CancellationReserved: ({ subscription }) => saveSubscription(subscription),
+export const saveCancellationReserved = (
+	result: CancellationReserved,
+): Promise<void> =>
+	matchChoice<CancellationReserved, Promise<void>>(result, {
+		CancellationReserved: ({ subscription }) =>
+			saveSubscription(db, subscription),
 	});
 
 /** 支払い結果をストアへ反映する。 */
-export const savePaymentSettled = (result: PaymentSettled): void =>
-	matchChoice<PaymentSettled, void>(result, {
-		PaymentSettled: ({ subscription, invoice }) => {
-			saveInvoice(invoice);
-			saveSubscription(subscription);
-		},
+export const savePaymentSettled = (result: PaymentSettled): Promise<void> =>
+	matchChoice<PaymentSettled, Promise<void>>(result, {
+		PaymentSettled: ({ subscription, invoice }) =>
+			db.transaction(async (tx) => {
+				await saveInvoice(tx, invoice);
+				await saveSubscription(tx, subscription);
+			}),
 	});
 
 /** トライアル終了結果をストアへ反映する。 */
-export const saveTrialEnded = (result: TrialEnded): void =>
-	matchChoice<TrialEnded, void>(result, {
-		TrialEnded: ({ subscription, invoice }) => {
-			saveInvoice(invoice);
-			saveSubscription(subscription);
-		},
+export const saveTrialEnded = (result: TrialEnded): Promise<void> =>
+	matchChoice<TrialEnded, Promise<void>>(result, {
+		TrialEnded: ({ subscription, invoice }) =>
+			db.transaction(async (tx) => {
+				await saveInvoice(tx, invoice);
+				await saveSubscription(tx, subscription);
+			}),
 	});
 
 /** 期間満了結果をストアへ反映する。 */
-export const savePeriodEnded = (result: PeriodEnded): void =>
-	matchChoice<PeriodEnded, void>(result, {
-		SubscriptionEnded: ({ subscription }) => saveSubscription(subscription),
-		RenewalRequested: ({ subscription, invoice }) => {
-			saveInvoice(invoice);
-			saveSubscription(subscription);
-		},
+export const savePeriodEnded = (result: PeriodEnded): Promise<void> =>
+	matchChoice<PeriodEnded, Promise<void>>(result, {
+		SubscriptionEnded: ({ subscription }) => saveSubscription(db, subscription),
+		RenewalRequested: ({ subscription, invoice }) =>
+			db.transaction(async (tx) => {
+				await saveInvoice(tx, invoice);
+				await saveSubscription(tx, subscription);
+			}),
 	});

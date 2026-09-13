@@ -1,8 +1,11 @@
+import type { LoggedInAt } from "#/domain/auth/model/login.primitive";
 import type {
-	LoggedInAt,
-	RawPassword,
-} from "#/domain/auth/model/login.primitive";
-import type { EmailAddress, UserId } from "#/domain/auth/model/user.primitive";
+	EmailAddress,
+	EmailAddressError,
+	Password,
+	PasswordError,
+	UserId,
+} from "#/domain/auth/model/user.primitive";
 import type { Case, NonEmptyArray } from "#/domain/building-blocks";
 
 export type UnvalidatedLoginRequest = {
@@ -12,7 +15,7 @@ export type UnvalidatedLoginRequest = {
 
 export type ValidatedLoginRequest = {
 	email: EmailAddress;
-	password: RawPassword;
+	password: Password;
 };
 
 export type LoggedIn = {
@@ -24,8 +27,11 @@ export type LoginError = ValidationFailed | AuthenticationFailed;
 
 /** 入力値の形式が不正。フォーム項目ではなく、どの値オブジェクトの構築に失敗したかを表す。 */
 export type LoginValidationError = InvalidEmail | InvalidPassword;
-export type InvalidEmail = Case<"InvalidEmail", { message: string }>;
-export type InvalidPassword = Case<"InvalidPassword", { message: string }>;
+export type InvalidEmail = Case<"InvalidEmail", { reason: EmailAddressError }>;
+export type InvalidPassword = Case<
+	"InvalidPassword",
+	{ reason: PasswordError }
+>;
 
 export type ValidationFailed = Case<
 	"ValidationFailed",

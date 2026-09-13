@@ -1,11 +1,7 @@
-import {
-	brandPrimitive,
-	type Primitive,
-	type Unbranded,
-} from "#/domain/building-blocks";
+import type { Primitive } from "#/domain/building-blocks";
 
 // ===========================================================================
-// 型定義（仕様）
+// 型定義
 // ===========================================================================
 
 export type LoggedOutAt = Primitive<"LoggedOutAt", Date>;
@@ -15,7 +11,6 @@ export type LoggedOutAt = Primitive<"LoggedOutAt", Date>;
 // ===========================================================================
 
 export const LoggedOutAt = {
-	create: (input: Unbranded<Date>): LoggedOutAt =>
-		brandPrimitive<LoggedOutAt>(input),
+	create: (input: Date): LoggedOutAt => input as LoggedOutAt,
 	value: (loggedOutAt: LoggedOutAt): Date => loggedOutAt,
 };

@@ -248,6 +248,17 @@ pre code {
   color: var(--danger);
 }
 
+.demo-field-error {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--danger);
+  font-size: 0.8rem;
+}
+
+.demo-input[aria-invalid="true"] {
+  border-color: var(--danger-line);
+}
+
 .nav-link {
   color: var(--text-muted);
   text-decoration: none;

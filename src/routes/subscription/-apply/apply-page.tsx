@@ -1,144 +1,130 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeaders } from "@tanstack/react-start/server";
 import { useEffect, useState } from "react";
-import { auth } from "#/external/better-auth/auth";
+import { UserId } from "#/domain/auth/model/user.primitive";
+import { matchChoice, Result } from "#/domain/building-blocks";
+import {
+	type ApplyContextView,
+	type ApplyFieldError,
+	type ApplyResponse,
+	applyCommandSchema,
+	decodeApplyCommand,
+	encodeApplyContextView,
+	encodeApplyResponse,
+	PAYMENT_REQUIRED_MESSAGE,
+	TRIAL_AVAILABLE_MESSAGE,
+} from "#/domain/subscription/dto/apply.dto";
+import { AccountId } from "#/domain/subscription/model/account.primitive";
+import { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
+import {
+	applyToSubscription,
+	createApplyWorkflow,
+	validateApplyRequest,
+} from "#/domain/subscription/workflow/apply.workflow";
+import { currentSession } from "#/external/better-auth/current-session";
+import {
+	loadApplyContext,
+	saveApplied,
+} from "#/external/subscription-store/subscription-store";
 
-type PlanId = "free" | "basic" | "pro";
-const PLANS = [
-	{ id: "free", name: "無料プラン", monthlyPrice: 0 },
-	{ id: "basic", name: "ベーシック", monthlyPrice: 980 },
-	{ id: "pro", name: "プロ", monthlyPrice: 2980 },
-] as const;
-const TRIAL_DAYS = 14;
-type Account = {
-	id: string;
-	billingAddress: string;
-	paymentMethod: string;
-	trialUsed: boolean;
-	createdAt: string;
+// ワークフロー外の失敗に対する文言。捕まえた例外の中身は表示しない。
+const UNEXPECTED_APPLY_ERROR: ApplyFieldError = {
+	field: null,
+	message: "申し込みに失敗しました",
 };
-type Subscription = {
-	accountId: string;
-	status: "free" | "trial" | "pending_payment" | "paid";
-	planId: PlanId;
-	trialEndsAt?: string;
-	periodEndsAt?: string;
-	reservation?: { kind: "cancel" } | { kind: "change_plan"; planId: PlanId };
-	pendingInvoiceId?: string;
-};
-type Invoice = {
-	id: string;
-	accountId: string;
-	planId: PlanId;
-	amount: number;
-	kind: "new" | "renewal" | "upgrade_diff";
-	status: "unpaid" | "paid" | "failed";
-	createdAt: string;
-};
-type Store = {
-	accounts: Account[];
-	subscriptions: Subscription[];
-	invoices: Invoice[];
-};
-const globalStore = globalThis as { __subscStore?: Store };
-globalStore.__subscStore ??= {
-	accounts: [],
-	subscriptions: [],
-	invoices: [],
-};
-const store: Store = globalStore.__subscStore;
 
-const currentUserId = async () => {
-	const session = await auth.api.getSession({ headers: getRequestHeaders() });
-	return session?.user.id ?? null;
-};
-const ensureStoreRecords = (id: string) => {
-	if (!store.accounts.some((item) => item.id === id)) {
-		store.accounts.push({
-			id,
-			billingAddress: "",
-			paymentMethod: "",
-			trialUsed: false,
-			createdAt: new Date().toISOString(),
-		});
-	}
-	if (!store.subscriptions.some((item) => item.accountId === id)) {
-		store.subscriptions.push({ accountId: id, status: "free", planId: "free" });
-	}
-};
+// composition root: ドメインのポートに具体的な実装を差し込むのはここだけ。
+const applyWorkflow = createApplyWorkflow({
+	validateApplyRequest,
+	applyToSubscription,
+	newInvoiceId: () => InvoiceId.create(crypto.randomUUID()),
+	now: () => new Date(),
+});
+
+/** auth BC の UserId を subscription BC の AccountId へ境界層で翻訳する。 */
+const toAccountId = (userId: UserId): AccountId =>
+	AccountId.create(UserId.value(userId));
 
 const getApplyContext = createServerFn({ method: "GET" }).handler(async () => {
-	const id = await currentUserId();
-	if (!id) return { loggedIn: false as const };
-	ensureStoreRecords(id);
-	const sub = store.subscriptions.find((item) => item.accountId === id);
-	const account = store.accounts.find((item) => item.id === id);
-	return sub && account
-		? {
-				loggedIn: true as const,
-				status: sub.status,
-				trialUsed: account.trialUsed,
-				plans: PLANS.filter((plan) => plan.id !== "free"),
-			}
-		: { loggedIn: false as const };
+	const session = await currentSession();
+	return matchChoice<typeof session, ApplyContextView>(session, {
+		AnonymousSession: () => ({ loggedIn: false }),
+		AuthenticatedSession: ({ userId }) => {
+			const context = loadApplyContext(toAccountId(userId));
+			return encodeApplyContextView(context.account, context.subscription);
+		},
+	});
 });
+
 const applySubscription = createServerFn({ method: "POST" })
-	.validator((d: unknown) => d as { planId: PlanId })
+	.validator(applyCommandSchema)
 	.handler(async ({ data }) => {
-		const id = await currentUserId();
-		if (!id) throw new Error("ログインしてください");
-		ensureStoreRecords(id);
-		const sub = store.subscriptions.find((item) => item.accountId === id);
-		const account = store.accounts.find((item) => item.id === id);
-		if (!sub || !account) throw new Error("ログインしてください");
-		if (sub.status !== "free") throw new Error("すでに契約中です");
-		if (data.planId === "free") throw new Error("有料プランを選択してください");
-		sub.planId = data.planId;
-		if (!account.trialUsed) {
-			account.trialUsed = true;
-			sub.status = "trial";
-			const end = new Date();
-			end.setDate(end.getDate() + TRIAL_DAYS);
-			sub.trialEndsAt = end.toISOString();
-		} else {
-			const plan = PLANS.find((item) => item.id === data.planId);
-			const invoice = {
-				id: crypto.randomUUID(),
-				accountId: id,
-				planId: data.planId,
-				amount: plan?.monthlyPrice ?? 0,
-				kind: "new" as const,
-				status: "unpaid" as const,
-				createdAt: new Date().toISOString(),
-			};
-			store.invoices.push(invoice);
-			sub.status = "pending_payment";
-			sub.pendingInvoiceId = invoice.id;
-		}
+		const session = await currentSession();
+		return matchChoice<typeof session, Promise<ApplyResponse>>(session, {
+			AnonymousSession: async () => ({
+				ok: false,
+				errors: [UNEXPECTED_APPLY_ERROR],
+			}),
+			AuthenticatedSession: async ({ userId }) => {
+				const accountId = toAccountId(userId);
+				const context = loadApplyContext(accountId);
+				const result = applyWorkflow(
+					decodeApplyCommand(data, AccountId.value(accountId)),
+					context,
+				);
+				Result.match(result, {
+					ok: saveApplied,
+					err: () => undefined,
+				});
+				return encodeApplyResponse(result);
+			},
+		});
 	});
 
 export function ApplyPage() {
 	const navigate = useNavigate();
-	const [data, setData] = useState<Awaited<
-		ReturnType<typeof getApplyContext>
-	> | null>(null);
-	const [error, setError] = useState("");
+	const [data, setData] = useState<ApplyContextView | null>(null);
+	const [errors, setErrors] = useState<ApplyFieldError[]>([]);
 	useEffect(() => {
-		getApplyContext().then(setData);
+		getApplyContext()
+			.then(setData)
+			.catch(() => setErrors([UNEXPECTED_APPLY_ERROR]));
 	}, []);
-	async function apply(planId: PlanId) {
+
+	/** field ごとの振り分け。field: null はフォーム全体のエラー。 */
+	const errorsFor = (field: ApplyFieldError["field"]) =>
+		errors.filter((item) => item.field === field);
+	const formErrors = errorsFor(null);
+	const planErrors = errorsFor("planId");
+	const visibleErrors = [...formErrors, ...planErrors];
+
+	async function apply(planId: string) {
 		try {
-			await applySubscription({ data: { planId } });
+			const result = await applySubscription({ data: { planId } });
+			if (!result.ok) {
+				setErrors(result.errors);
+				return;
+			}
+			setErrors([]);
 			await navigate({ to: "/subscription/edit" });
-		} catch (e) {
-			setError(e instanceof Error ? e.message : "申し込みに失敗しました");
+		} catch {
+			setErrors([UNEXPECTED_APPLY_ERROR]);
 		}
 	}
 	if (!data)
 		return (
 			<main className="demo-page">
-				<section className="demo-panel">読み込み中...</section>
+				<section className="demo-panel">
+					{visibleErrors.length > 0 ? (
+						<div className="demo-alert demo-alert-danger">
+							{visibleErrors.map((item) => (
+								<p key={item.message}>{item.message}</p>
+							))}
+						</div>
+					) : (
+						"読み込み中..."
+					)}
+				</section>
 			</main>
 		);
 	if (!data.loggedIn)
@@ -146,6 +132,13 @@ export function ApplyPage() {
 			<main className="demo-page">
 				<section className="demo-panel">
 					<h1 className="demo-title">サブスク申し込み</h1>
+					{visibleErrors.length > 0 && (
+						<div className="demo-alert demo-alert-danger">
+							{visibleErrors.map((item) => (
+								<p key={item.message}>{item.message}</p>
+							))}
+						</div>
+					)}
 					<p>ログインしてください。</p>
 					<Link to="/auth/login">ログインへ</Link>
 				</section>
@@ -156,8 +149,14 @@ export function ApplyPage() {
 			<section className="demo-panel">
 				<p className="island-kicker">サブスクリプション</p>
 				<h1 className="demo-title">プランを申し込む</h1>
-				{error && <p className="demo-alert demo-alert-danger">{error}</p>}
-				{data.status !== "free" ? (
+				{visibleErrors.length > 0 && (
+					<div className="demo-alert demo-alert-danger">
+						{visibleErrors.map((item) => (
+							<p key={item.message}>{item.message}</p>
+						))}
+					</div>
+				)}
+				{!data.applicable ? (
 					<>
 						<p>すでに契約中のため申し込みできません。</p>
 						<Link to="/subscription/edit">契約へ</Link>
@@ -174,8 +173,8 @@ export function ApplyPage() {
 									<p className="demo-muted">
 										月額 ¥{plan.monthlyPrice.toLocaleString()}・
 										{data.trialUsed
-											? "請求が作成されます"
-											: `${TRIAL_DAYS}日間の無料トライアルが始まります`}
+											? PAYMENT_REQUIRED_MESSAGE
+											: TRIAL_AVAILABLE_MESSAGE}
 									</p>
 								</div>
 								<button

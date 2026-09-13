@@ -1,465 +1,459 @@
 import { Link } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeaders } from "@tanstack/react-start/server";
 import { useCallback, useEffect, useState } from "react";
-import { auth } from "#/external/better-auth/auth";
+import { UserId } from "#/domain/auth/model/user.primitive";
+import { matchChoice, Result } from "#/domain/building-blocks";
+import {
+	type CancelResponse,
+	encodeCancelTrialResponse,
+	encodeReserveCancellationResponse,
+} from "#/domain/subscription/dto/cancel.dto";
+import {
+	type ChangePlanResponse,
+	changePlanCommandSchema,
+	decodeChangePlanCommand,
+	encodeChangePlanResponse,
+} from "#/domain/subscription/dto/change-plan.dto";
+import {
+	decodePaymentOutcome,
+	encodePaymentResponse,
+	INVOICE_NOT_FOUND_MESSAGE,
+	type PayInvoiceCommand,
+	type PaymentResponse,
+	payInvoiceCommandSchema,
+} from "#/domain/subscription/dto/payment.dto";
+import {
+	encodeEndPeriodResponse,
+	encodeEndTrialResponse,
+	type ScheduleResponse,
+} from "#/domain/subscription/dto/schedule.dto";
+import {
+	encodeSubscriptionView,
+	SUBSCRIPTION_EDIT_TEXT,
+	type SubscriptionView,
+} from "#/domain/subscription/dto/subscription-view.dto";
+import { AccountId } from "#/domain/subscription/model/account.primitive";
+import { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
+import {
+	cancelTrial as cancelTrialForSubscription,
+	createCancelTrialWorkflow,
+	createReserveCancellationWorkflow,
+	reserveCancellation as reserveCancellationForSubscription,
+} from "#/domain/subscription/workflow/cancel.workflow";
+import {
+	changePlanForSubscription,
+	createChangePlanWorkflow,
+	validateChangePlanRequest,
+} from "#/domain/subscription/workflow/change-plan.workflow";
+import {
+	createPayInvoiceWorkflow,
+	payInvoice as payInvoiceForSubscription,
+} from "#/domain/subscription/workflow/payment.workflow";
+import {
+	createEndPeriodWorkflow,
+	createEndTrialWorkflow,
+	endPeriod as endPeriodForSubscription,
+	endTrial as endTrialForSubscription,
+} from "#/domain/subscription/workflow/schedule.workflow";
+import { currentSession } from "#/external/better-auth/current-session";
+import {
+	findInvoice,
+	loadInvoices,
+	loadSubscription,
+	saveCancellationReserved,
+	savePaymentSettled,
+	savePeriodEnded,
+	savePlanChanged,
+	saveTrialCancelled,
+	saveTrialEnded,
+} from "#/external/subscription-store/subscription-store";
 
-type PlanId = "free" | "basic" | "pro";
-const PLANS = [
-	{ id: "free", name: "無料プラン", monthlyPrice: 0 },
-	{ id: "basic", name: "ベーシック", monthlyPrice: 980 },
-	{ id: "pro", name: "プロ", monthlyPrice: 2980 },
-] as const;
-type Account = {
-	id: string;
-	billingAddress: string;
-	paymentMethod: string;
-	trialUsed: boolean;
-	createdAt: string;
-};
-type Subscription = {
-	accountId: string;
-	status: "free" | "trial" | "pending_payment" | "paid";
-	planId: PlanId;
-	trialEndsAt?: string;
-	periodEndsAt?: string;
-	reservation?: { kind: "cancel" } | { kind: "change_plan"; planId: PlanId };
-	pendingInvoiceId?: string;
-};
-type Invoice = {
-	id: string;
-	accountId: string;
-	planId: PlanId;
-	amount: number;
-	kind: "new" | "renewal" | "upgrade_diff";
-	status: "unpaid" | "paid" | "failed";
-	createdAt: string;
-};
-type Store = {
-	accounts: Account[];
-	subscriptions: Subscription[];
-	invoices: Invoice[];
-};
-const globalStore = globalThis as { __subscStore?: Store };
-globalStore.__subscStore ??= {
-	accounts: [],
-	subscriptions: [],
-	invoices: [],
-};
-const store: Store = globalStore.__subscStore;
+// composition root: ドメインのポートに具体的な実装を差し込むのはここだけ。
+const newInvoiceId = () => InvoiceId.create(crypto.randomUUID());
+const now = () => new Date();
+const changePlanWorkflow = createChangePlanWorkflow({
+	validateChangePlanRequest,
+	changePlanForSubscription,
+	newInvoiceId,
+	now,
+});
+const cancelTrialWorkflow = createCancelTrialWorkflow({
+	cancelTrial: cancelTrialForSubscription,
+});
+const reserveCancellationWorkflow = createReserveCancellationWorkflow({
+	reserveCancellation: reserveCancellationForSubscription,
+});
+const payInvoiceWorkflow = createPayInvoiceWorkflow({
+	payInvoice: payInvoiceForSubscription,
+});
+const endTrialWorkflow = createEndTrialWorkflow({
+	endTrial: endTrialForSubscription,
+	newInvoiceId,
+	now,
+});
+const endPeriodWorkflow = createEndPeriodWorkflow({
+	endPeriod: endPeriodForSubscription,
+	newInvoiceId,
+	now,
+});
 
-const currentUserId = async () => {
-	const session = await auth.api.getSession({ headers: getRequestHeaders() });
-	return session?.user.id ?? null;
-};
-const ensureStoreRecords = (id: string) => {
-	if (!store.accounts.some((item) => item.id === id)) {
-		store.accounts.push({
-			id,
-			billingAddress: "",
-			paymentMethod: "",
-			trialUsed: false,
-			createdAt: new Date().toISOString(),
+/** auth BC の UserId を subscription BC の AccountId へ境界層で翻訳する。 */
+const toAccountId = (userId: UserId): AccountId =>
+	AccountId.create(UserId.value(userId));
+
+const getSubscriptionView = createServerFn({ method: "GET" }).handler(
+	async () => {
+		const session = await currentSession();
+		return matchChoice<typeof session, SubscriptionView>(session, {
+			AnonymousSession: () => ({ loggedIn: false }),
+			AuthenticatedSession: ({ userId }) => {
+				const accountId = toAccountId(userId);
+				return encodeSubscriptionView(
+					loadSubscription(accountId),
+					loadInvoices(accountId),
+				);
+			},
 		});
-	}
-	if (!store.subscriptions.some((item) => item.accountId === id)) {
-		store.subscriptions.push({ accountId: id, status: "free", planId: "free" });
-	}
-};
-const getSubscription = createServerFn({ method: "GET" }).handler(async () => {
-	const id = await currentUserId();
-	if (!id) return { loggedIn: false as const };
-	ensureStoreRecords(id);
-	const subscription = store.subscriptions.find(
-		(item) => item.accountId === id,
-	);
-	if (!subscription) return { loggedIn: false as const };
-	return {
-		loggedIn: true as const,
-		subscription,
-		planName: PLANS.find((plan) => plan.id === subscription.planId)?.name,
-		trialUsed: store.accounts.find((item) => item.id === id)?.trialUsed,
-		plans: PLANS.filter((plan) => plan.id !== "free"),
-		invoices: store.invoices
-			.filter((item) => item.accountId === id)
-			.sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-	};
-});
+	},
+);
+
 const requestPlanChange = createServerFn({ method: "POST" })
-	.validator((d: unknown) => d as { planId: PlanId })
+	.validator(changePlanCommandSchema)
 	.handler(async ({ data }) => {
-		const id = await currentUserId();
-		if (!id) throw new Error("ログインしてください");
-		const sub = store.subscriptions.find((item) => item.accountId === id);
-		if (!sub) throw new Error("ログインしてください");
-		if (sub.status === "free")
-			throw new Error("先にサブスクを申し込んでください");
-		if (sub.status === "pending_payment" || data.planId === sub.planId)
-			throw new Error("このプランには変更できません");
-		if (sub.pendingInvoiceId)
-			throw new Error("支払い待ちの請求があります。先に支払ってください");
-		if (sub.reservation)
-			throw new Error("すでに解約またはプラン変更の予約があります");
-		const current =
-			PLANS.find((plan) => plan.id === sub.planId)?.monthlyPrice ?? 0;
-		const next =
-			PLANS.find((plan) => plan.id === data.planId)?.monthlyPrice ?? 0;
-		if (sub.status === "trial") {
-			const invoice = {
-				id: crypto.randomUUID(),
-				accountId: id,
-				planId: data.planId,
-				amount: next,
-				kind: "new" as const,
-				status: "unpaid" as const,
-				createdAt: new Date().toISOString(),
-			};
-			store.invoices.push(invoice);
-			sub.status = "pending_payment";
-			sub.pendingInvoiceId = invoice.id;
-			delete sub.trialEndsAt;
-		} else if (next > current) {
-			const invoice = {
-				id: crypto.randomUUID(),
-				accountId: id,
-				planId: data.planId,
-				amount: next - current,
-				kind: "upgrade_diff" as const,
-				status: "unpaid" as const,
-				createdAt: new Date().toISOString(),
-			};
-			store.invoices.push(invoice);
-			sub.pendingInvoiceId = invoice.id;
-		} else {
-			sub.reservation = { kind: "change_plan", planId: data.planId };
-		}
+		const session = await currentSession();
+		return matchChoice<typeof session, ChangePlanResponse>(session, {
+			AnonymousSession: () => ({
+				ok: false,
+				errors: [
+					{ field: null, message: SUBSCRIPTION_EDIT_TEXT.loginRequired },
+				],
+			}),
+			AuthenticatedSession: ({ userId }) => {
+				const subscription = loadSubscription(toAccountId(userId));
+				const result = changePlanWorkflow(
+					decodeChangePlanCommand(data),
+					subscription,
+				);
+				Result.match(result, { ok: savePlanChanged, err: () => undefined });
+				return encodeChangePlanResponse(result);
+			},
+		});
 	});
+
 const cancelTrial = createServerFn({ method: "POST" }).handler(async () => {
-	const id = await currentUserId();
-	if (!id) throw new Error("ログインしてください");
-	const sub = store.subscriptions.find((item) => item.accountId === id);
-	if (!sub || sub.status !== "trial")
-		throw new Error("トライアル中ではありません");
-	sub.status = "free";
-	sub.planId = "free";
-	delete sub.trialEndsAt;
+	const session = await currentSession();
+	return matchChoice<typeof session, CancelResponse>(session, {
+		AnonymousSession: () => ({
+			ok: false,
+			message: SUBSCRIPTION_EDIT_TEXT.loginRequired,
+		}),
+		AuthenticatedSession: ({ userId }) => {
+			const result = cancelTrialWorkflow(loadSubscription(toAccountId(userId)));
+			Result.match(result, { ok: saveTrialCancelled, err: () => undefined });
+			return encodeCancelTrialResponse(result);
+		},
+	});
 });
+
 const reserveCancellation = createServerFn({ method: "POST" }).handler(
 	async () => {
-		const id = await currentUserId();
-		if (!id) throw new Error("ログインしてください");
-		const sub = store.subscriptions.find((item) => item.accountId === id);
-		if (!sub || sub.status !== "paid")
-			throw new Error("有料契約中ではありません");
-		sub.reservation = { kind: "cancel" };
-	},
-);
-const payInvoice = createServerFn({ method: "POST" })
-	.validator(
-		(d: unknown) => d as { invoiceId: string; result: "success" | "failure" },
-	)
-	.handler(async ({ data }) => {
-		const id = await currentUserId();
-		if (!id) throw new Error("ログインしてください");
-		const invoice = store.invoices.find(
-			(item) => item.id === data.invoiceId && item.accountId === id,
-		);
-		const sub = store.subscriptions.find((item) => item.accountId === id);
-		if (!invoice || !sub) throw new Error("請求が見つかりません");
-		if (invoice.status !== "unpaid")
-			throw new Error("この請求はすでに処理済みです");
-		invoice.status = data.result === "success" ? "paid" : "failed";
-		delete sub.pendingInvoiceId;
-		if (data.result === "success") {
-			sub.planId = invoice.planId;
-			if (invoice.kind !== "upgrade_diff") {
-				sub.status = "paid";
-				const end = new Date();
-				end.setMonth(end.getMonth() + 1);
-				sub.periodEndsAt = end.toISOString();
-			}
-		} else if (invoice.kind !== "upgrade_diff") {
-			sub.status = "free";
-			sub.planId = "free";
-			delete sub.periodEndsAt;
-		}
-	});
-const simulateTrialEnd = createServerFn({ method: "POST" }).handler(
-	async () => {
-		const id = await currentUserId();
-		if (!id) throw new Error("ログインしてください");
-		const sub = store.subscriptions.find((item) => item.accountId === id);
-		if (!sub || sub.status !== "trial")
-			throw new Error("トライアル中ではありません");
-		const plan = PLANS.find((item) => item.id === sub.planId);
-		const invoice: Invoice = {
-			id: crypto.randomUUID(),
-			accountId: id,
-			planId: sub.planId,
-			amount: plan?.monthlyPrice ?? 0,
-			kind: "new",
-			status: "unpaid",
-			createdAt: new Date().toISOString(),
-		};
-		store.invoices.push(invoice);
-		sub.status = "pending_payment";
-		sub.pendingInvoiceId = invoice.id;
-		delete sub.trialEndsAt;
-	},
-);
-const simulatePeriodEnd = createServerFn({ method: "POST" }).handler(
-	async () => {
-		const id = await currentUserId();
-		if (!id) throw new Error("ログインしてください");
-		const sub = store.subscriptions.find((item) => item.accountId === id);
-		if (!sub || sub.status !== "paid")
-			throw new Error("有料契約中ではありません");
-		if (sub.reservation?.kind === "cancel") {
-			sub.status = "free";
-			sub.planId = "free";
-			delete sub.reservation;
-			delete sub.periodEndsAt;
-			return;
-		}
-		if (sub.reservation?.kind === "change_plan") {
-			sub.planId = sub.reservation.planId;
-		}
-		const planId = sub.planId;
-		const plan = PLANS.find((item) => item.id === planId);
-		const invoice: Invoice = {
-			id: crypto.randomUUID(),
-			accountId: id,
-			planId,
-			amount: plan?.monthlyPrice ?? 0,
-			kind: "renewal",
-			status: "unpaid",
-			createdAt: new Date().toISOString(),
-		};
-		store.invoices.push(invoice);
-		sub.status = "pending_payment";
-		sub.pendingInvoiceId = invoice.id;
-		delete sub.reservation;
+		const session = await currentSession();
+		return matchChoice<typeof session, CancelResponse>(session, {
+			AnonymousSession: () => ({
+				ok: false,
+				message: SUBSCRIPTION_EDIT_TEXT.loginRequired,
+			}),
+			AuthenticatedSession: ({ userId }) => {
+				const result = reserveCancellationWorkflow(
+					loadSubscription(toAccountId(userId)),
+				);
+				Result.match(result, {
+					ok: saveCancellationReserved,
+					err: () => undefined,
+				});
+				return encodeReserveCancellationResponse(result);
+			},
+		});
 	},
 );
 
+const payInvoice = createServerFn({ method: "POST" })
+	.validator(payInvoiceCommandSchema)
+	.handler(async ({ data }) => {
+		const session = await currentSession();
+		return matchChoice<typeof session, PaymentResponse>(session, {
+			AnonymousSession: () => ({
+				ok: false,
+				message: SUBSCRIPTION_EDIT_TEXT.loginRequired,
+			}),
+			AuthenticatedSession: ({ userId }) => {
+				const accountId = toAccountId(userId);
+				const invoice = findInvoice(
+					accountId,
+					InvoiceId.create(data.invoiceId),
+				);
+				if (!invoice) return { ok: false, message: INVOICE_NOT_FOUND_MESSAGE };
+				const result = payInvoiceWorkflow(
+					invoice,
+					loadSubscription(accountId),
+					decodePaymentOutcome(data),
+					{ now: now() },
+				);
+				Result.match(result, { ok: savePaymentSettled, err: () => undefined });
+				return encodePaymentResponse(result);
+			},
+		});
+	});
+
+const endTrial = createServerFn({ method: "POST" }).handler(async () => {
+	const session = await currentSession();
+	return matchChoice<typeof session, ScheduleResponse>(session, {
+		AnonymousSession: () => ({
+			ok: false,
+			message: SUBSCRIPTION_EDIT_TEXT.loginRequired,
+		}),
+		AuthenticatedSession: ({ userId }) => {
+			const result = endTrialWorkflow(loadSubscription(toAccountId(userId)));
+			Result.match(result, { ok: saveTrialEnded, err: () => undefined });
+			return encodeEndTrialResponse(result);
+		},
+	});
+});
+
+const endPeriod = createServerFn({ method: "POST" }).handler(async () => {
+	const session = await currentSession();
+	return matchChoice<typeof session, ScheduleResponse>(session, {
+		AnonymousSession: () => ({
+			ok: false,
+			message: SUBSCRIPTION_EDIT_TEXT.loginRequired,
+		}),
+		AuthenticatedSession: ({ userId }) => {
+			const result = endPeriodWorkflow(loadSubscription(toAccountId(userId)));
+			Result.match(result, { ok: savePeriodEnded, err: () => undefined });
+			return encodeEndPeriodResponse(result);
+		},
+	});
+});
+
+type ActionResponse =
+	| ChangePlanResponse
+	| CancelResponse
+	| PaymentResponse
+	| ScheduleResponse;
+
 export function EditPage() {
-	const [data, setData] = useState<Awaited<
-		ReturnType<typeof getSubscription>
-	> | null>(null);
-	const [error, setError] = useState("");
+	const [data, setData] = useState<SubscriptionView | null>(null);
+	const [errors, setErrors] = useState<string[]>([]);
 	const reload = useCallback(
 		() =>
-			getSubscription()
+			getSubscriptionView()
 				.then(setData)
-				.catch((e) =>
-					setError(e instanceof Error ? e.message : "エラーが発生しました"),
-				),
+				.catch(() => setErrors([SUBSCRIPTION_EDIT_TEXT.loadFailed])),
 		[],
 	);
 	useEffect(() => {
 		reload();
 	}, [reload]);
-	async function act(action: () => Promise<unknown>) {
+
+	async function act(action: () => Promise<ActionResponse>) {
 		try {
-			setError("");
-			await action();
-			reload();
-		} catch (e) {
-			setError(e instanceof Error ? e.message : "操作に失敗しました");
+			setErrors([]);
+			const response = await action();
+			if (!response.ok) {
+				setErrors(
+					"errors" in response
+						? response.errors.map((item) => item.message)
+						: [response.message],
+				);
+				return;
+			}
+			await reload();
+		} catch {
+			setErrors([SUBSCRIPTION_EDIT_TEXT.operationFailed]);
 		}
 	}
-	async function change(planId: PlanId) {
-		await act(() => requestPlanChange({ data: { planId } }));
-	}
+	const pay = (invoiceId: string, result: PayInvoiceCommand["result"]) =>
+		act(() => payInvoice({ data: { invoiceId, result } }));
+
+	const errorAlert =
+		errors.length > 0 ? (
+			<div className="demo-alert demo-alert-danger">
+				{errors.map((message) => (
+					<p key={message}>{message}</p>
+				))}
+			</div>
+		) : null;
 	if (!data)
 		return (
 			<main className="demo-page">
-				<section className="demo-panel">読み込み中...</section>
+				<section className="demo-panel">
+					{errorAlert ?? SUBSCRIPTION_EDIT_TEXT.loading}
+				</section>
 			</main>
 		);
 	if (!data.loggedIn)
 		return (
 			<main className="demo-page">
 				<section className="demo-panel">
-					<p>ログインしてください。</p>
-					<Link to="/auth/login">ログインへ</Link>
+					{errorAlert}
+					<p>{SUBSCRIPTION_EDIT_TEXT.loginRequiredDescription}</p>
+					<Link to="/auth/login">{SUBSCRIPTION_EDIT_TEXT.loginLink}</Link>
 				</section>
 			</main>
 		);
-	const sub = data.subscription as Subscription;
-	const current = PLANS.find((plan) => plan.id === sub.planId);
-	const label = (id: PlanId) =>
-		PLANS.find((plan) => plan.id === id)?.name ?? id;
-	const date = (value?: string) =>
-		value ? new Date(value).toLocaleString("ja-JP") : "";
+
+	const { state } = data;
 	return (
 		<main className="demo-page">
 			<section className="demo-panel">
-				<p className="island-kicker">サブスクリプション</p>
-				<h1 className="demo-title">契約</h1>
-				{error && <p className="demo-alert demo-alert-danger">{error}</p>}
+				<p className="island-kicker">{SUBSCRIPTION_EDIT_TEXT.kicker}</p>
+				<h1 className="demo-title">{SUBSCRIPTION_EDIT_TEXT.contractTitle}</h1>
+				{errorAlert}
 				<p>
-					<strong>{data.planName}</strong>（{sub.status}）
+					<strong>{state.planName ?? state.statusLabel}</strong>（
+					{state.statusLabel}）
 				</p>
-				{sub.status === "free" && (
-					<>
-						<p>無料プラン利用中</p>
-						<Link to="/subscription/apply">サブスクを申し込む</Link>
-					</>
+				{state.notice && <p>{state.notice}</p>}
+				{state.showApplyLink && (
+					<Link to="/subscription/apply">
+						{SUBSCRIPTION_EDIT_TEXT.applyLink}
+					</Link>
 				)}
-				{sub.status === "trial" && (
-					<>
-						<p>トライアル終了日: {date(sub.trialEndsAt)}</p>
-						<button
-							type="button"
-							className="demo-button-danger"
-							onClick={() => act(cancelTrial)}
-						>
-							トライアルを解約する
-						</button>
-					</>
+				{state.trialEndsAt && (
+					<p>
+						{SUBSCRIPTION_EDIT_TEXT.trialEndLabel} {state.trialEndsAt}
+					</p>
 				)}
-				{sub.status === "pending_payment" && (
-					<p>支払い待ちの請求があります。下の一覧から支払ってください。</p>
+				{state.canCancelTrial && (
+					<button
+						type="button"
+						className="demo-button-danger"
+						onClick={() => act(cancelTrial)}
+					>
+						{SUBSCRIPTION_EDIT_TEXT.cancelTrial}
+					</button>
 				)}
-				{sub.status === "paid" && (
-					<>
-						<p>期間満了日: {date(sub.periodEndsAt)}</p>
-						<p>
-							{sub.reservation?.kind === "cancel"
-								? "解約を予約中"
-								: sub.reservation?.kind === "change_plan"
-									? `${label(sub.reservation.planId)}へ期間満了時に変更予約中`
-									: "予約なし"}
-						</p>
-						{sub.reservation?.kind !== "cancel" && (
-							<button
-								type="button"
-								className="demo-button-danger"
-								onClick={() => act(reserveCancellation)}
-							>
-								解約を予約する
-							</button>
-						)}
-					</>
+				{state.periodEndsAt && (
+					<p>
+						{SUBSCRIPTION_EDIT_TEXT.periodEndLabel} {state.periodEndsAt}
+					</p>
+				)}
+				{state.bookingText && <p>{state.bookingText}</p>}
+				{state.canReserveCancellation && (
+					<button
+						type="button"
+						className="demo-button-danger"
+						onClick={() => act(reserveCancellation)}
+					>
+						{SUBSCRIPTION_EDIT_TEXT.reserveCancellation}
+					</button>
 				)}
 			</section>
 			<section className="demo-panel">
-				<h2 className="demo-title">プラン変更</h2>
-				{sub.status === "free" ? (
+				<h2 className="demo-title">{SUBSCRIPTION_EDIT_TEXT.changePlanTitle}</h2>
+				{state.showApplyLink ? (
 					<>
-						<p>先にサブスクを申し込んでください。</p>
-						<Link to="/subscription/apply">申し込みへ</Link>
+						<p>{SUBSCRIPTION_EDIT_TEXT.applyFirst}</p>
+						<Link to="/subscription/apply">
+							{SUBSCRIPTION_EDIT_TEXT.applyNavigation}
+						</Link>
 					</>
 				) : (
 					<>
 						<p>
-							現在のプラン: <strong>{current?.name}</strong>（{sub.status}）
+							{SUBSCRIPTION_EDIT_TEXT.currentPlanLabel}{" "}
+							<strong>{state.planName}</strong>（{state.statusLabel}）
 						</p>
 						<div className="space-y-3">
-							{data.plans.map((plan) => {
-								const diff = plan.monthlyPrice - (current?.monthlyPrice ?? 0);
-								return (
-									<article
-										className="demo-card flex items-center justify-between"
-										key={plan.id}
+							{data.plans.map((plan) => (
+								<article
+									className="demo-card flex items-center justify-between"
+									key={plan.id}
+								>
+									<div>
+										<strong>{plan.name}</strong>
+										<p className="demo-muted">{plan.changeDescription}</p>
+									</div>
+									<button
+										type="button"
+										className="demo-button"
+										disabled={plan.changeDisabled}
+										onClick={() =>
+											act(() =>
+												requestPlanChange({ data: { planId: plan.id } }),
+											)
+										}
 									>
-										<div>
-											<strong>{plan.name}</strong>
-											<p className="demo-muted">
-												{sub.status === "trial"
-													? "トライアル終了→請求"
-													: diff > 0
-														? `アップグレード（差額 ¥${diff.toLocaleString()} の請求）`
-														: "ダウングレード（期間満了時に切替）"}
-											</p>
-										</div>
-										<button
-											type="button"
-											className="demo-button"
-											disabled={plan.id === sub.planId}
-											onClick={() => change(plan.id)}
-										>
-											変更する
-										</button>
-									</article>
-								);
-							})}
+										{SUBSCRIPTION_EDIT_TEXT.changePlan}
+									</button>
+								</article>
+							))}
 						</div>
 					</>
 				)}
 			</section>
 			<section className="demo-panel">
-				<h2 className="demo-title">請求一覧</h2>
+				<h2 className="demo-title">{SUBSCRIPTION_EDIT_TEXT.invoicesTitle}</h2>
 				<p className="demo-muted">
-					決済サービスの代わりに手動で結果を入れます。
+					{SUBSCRIPTION_EDIT_TEXT.paymentSimulationDescription}
 				</p>
 				<div className="space-y-3">
 					{data.invoices.map((invoice) => (
 						<article className="demo-card" key={invoice.id}>
 							<p>
-								{invoice.kind} / {label(invoice.planId)} / ¥
-								{invoice.amount.toLocaleString()} / {invoice.status}
+								{invoice.purposeLabel} / {invoice.planName} / ¥
+								{invoice.amount.toLocaleString()} / {invoice.statusLabel}
 							</p>
-							<p className="demo-muted text-sm">{date(invoice.createdAt)}</p>
-							{invoice.status === "unpaid" && (
+							<p className="demo-muted text-sm">{invoice.issuedAt}</p>
+							{invoice.payable && (
 								<div className="flex gap-2">
 									<button
 										type="button"
 										className="demo-button"
-										onClick={() =>
-											act(() =>
-												payInvoice({
-													data: { invoiceId: invoice.id, result: "success" },
-												}),
-											)
-										}
+										onClick={() => pay(invoice.id, "success")}
 									>
-										（模擬）支払い成功
+										{SUBSCRIPTION_EDIT_TEXT.paymentSucceeded}
 									</button>
 									<button
 										type="button"
 										className="demo-button-danger"
-										onClick={() =>
-											act(() =>
-												payInvoice({
-													data: { invoiceId: invoice.id, result: "failure" },
-												}),
-											)
-										}
+										onClick={() => pay(invoice.id, "failure")}
 									>
-										（模擬）支払い失敗
+										{SUBSCRIPTION_EDIT_TEXT.paymentFailed}
 									</button>
 								</div>
 							)}
 						</article>
 					))}
 					{data.invoices.length === 0 && (
-						<p className="demo-muted">請求はありません。</p>
+						<p className="demo-muted">{SUBSCRIPTION_EDIT_TEXT.noInvoices}</p>
 					)}
 				</div>
 			</section>
 			<section className="demo-panel">
-				<h2 className="demo-title">開発用シミュレーション</h2>
+				<h2 className="demo-title">{SUBSCRIPTION_EDIT_TEXT.simulationTitle}</h2>
 				<button
 					type="button"
 					className="demo-button-secondary mr-2"
-					disabled={sub.status !== "trial"}
-					onClick={() => act(simulateTrialEnd)}
+					disabled={!state.canEndTrial}
+					onClick={() => act(endTrial)}
 				>
-					（模擬）トライアル終了日を迎える
+					{SUBSCRIPTION_EDIT_TEXT.endTrial}
 				</button>
 				<button
 					type="button"
 					className="demo-button-secondary"
-					disabled={sub.status !== "paid"}
-					onClick={() => act(simulatePeriodEnd)}
+					disabled={!state.canEndPeriod}
+					onClick={() => act(endPeriod)}
 				>
-					（模擬）期間満了日を迎える
+					{SUBSCRIPTION_EDIT_TEXT.endPeriod}
 				</button>
 			</section>
 			<p className="demo-muted">
-				他の画面へ: <Link to="/subscription/apply">申し込み</Link>
+				{SUBSCRIPTION_EDIT_TEXT.otherScreens}{" "}
+				<Link to="/subscription/apply">
+					{SUBSCRIPTION_EDIT_TEXT.applyShort}
+				</Link>
 			</p>
 		</main>
 	);

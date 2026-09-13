@@ -1,8 +1,8 @@
 import type { Case } from "#/domain/building-blocks";
 import type { AccountId } from "#/domain/subscription/model/account.primitive";
+import type { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
 import type { PlanId } from "#/domain/subscription/model/plan.primitive";
 import type {
-	InvoiceId,
 	PeriodEndsAt,
 	TrialEndsAt,
 } from "#/domain/subscription/model/subscription.primitive";

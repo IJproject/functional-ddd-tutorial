@@ -1,25 +1,10 @@
 // ===========================================================================
-// 型定義（仕様）
+// 型定義
 // ===========================================================================
 
 declare const brand: unique symbol;
 
-export type Primitive<Tag extends string, T> = T & {
-	readonly [brand]: { readonly tag: Tag; readonly base: T };
-};
-
-/**
- * 素の T だけを受けることを表す。他の Primitive を誤って渡すのを型で止める。
- * 変換関数（`LoggedInAt.create` など）の入力に使う。
- */
-export type Unbranded<T> = T & { readonly [brand]?: never };
-
-/** ブランド型から基底型を取り出す。`BaseOf<UserId>` は `string`。 */
-export type BaseOf<P> = P extends {
-	readonly [brand]: { readonly base: infer B };
-}
-	? B
-	: never;
+export type Primitive<Tag extends string, T> = T & { readonly [brand]: Tag };
 
 /**
  * choice type（case の union）を構成する case 1つ。
@@ -50,14 +35,6 @@ type ErrValue<T extends readonly Result<unknown, unknown>[]> =
 // ===========================================================================
 // 実装
 // ===========================================================================
-
-/**
- * 素の値にブランドを付ける。ブランドは実行時に存在しない幻影型なので、
- * ここだけはアサーションが避けられない。**コードベースで as を書いてよいのはこの1箇所だけ**とし、
- * 各 Primitive の `create` はこの関数を通す。
- * 引数が `Unbranded` なので、他の Primitive を誤って渡すことは型で止まる。
- */
-export const brandPrimitive = <P>(value: Unbranded<BaseOf<P>>): P => value as P;
 
 export function pipe<A, B>(a: A, ab: (a: A) => B): B;
 export function pipe<A, B, C>(a: A, ab: (a: A) => B, bc: (b: B) => C): C;

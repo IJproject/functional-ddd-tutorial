@@ -7,16 +7,13 @@ import type {
 	ValidatedLoginRequest,
 	ValidationFailed,
 } from "#/domain/auth/model/login.model";
-import {
-	type LoggedInAt,
-	RawPassword,
-} from "#/domain/auth/model/login.primitive";
+import type { LoggedInAt } from "#/domain/auth/model/login.primitive";
 import type { AuthenticatedUser } from "#/domain/auth/model/user.model";
-import { EmailAddress } from "#/domain/auth/model/user.primitive";
+import { EmailAddress, Password } from "#/domain/auth/model/user.primitive";
 import { AsyncResult, pipe, Result } from "#/domain/building-blocks";
 
 // ===========================================================================
-// 型定義（仕様）
+// 型定義
 // ===========================================================================
 
 /** ① 未検証 → ② 形式検証済み。Result を返す純粋関数（AsyncResult との対比で I/O 不在を型で示す）。 */
@@ -57,13 +54,13 @@ export const validateLoginRequest: ValidateLoginRequest = (request) => {
 	const email = pipe(
 		EmailAddress.create(request.email),
 		Result.mapErr(
-			(message): LoginValidationError => ({ kind: "InvalidEmail", message }),
+			(reason): LoginValidationError => ({ kind: "InvalidEmail", reason }),
 		),
 	);
 	const password = pipe(
-		RawPassword.create(request.password),
+		Password.create(request.password),
 		Result.mapErr(
-			(message): LoginValidationError => ({ kind: "InvalidPassword", message }),
+			(reason): LoginValidationError => ({ kind: "InvalidPassword", reason }),
 		),
 	);
 

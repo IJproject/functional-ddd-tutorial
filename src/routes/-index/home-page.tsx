@@ -1,67 +1,23 @@
 import { Link } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeaders } from "@tanstack/react-start/server";
 import { useEffect, useState } from "react";
-import { auth } from "#/external/better-auth/auth";
-
-type PlanId = "free" | "basic" | "pro";
-const PLANS = [
-	{ id: "free", name: "無料プラン", monthlyPrice: 0 },
-	{ id: "basic", name: "ベーシック", monthlyPrice: 980 },
-	{ id: "pro", name: "プロ", monthlyPrice: 2980 },
-] as const;
-type Account = {
-	id: string;
-	billingAddress: string;
-	paymentMethod: string;
-	trialUsed: boolean;
-	createdAt: string;
-};
-type Subscription = {
-	accountId: string;
-	status: "free" | "trial" | "pending_payment" | "paid";
-	planId: PlanId;
-	trialEndsAt?: string;
-	periodEndsAt?: string;
-	reservation?: { kind: "cancel" } | { kind: "change_plan"; planId: PlanId };
-	pendingInvoiceId?: string;
-};
-type Invoice = {
-	id: string;
-	accountId: string;
-	planId: PlanId;
-	amount: number;
-	kind: "new" | "renewal" | "upgrade_diff";
-	status: "unpaid" | "paid" | "failed";
-	createdAt: string;
-};
-type Store = {
-	accounts: Account[];
-	subscriptions: Subscription[];
-	invoices: Invoice[];
-};
-const globalStore = globalThis as { __subscStore?: Store };
-globalStore.__subscStore ??= {
-	accounts: [],
-	subscriptions: [],
-	invoices: [],
-};
-const store: Store = globalStore.__subscStore;
+import { UserId } from "#/domain/auth/model/user.primitive";
+import { encodeSubscriptionSummary } from "#/domain/subscription/dto/subscription-view.dto";
+import { AccountId } from "#/domain/subscription/model/account.primitive";
+import { currentUser } from "#/external/better-auth/current-user";
+import { loadSubscription } from "#/external/subscription-store/subscription-store";
 
 const getHome = createServerFn({ method: "GET" }).handler(async () => {
-	const session = await auth.api.getSession({ headers: getRequestHeaders() });
-	if (!session) return { loggedIn: false as const };
-	const subscription = store.subscriptions.find(
-		(item) => item.accountId === session.user.id,
+	const user = await currentUser();
+	if (!user) return { loggedIn: false as const };
+	const summary = encodeSubscriptionSummary(
+		loadSubscription(AccountId.create(UserId.value(user.userId))),
 	);
 	return {
 		loggedIn: true as const,
-		email: session.user.email,
-		name: session.user.name,
-		status: subscription?.status ?? "free",
-		planName:
-			PLANS.find((plan) => plan.id === subscription?.planId)?.name ??
-			"無料プラン",
+		name: user.name,
+		statusLabel: summary.statusLabel,
+		planName: summary.planName,
 	};
 });
 
@@ -70,7 +26,9 @@ export function HomePage() {
 		null,
 	);
 	useEffect(() => {
-		getHome().then(setData);
+		getHome()
+			.then(setData)
+			.catch(() => setData({ loggedIn: false }));
 	}, []);
 	return (
 		<main className="demo-page">
@@ -81,7 +39,8 @@ export function HomePage() {
 					<>
 						<p className="m-0">{data.name}さん</p>
 						<p className="demo-muted">
-							現在: {data.planName}（{data.status}）
+							現在: {data.planName ?? data.statusLabel}
+							{data.planName ? `（${data.statusLabel}）` : null}
 						</p>
 						<Link className="demo-button mt-4" to="/subscription/edit">
 							契約を見る

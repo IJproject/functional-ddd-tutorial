@@ -1,6 +1,6 @@
-import { Link } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
+import { Button } from "#/components/control/button";
 import { UserId } from "#/domain/auth/model/user.primitive";
 import { Result } from "#/domain/building-blocks";
 import {
@@ -72,9 +72,9 @@ export function HomePage() {
 						) : (
 							<p className="demo-muted">{STORE_UNAVAILABLE_MESSAGE}</p>
 						)}
-						<Link className="demo-button mt-4" to="/subscription/edit">
+						<Button kind="link" className="mt-4" to="/subscription/edit">
 							契約を見る
-						</Link>
+						</Button>
 					</>
 				) : (
 					<>
@@ -82,12 +82,12 @@ export function HomePage() {
 							サブスクリプションの申し込み、変更、請求をまとめて管理できます。
 						</p>
 						<div className="mt-6 flex flex-wrap gap-3">
-							<Link className="demo-button" to="/auth/signup">
+							<Button kind="link" to="/auth/signup">
 								アカウント登録
-							</Link>
-							<Link className="demo-button-secondary" to="/auth/login">
+							</Button>
+							<Button kind="link" to="/auth/login" variant="secondary">
 								ログイン
-							</Link>
+							</Button>
 						</div>
 					</>
 				)}

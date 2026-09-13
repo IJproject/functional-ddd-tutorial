@@ -1,6 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useState } from "react";
+import { Button } from "#/components/control/button";
+import { Alert } from "#/components/feedback/alert";
 import { UserId } from "#/domain/auth/model/user.primitive";
 import { matchChoice, Result } from "#/domain/building-blocks";
 import {
@@ -343,19 +345,12 @@ export function EditPage() {
 	const pay = (invoiceId: string, result: PayInvoiceCommand["result"]) =>
 		act(() => payInvoice({ data: { invoiceId, result } }));
 
-	const errorAlert =
-		errors.length > 0 ? (
-			<div className="demo-alert demo-alert-danger">
-				{errors.map((message) => (
-					<p key={message}>{message}</p>
-				))}
-			</div>
-		) : null;
+	const errorAlert = <Alert messages={errors} />;
 	if (!data)
 		return (
 			<main className="demo-page">
 				<section className="demo-panel">
-					{errorAlert ?? SUBSCRIPTION_EDIT_TEXT.loading}
+					{errors.length > 0 ? errorAlert : SUBSCRIPTION_EDIT_TEXT.loading}
 				</section>
 			</main>
 		);
@@ -393,13 +388,13 @@ export function EditPage() {
 					</p>
 				)}
 				{state.canCancelTrial && (
-					<button
-						type="button"
-						className="demo-button-danger"
+					<Button
+						kind="action"
+						variant="danger"
 						onClick={() => act(cancelTrial)}
 					>
 						{SUBSCRIPTION_EDIT_TEXT.cancelTrial}
-					</button>
+					</Button>
 				)}
 				{state.periodEndsAt && (
 					<p>
@@ -408,13 +403,13 @@ export function EditPage() {
 				)}
 				{state.bookingText && <p>{state.bookingText}</p>}
 				{state.canReserveCancellation && (
-					<button
-						type="button"
-						className="demo-button-danger"
+					<Button
+						kind="action"
+						variant="danger"
 						onClick={() => act(reserveCancellation)}
 					>
 						{SUBSCRIPTION_EDIT_TEXT.reserveCancellation}
-					</button>
+					</Button>
 				)}
 			</section>
 			<section className="demo-panel">
@@ -442,9 +437,8 @@ export function EditPage() {
 										<strong>{plan.name}</strong>
 										<p className="demo-muted">{plan.changeDescription}</p>
 									</div>
-									<button
-										type="button"
-										className="demo-button"
+									<Button
+										kind="action"
 										disabled={plan.changeDisabled}
 										onClick={() =>
 											act(() =>
@@ -453,7 +447,7 @@ export function EditPage() {
 										}
 									>
 										{SUBSCRIPTION_EDIT_TEXT.changePlan}
-									</button>
+									</Button>
 								</article>
 							))}
 						</div>
@@ -473,22 +467,27 @@ export function EditPage() {
 								{invoice.amount.toLocaleString()} / {invoice.statusLabel}
 							</p>
 							<p className="demo-muted text-sm">{invoice.issuedAt}</p>
+							<Link
+								to="/subscription/invoice/$invoiceId"
+								params={{ invoiceId: invoice.id }}
+							>
+								{SUBSCRIPTION_EDIT_TEXT.invoiceDetailLink}
+							</Link>
 							{invoice.payable && (
 								<div className="flex gap-2">
-									<button
-										type="button"
-										className="demo-button"
+									<Button
+										kind="action"
 										onClick={() => pay(invoice.id, "success")}
 									>
 										{SUBSCRIPTION_EDIT_TEXT.paymentSucceeded}
-									</button>
-									<button
-										type="button"
-										className="demo-button-danger"
+									</Button>
+									<Button
+										kind="action"
+										variant="danger"
 										onClick={() => pay(invoice.id, "failure")}
 									>
 										{SUBSCRIPTION_EDIT_TEXT.paymentFailed}
-									</button>
+									</Button>
 								</div>
 							)}
 						</article>
@@ -500,22 +499,23 @@ export function EditPage() {
 			</section>
 			<section className="demo-panel">
 				<h2 className="demo-title">{SUBSCRIPTION_EDIT_TEXT.simulationTitle}</h2>
-				<button
-					type="button"
-					className="demo-button-secondary mr-2"
+				<Button
+					kind="action"
+					variant="secondary"
+					className="mr-2"
 					disabled={!state.canEndTrial}
 					onClick={() => act(endTrial)}
 				>
 					{SUBSCRIPTION_EDIT_TEXT.endTrial}
-				</button>
-				<button
-					type="button"
-					className="demo-button-secondary"
+				</Button>
+				<Button
+					kind="action"
+					variant="secondary"
 					disabled={!state.canEndPeriod}
 					onClick={() => act(endPeriod)}
 				>
 					{SUBSCRIPTION_EDIT_TEXT.endPeriod}
-				</button>
+				</Button>
 			</section>
 			<p className="demo-muted">
 				{SUBSCRIPTION_EDIT_TEXT.otherScreens}{" "}

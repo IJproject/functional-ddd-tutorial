@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
+import { Alert } from "#/components/feedback/alert";
 import { UserId } from "#/domain/auth/model/user.primitive";
 import { matchChoice, Result } from "#/domain/building-blocks";
 import {
@@ -11,8 +12,6 @@ import {
 	decodeApplyCommand,
 	encodeApplyContextView,
 	encodeApplyResponse,
-	PAYMENT_REQUIRED_MESSAGE,
-	TRIAL_AVAILABLE_MESSAGE,
 } from "#/domain/subscription/dto/apply.dto";
 import { STORE_UNAVAILABLE_MESSAGE } from "#/domain/subscription/dto/subscription-view.dto";
 import { AccountId } from "#/domain/subscription/model/account.primitive";
@@ -27,6 +26,8 @@ import {
 	loadApplyContext,
 	saveApplied,
 } from "#/external/subscription-store/subscription-store";
+import { LoginRequired } from "./login-required/login-required";
+import { PlanList } from "./plan-list/plan-list";
 
 // ワークフロー外の失敗に対する文言。捕まえた例外の中身は表示しない。
 const UNEXPECTED_APPLY_ERROR: ApplyFieldError = {
@@ -119,6 +120,7 @@ export function ApplyPage() {
 	const formErrors = errorsFor(null);
 	const planErrors = errorsFor("planId");
 	const visibleErrors = [...formErrors, ...planErrors];
+	const errorMessages = visibleErrors.map((item) => item.message);
 
 	async function apply(planId: string) {
 		try {
@@ -137,12 +139,8 @@ export function ApplyPage() {
 		return (
 			<main className="demo-page">
 				<section className="demo-panel">
-					{visibleErrors.length > 0 ? (
-						<div className="demo-alert demo-alert-danger">
-							{visibleErrors.map((item) => (
-								<p key={item.message}>{item.message}</p>
-							))}
-						</div>
+					{errorMessages.length > 0 ? (
+						<Alert messages={errorMessages} />
 					) : (
 						"読み込み中..."
 					)}
@@ -153,16 +151,7 @@ export function ApplyPage() {
 		return (
 			<main className="demo-page">
 				<section className="demo-panel">
-					<h1 className="demo-title">サブスク申し込み</h1>
-					{visibleErrors.length > 0 && (
-						<div className="demo-alert demo-alert-danger">
-							{visibleErrors.map((item) => (
-								<p key={item.message}>{item.message}</p>
-							))}
-						</div>
-					)}
-					<p>ログインしてください。</p>
-					<Link to="/auth/login">ログインへ</Link>
+					<LoginRequired errorMessages={errorMessages} />
 				</section>
 			</main>
 		);
@@ -171,44 +160,18 @@ export function ApplyPage() {
 			<section className="demo-panel">
 				<p className="island-kicker">サブスクリプション</p>
 				<h1 className="demo-title">プランを申し込む</h1>
-				{visibleErrors.length > 0 && (
-					<div className="demo-alert demo-alert-danger">
-						{visibleErrors.map((item) => (
-							<p key={item.message}>{item.message}</p>
-						))}
-					</div>
-				)}
+				<Alert messages={errorMessages} />
 				{!data.applicable ? (
 					<>
 						<p>すでに契約中のため申し込みできません。</p>
 						<Link to="/subscription/edit">契約へ</Link>
 					</>
 				) : (
-					<div className="space-y-3">
-						{data.plans.map((plan) => (
-							<article
-								className="demo-card flex items-center justify-between"
-								key={plan.id}
-							>
-								<div>
-									<strong>{plan.name}</strong>
-									<p className="demo-muted">
-										月額 ¥{plan.monthlyPrice.toLocaleString()}・
-										{data.trialUsed
-											? PAYMENT_REQUIRED_MESSAGE
-											: TRIAL_AVAILABLE_MESSAGE}
-									</p>
-								</div>
-								<button
-									type="button"
-									className="demo-button"
-									onClick={() => apply(plan.id)}
-								>
-									申し込む
-								</button>
-							</article>
-						))}
-					</div>
+					<PlanList
+						plans={data.plans}
+						trialUsed={data.trialUsed}
+						onApply={apply}
+					/>
 				)}
 			</section>
 		</main>

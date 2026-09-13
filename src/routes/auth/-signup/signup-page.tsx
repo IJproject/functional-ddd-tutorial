@@ -1,6 +1,9 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { type FormEvent, useState } from "react";
+import { Button } from "#/components/control/button";
+import { Alert } from "#/components/feedback/alert";
+import { TextField } from "#/components/form/text-field";
 import {
 	decodeSignupCommand,
 	encodeSignupResponse,
@@ -81,71 +84,30 @@ export function SignupPage() {
 			<section className="demo-panel">
 				<p className="island-kicker">アカウント登録</p>
 				<h1 className="demo-title">Subsc Tutorial を始める</h1>
-				{formErrors.length > 0 && (
-					<div className="demo-alert demo-alert-danger">
-						{formErrors.map((item) => (
-							<p key={item.message}>{item.message}</p>
-						))}
-					</div>
-				)}
+				<Alert messages={formErrors.map((item) => item.message)} />
 				<form onSubmit={submit} className="space-y-4">
-					<label className="block">
-						名前
-						<input
-							name="name"
-							required
-							className="demo-input mt-1 w-full"
-							aria-invalid={nameErrors.length > 0}
-							aria-describedby={
-								nameErrors.length > 0 ? "name-error" : undefined
-							}
-						/>
-						{nameErrors.length > 0 && (
-							<span id="name-error" className="demo-field-error">
-								{nameErrors.map((item) => item.message).join(" / ")}
-							</span>
-						)}
-					</label>
-					<label className="block">
-						メールアドレス
-						<input
-							name="email"
-							type="email"
-							required
-							className="demo-input mt-1 w-full"
-							aria-invalid={emailErrors.length > 0}
-							aria-describedby={
-								emailErrors.length > 0 ? "email-error" : undefined
-							}
-						/>
-						{emailErrors.length > 0 && (
-							<span id="email-error" className="demo-field-error">
-								{emailErrors.map((item) => item.message).join(" / ")}
-							</span>
-						)}
-					</label>
-					<label className="block">
-						パスワード
-						<input
-							name="password"
-							type="password"
-							minLength={8}
-							required
-							className="demo-input mt-1 w-full"
-							aria-invalid={passwordErrors.length > 0}
-							aria-describedby={
-								passwordErrors.length > 0 ? "password-error" : undefined
-							}
-						/>
-						{passwordErrors.length > 0 && (
-							<span id="password-error" className="demo-field-error">
-								{passwordErrors.map((item) => item.message).join(" / ")}
-							</span>
-						)}
-					</label>
-					<button className="demo-button" type="submit">
-						登録する
-					</button>
+					<TextField
+						label="名前"
+						name="name"
+						required
+						errors={nameErrors.map((item) => item.message)}
+					/>
+					<TextField
+						label="メールアドレス"
+						name="email"
+						type="email"
+						required
+						errors={emailErrors.map((item) => item.message)}
+					/>
+					<TextField
+						label="パスワード"
+						name="password"
+						type="password"
+						minLength={8}
+						required
+						errors={passwordErrors.map((item) => item.message)}
+					/>
+					<Button kind="submit">登録する</Button>
 				</form>
 				<p className="demo-muted mt-6">
 					すでに登録済みですか？ <Link to="/auth/login">ログイン</Link>

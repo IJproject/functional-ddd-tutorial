@@ -120,6 +120,7 @@ export const SUBSCRIPTION_EDIT_TEXT = {
 	currentPlanLabel: "現在のプラン:",
 	changePlan: "変更する",
 	invoicesTitle: "請求一覧",
+	invoiceDetailLink: "詳細を見る",
 	paymentSimulationDescription: "決済サービスの代わりに手動で結果を入れます。",
 	paymentSucceeded: "（模擬）支払い成功",
 	paymentFailed: "（模擬）支払い失敗",

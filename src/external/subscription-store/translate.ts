@@ -45,6 +45,9 @@ type StoredAccount = InferSelectModel<typeof subscriptionAccountTable>;
 type StoredSubscription = InferSelectModel<typeof subscriptionTable>;
 type StoredInvoice = InferSelectModel<typeof subscriptionInvoiceTable>;
 
+export type StoredAccountValues = InferInsertModel<
+	typeof subscriptionAccountTable
+>;
 export type StoredSubscriptionValues = InferInsertModel<
 	typeof subscriptionTable
 >;
@@ -553,6 +556,19 @@ const toStoredInvoiceStatus = (
 		UnpaidInvoice: () => "UnpaidInvoice",
 		PaidInvoice: () => "PaidInvoice",
 		FailedInvoice: () => "FailedInvoice",
+	});
+
+/** ドメインの契約者 → upsert する値。判別子は trial_used_at の NULL 有無。 */
+export const toStoredAccount = (account: Account): StoredAccountValues =>
+	matchChoice<Account, StoredAccountValues>(account, {
+		TrialUnusedAccount: (value) => ({
+			accountId: AccountId.value(value.id),
+			trialUsedAt: null,
+		}),
+		TrialUsedAccount: (value) => ({
+			accountId: AccountId.value(value.id),
+			trialUsedAt: TrialUsedAt.value(value.trialUsedAt),
+		}),
 	});
 
 /**

@@ -7,6 +7,7 @@ import {
 	Result,
 	type Result as ResultType,
 } from "#/domain/building-blocks";
+import { Account } from "#/domain/subscription/model/account.entity";
 import { AccountId } from "#/domain/subscription/model/account.primitive";
 import type {
 	Applied,
@@ -25,7 +26,7 @@ import type {
 	TrialEnded,
 } from "#/domain/subscription/model/schedule.model";
 import type { StoreError } from "#/domain/subscription/model/store.model";
-import type { Subscription } from "#/domain/subscription/model/subscription.entity";
+import { Subscription } from "#/domain/subscription/model/subscription.entity";
 import { db } from "#/external/db/client";
 import {
 	subscriptionAccount as subscriptionAccountTable,
@@ -49,16 +50,6 @@ type WriteExecutor = Pick<typeof db, "insert" | "update">;
 // ===========================================================================
 // 実装
 // ===========================================================================
-
-const freeSubscription = (accountId: AccountId): Subscription => ({
-	kind: "FreeSubscription",
-	accountId,
-});
-
-const trialUnusedAccount = (accountId: AccountId): ApplyContext["account"] => ({
-	kind: "TrialUnusedAccount",
-	id: accountId,
-});
 
 /**
  * ドメインの Subscription を upsert する。
@@ -121,7 +112,7 @@ export const openAccount = async (accountId: AccountId): Promise<void> => {
 			.onConflictDoNothing();
 		await tx
 			.insert(subscriptionTable)
-			.values(toStoredSubscription(freeSubscription(accountId)))
+			.values(toStoredSubscription(Subscription.free(accountId)))
 			.onConflictDoNothing();
 	});
 };
@@ -144,8 +135,8 @@ export const loadApplyContext = async (
 	const accountRow = accountRows[0];
 	if (!accountRow)
 		return ok({
-			account: trialUnusedAccount(accountId),
-			subscription: freeSubscription(accountId),
+			account: Account.trialUnused(accountId),
+			subscription: Subscription.free(accountId),
 		});
 
 	const subscriptionRows = await db
@@ -157,7 +148,7 @@ export const loadApplyContext = async (
 	const account = toDomainAccount(accountRow);
 	const subscription = subscriptionRow
 		? toDomainSubscription(subscriptionRow)
-		: ok(freeSubscription(accountId));
+		: ok(Subscription.free(accountId));
 
 	return Result.match<
 		ApplyContext["account"],
@@ -194,7 +185,7 @@ export const loadSubscription = async (
 		.where(eq(subscriptionTable.accountId, AccountId.value(accountId)))
 		.limit(1);
 	const row = rows[0];
-	return row ? toDomainSubscription(row) : ok(freeSubscription(accountId));
+	return row ? toDomainSubscription(row) : ok(Subscription.free(accountId));
 };
 
 /** 請求の一覧。issued_at の新しい順に読み、壊れた行が1件でもあれば失敗する。 */

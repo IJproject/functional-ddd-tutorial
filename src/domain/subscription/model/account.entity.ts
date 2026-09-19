@@ -20,3 +20,20 @@ export type TrialUsedAccount = Case<
 	"TrialUsedAccount",
 	{ id: AccountId; trialUsedAt: TrialUsedAt }
 >;
+
+export const Account = {
+	/** 口座開設直後。トライアルをまだ使っていない。 */
+	trialUnused: (id: AccountId): TrialUnusedAccount => ({
+		kind: "TrialUnusedAccount",
+		id,
+	}),
+
+	/** トライアルを使い終えた契約者。再度のトライアルは受け付けない。 */
+	trialUsed: (fields: {
+		id: AccountId;
+		trialUsedAt: TrialUsedAt;
+	}): TrialUsedAccount => ({
+		kind: "TrialUsedAccount",
+		...fields,
+	}),
+};

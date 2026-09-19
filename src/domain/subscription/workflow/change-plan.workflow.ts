@@ -22,12 +22,12 @@ import {
 	Amount,
 	IssuedAt,
 } from "#/domain/subscription/model/invoice.primitive";
-import { Plan } from "#/domain/subscription/model/plan.model";
+import { Plan } from "#/domain/subscription/model/plan.entity";
 import {
 	MonthlyPrice,
 	PlanId,
 } from "#/domain/subscription/model/plan.primitive";
-import type { Subscription } from "#/domain/subscription/model/subscription.model";
+import type { Subscription } from "#/domain/subscription/model/subscription.entity";
 
 // ===========================================================================
 // 型定義

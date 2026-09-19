@@ -1,8 +1,8 @@
-import type { PlanView } from "#/domain/subscription/dto/apply.dto";
+import type { ApplyPlanView } from "#/domain/subscription/dto/apply-context.dto";
 import { PlanCard } from "./plan-card";
 
 type PlanListProps = {
-	plans: readonly PlanView[];
+	plans: readonly ApplyPlanView[];
 	trialUsed: boolean;
 	onApply: (planId: string) => void;
 };

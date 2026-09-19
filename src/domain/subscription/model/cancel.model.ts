@@ -2,10 +2,10 @@ import type { Case } from "#/domain/building-blocks";
 import type {
 	CancelReservedSubscription,
 	FreeSubscription,
-} from "#/domain/subscription/model/subscription.model";
+} from "#/domain/subscription/model/subscription.entity";
 
 // ===========================================================================
-// 型定義
+// イベント
 // ===========================================================================
 
 export type TrialCancelled = Case<
@@ -13,15 +13,19 @@ export type TrialCancelled = Case<
 	{ subscription: FreeSubscription }
 >;
 
-export type CancelTrialError = NotInTrial;
-
-/** トライアル中ではないため、トライアル解約を適用できない。 */
-export type NotInTrial = Case<"NotInTrial">;
-
 export type CancellationReserved = Case<
 	"CancellationReserved",
 	{ subscription: CancelReservedSubscription }
 >;
+
+// ===========================================================================
+// エラー
+// ===========================================================================
+
+export type CancelTrialError = NotInTrial;
+
+/** トライアル中ではないため、トライアル解約を適用できない。 */
+export type NotInTrial = Case<"NotInTrial">;
 
 export type ReserveCancellationError = NotPaid | PaymentPending;
 

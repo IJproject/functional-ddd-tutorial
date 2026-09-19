@@ -13,7 +13,7 @@ import type {
 	ReserveCancellationError,
 	TrialCancelled,
 } from "#/domain/subscription/model/cancel.model";
-import type { Subscription } from "#/domain/subscription/model/subscription.model";
+import type { Subscription } from "#/domain/subscription/model/subscription.entity";
 
 // ===========================================================================
 // 型定義

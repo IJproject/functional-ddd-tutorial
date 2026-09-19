@@ -16,30 +16,38 @@ import {
 // ===========================================================================
 
 /**
- * セッションを破棄する。
+ * パイプライン全体。
+ * 入力は現在のセッション。取得の I/O は境界層が担い、ここは状態の解釈だけを行う。
+ * 直線のパイプラインではなく、セッションの状態で分岐する。
+ *
+ *   Session
+ *     AnonymousSession      -> NotAuthenticated（エラー）
+ *     AuthenticatedSession  -> discardSession         // 破棄（I/O・注入）
+ *                           -> createLoggedOutEvent   // イベント化（純粋）
+ *   LoggedOut
+ */
+export type LogoutWorkflow = (
+	session: Session,
+) => AsyncResult<LoggedOut, LogoutError>;
+
+/**
+ * 認証済み → 破棄済み。
  * 引数が AuthenticatedSession なので、認証済みであることを型で示さないと呼べない。
  */
 export type DiscardSession = (session: AuthenticatedSession) => Promise<void>;
 
-/** 破棄済みのセッションから出力イベントを作る。純粋関数。 */
+/** 破棄済み → 出力イベント。純粋関数。 */
 export type CreateLoggedOutEvent = (
 	session: AuthenticatedSession,
 	loggedOutAt: LoggedOutAt,
 ) => LoggedOut;
 
+/** パイプラインを組み立てるための依存。各ステップと現在時刻の取得を注入する。 */
 export type LogoutWorkflowDeps = {
 	discardSession: DiscardSession;
 	createLoggedOutEvent: CreateLoggedOutEvent;
 	now: () => LoggedOutAt;
 };
-
-/**
- * パイプライン全体。
- * 入力は現在のセッション。取得の I/O は境界層が担い、ここは状態の解釈だけを行う。
- */
-export type LogoutWorkflow = (
-	session: Session,
-) => AsyncResult<LoggedOut, LogoutError>;
 
 export type CreateLogoutWorkflow = (deps: LogoutWorkflowDeps) => LogoutWorkflow;
 

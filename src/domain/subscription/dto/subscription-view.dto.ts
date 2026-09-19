@@ -1,27 +1,26 @@
 import { type Case, matchChoice } from "#/domain/building-blocks";
-import type { PlanView } from "#/domain/subscription/dto/apply.dto";
 import type {
 	Invoice,
 	InvoicePurpose,
-} from "#/domain/subscription/model/invoice.model";
+} from "#/domain/subscription/model/invoice.entity";
 import {
 	Amount,
 	InvoiceId,
 	IssuedAt,
 } from "#/domain/subscription/model/invoice.primitive";
-import { Plan } from "#/domain/subscription/model/plan.model";
+import { Plan } from "#/domain/subscription/model/plan.entity";
 import {
 	MonthlyPrice,
 	PlanId,
 } from "#/domain/subscription/model/plan.primitive";
-import type { Subscription } from "#/domain/subscription/model/subscription.model";
+import type { Subscription } from "#/domain/subscription/model/subscription.entity";
 import {
 	PeriodEndsAt,
 	TrialEndsAt,
 } from "#/domain/subscription/model/subscription.primitive";
 
 // ===========================================================================
-// 型定義
+// 型定義（シリアライズ: DTO → JSON）
 // ===========================================================================
 
 export type ReservationView =
@@ -56,14 +55,10 @@ export type SubscriptionStateView = {
 	canEndPeriod: boolean;
 };
 
-/** ホーム画面のように、契約の要約だけが要る画面のための表示モデル。 */
-export type SubscriptionSummaryView = {
-	statusLabel: string;
-	/** 契約中のプラン名。FreeSubscription なら null。 */
-	planName: string | null;
-};
-
-export type SubscriptionPlanView = PlanView & {
+export type SubscriptionPlanView = {
+	id: string;
+	name: string;
+	monthlyPrice: number;
 	changeDescription: string;
 	changeDisabled: boolean;
 };
@@ -89,48 +84,40 @@ export type SubscriptionView =
 	  };
 
 // ===========================================================================
-// 実装
+// encode（ドメイン → DTO）
 // ===========================================================================
+
+/** Subscription と Invoice の一覧 → 編集画面専用の表示モデル。 */
+export const encodeSubscriptionView = (
+	subscription: Subscription,
+	invoices: Invoice[],
+): SubscriptionView => {
+	const state = encodeState(subscription);
+	return {
+		loggedIn: true,
+		state,
+		plans: Plan.all().map((plan) => ({
+			id: PlanId.value(plan.id),
+			name: planName(plan.id),
+			monthlyPrice: MonthlyPrice.value(plan.monthlyPrice),
+			changeDescription: changeDescription(subscription, plan.id),
+			changeDisabled: !state.canChangePlan || samePlan(subscription, plan.id),
+		})),
+		invoices: invoices.map(encodeInvoice),
+	};
+};
 
 /**
  * 永続化された契約情報を読めなかったときの文言。
  * ドメインのエラーではなく、境界層がストアの失敗を受けたときに使う。
  * 内部の理由（どの列が NULL だったか）は画面に出さない。
  */
-export const STORE_UNAVAILABLE_MESSAGE = "契約情報を読み込めませんでした";
-
-/** 編集画面に表示する固定文言。UI は境界層が用意した文言だけを描画する。 */
-export const SUBSCRIPTION_EDIT_TEXT = {
-	loadFailed: "エラーが発生しました",
-	operationFailed: "操作に失敗しました",
-	loginRequired: "ログインしてください",
-	loading: "読み込み中...",
-	loginRequiredDescription: "ログインしてください。",
-	loginLink: "ログインへ",
-	kicker: "サブスクリプション",
-	contractTitle: "契約",
-	trialEndLabel: "トライアル終了日:",
-	periodEndLabel: "期間満了日:",
-	cancelTrial: "トライアルを解約する",
-	applyLink: "サブスクを申し込む",
-	reserveCancellation: "解約を予約する",
-	changePlanTitle: "プラン変更",
-	applyFirst: "先にサブスクを申し込んでください。",
-	applyNavigation: "申し込みへ",
-	currentPlanLabel: "現在のプラン:",
-	changePlan: "変更する",
-	invoicesTitle: "請求一覧",
-	invoiceDetailLink: "詳細を見る",
-	paymentSimulationDescription: "決済サービスの代わりに手動で結果を入れます。",
-	paymentSucceeded: "（模擬）支払い成功",
-	paymentFailed: "（模擬）支払い失敗",
-	noInvoices: "請求はありません。",
-	simulationTitle: "開発用シミュレーション",
-	endTrial: "（模擬）トライアル終了日を迎える",
-	endPeriod: "（模擬）期間満了日を迎える",
-	otherScreens: "他の画面へ:",
-	applyShort: "申し込み",
-} as const;
+export const SUBSCRIPTION_VIEW_UNAVAILABLE_MESSAGE =
+	"契約情報を読み込めませんでした";
+export const SUBSCRIPTION_LOGIN_REQUIRED_MESSAGE = "ログインしてください。";
+export const APPLY_BEFORE_PLAN_CHANGE_MESSAGE =
+	"先にサブスクを申し込んでください。";
+export const NO_INVOICES_MESSAGE = "請求はありません。";
 
 const planName = (planId: PlanId): string =>
 	matchChoice<{ kind: "Basic" } | { kind: "Pro" }, string>(
@@ -286,16 +273,6 @@ const encodeState = (subscription: Subscription): SubscriptionStateView =>
 		},
 	});
 
-/**
- * 契約状態の要約。編集画面と同じ判定を使うので、状態の表示名が画面間でずれない。
- */
-export const encodeSubscriptionSummary = (
-	subscription: Subscription,
-): SubscriptionSummaryView => {
-	const { statusLabel, planName } = encodeState(subscription);
-	return { statusLabel, planName };
-};
-
 const changeDescription = (
 	subscription: Subscription,
 	nextPlanId: PlanId,
@@ -382,23 +359,3 @@ const encodeInvoice = (invoice: Invoice): InvoiceView =>
 			payable: false,
 		}),
 	});
-
-/** Subscription と Invoice の一覧 → 編集画面専用の表示モデル。 */
-export const encodeSubscriptionView = (
-	subscription: Subscription,
-	invoices: Invoice[],
-): SubscriptionView => {
-	const state = encodeState(subscription);
-	return {
-		loggedIn: true,
-		state,
-		plans: Plan.all().map((plan) => ({
-			id: PlanId.value(plan.id),
-			name: planName(plan.id),
-			monthlyPrice: MonthlyPrice.value(plan.monthlyPrice),
-			changeDescription: changeDescription(subscription, plan.id),
-			changeDisabled: !state.canChangePlan || samePlan(subscription, plan.id),
-		})),
-		invoices: invoices.map(encodeInvoice),
-	};
-};

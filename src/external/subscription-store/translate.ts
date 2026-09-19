@@ -7,7 +7,7 @@ import {
 	Result,
 	type Result as ResultType,
 } from "#/domain/building-blocks";
-import type { Account } from "#/domain/subscription/model/account.model";
+import type { Account } from "#/domain/subscription/model/account.entity";
 import {
 	AccountId,
 	TrialUsedAt,
@@ -15,14 +15,18 @@ import {
 import type {
 	Invoice,
 	InvoicePurpose,
-} from "#/domain/subscription/model/invoice.model";
+} from "#/domain/subscription/model/invoice.entity";
 import {
 	Amount,
 	InvoiceId,
 	IssuedAt,
 } from "#/domain/subscription/model/invoice.primitive";
 import { PlanId } from "#/domain/subscription/model/plan.primitive";
-import type { Subscription } from "#/domain/subscription/model/subscription.model";
+import {
+	StoreError,
+	type StoreError as StoreErrorType,
+} from "#/domain/subscription/model/store.model";
+import type { Subscription } from "#/domain/subscription/model/subscription.entity";
 import {
 	PeriodEndsAt,
 	TrialEndsAt,
@@ -32,10 +36,6 @@ import type {
 	subscriptionInvoice as subscriptionInvoiceTable,
 	subscription as subscriptionTable,
 } from "#/external/db/schema";
-import {
-	StoreError,
-	type StoreError as StoreErrorType,
-} from "#/external/subscription-store/store-error";
 
 // ===========================================================================
 // 型定義

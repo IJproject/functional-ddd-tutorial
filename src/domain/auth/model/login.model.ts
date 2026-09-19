@@ -8,6 +8,10 @@ import type {
 } from "#/domain/auth/model/user.primitive";
 import type { Case, NonEmptyArray } from "#/domain/building-blocks";
 
+// ===========================================================================
+// 入力
+// ===========================================================================
+
 export type UnvalidatedLoginRequest = {
 	email: string;
 	password: string;
@@ -18,10 +22,18 @@ export type ValidatedLoginRequest = {
 	password: Password;
 };
 
+// ===========================================================================
+// イベント
+// ===========================================================================
+
 export type LoggedIn = {
 	userId: UserId;
 	loggedInAt: LoggedInAt;
 };
+
+// ===========================================================================
+// エラー
+// ===========================================================================
 
 export type LoginError = ValidationFailed | AuthenticationFailed;
 

@@ -8,7 +8,7 @@ import type {
 import { matchChoice, Result } from "#/domain/building-blocks";
 
 // ===========================================================================
-// 型定義
+// 型定義（デシリアライズ: JSON → DTO）
 // ===========================================================================
 
 /** 境界（JSON）での parse。値として妥当かはドメインの仕事。 */
@@ -20,6 +20,10 @@ export const signupCommandSchema = z.object({
 
 export type SignupCommand = z.infer<typeof signupCommandSchema>;
 
+// ===========================================================================
+// 型定義（シリアライズ: DTO → JSON）
+// ===========================================================================
+
 export type SignupFieldError = {
 	field: "name" | "email" | "password" | null;
 	message: string;
@@ -30,8 +34,49 @@ export type SignupResponse =
 	| { ok: false; errors: SignupFieldError[] };
 
 // ===========================================================================
-// 実装
+// decode（DTO → ドメイン）
 // ===========================================================================
+
+/** SignupCommand → ドメインの未検証入力。 */
+export const decodeSignupCommand = (
+	command: SignupCommand,
+): UnvalidatedSignupRequest => ({
+	name: command.name,
+	email: command.email,
+	password: command.password,
+});
+
+// ===========================================================================
+// encode（ドメイン → DTO）
+// ===========================================================================
+
+/** ドメインの結果 → SignupResponse。 */
+export const encodeSignupResponse = (
+	result: Result<Registered, SignupError>,
+): SignupResponse =>
+	Result.match<Registered, SignupError, SignupResponse>(result, {
+		ok: (registered) => ({ ok: true, userId: registered.userId }),
+		err: (error) =>
+			matchChoice<SignupError, SignupResponse>(error, {
+				ValidationFailed: (validationFailed) => ({
+					ok: false,
+					errors: validationFailed.errors.map(toFieldError),
+				}),
+				EmailAlreadyTaken: () => ({
+					ok: false,
+					errors: [{ field: null, message: EMAIL_ALREADY_TAKEN_MESSAGE }],
+				}),
+			}),
+	});
+
+/** ワークフロー外の失敗（通信断・想定外の例外）。例外の中身は出さず一律の文言に落とす。 */
+export const UNEXPECTED_SIGNUP_RESPONSE: Extract<
+	SignupResponse,
+	{ ok: false }
+> = {
+	ok: false,
+	errors: [{ field: null, message: "登録に失敗しました" }],
+};
 
 /**
  * メールアドレス重複時の文言は境界層が決める。
@@ -66,32 +111,4 @@ const toFieldError = (error: SignupValidationError): SignupFieldError =>
 				TooShort: () => "パスワードは8文字以上で入力してください",
 			}),
 		}),
-	});
-
-/** SignupCommand → ドメインの未検証入力。 */
-export const decodeSignupCommand = (
-	command: SignupCommand,
-): UnvalidatedSignupRequest => ({
-	name: command.name,
-	email: command.email,
-	password: command.password,
-});
-
-/** ドメインの結果 → SignupResponse。 */
-export const encodeSignupResponse = (
-	result: Result<Registered, SignupError>,
-): SignupResponse =>
-	Result.match<Registered, SignupError, SignupResponse>(result, {
-		ok: (registered) => ({ ok: true, userId: registered.userId }),
-		err: (error) =>
-			matchChoice<SignupError, SignupResponse>(error, {
-				ValidationFailed: (validationFailed) => ({
-					ok: false,
-					errors: validationFailed.errors.map(toFieldError),
-				}),
-				EmailAlreadyTaken: () => ({
-					ok: false,
-					errors: [{ field: null, message: EMAIL_ALREADY_TAKEN_MESSAGE }],
-				}),
-			}),
 	});

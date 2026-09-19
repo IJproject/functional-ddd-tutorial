@@ -1,23 +1,18 @@
 import type { Case } from "#/domain/building-blocks";
-import type { UnpaidInvoice } from "#/domain/subscription/model/invoice.model";
+import type { UnpaidInvoice } from "#/domain/subscription/model/invoice.entity";
 import type {
 	FreeSubscription,
 	PendingPaymentSubscription,
-} from "#/domain/subscription/model/subscription.model";
+} from "#/domain/subscription/model/subscription.entity";
 
 // ===========================================================================
-// 型定義
+// イベント
 // ===========================================================================
 
 export type TrialEnded = Case<
 	"TrialEnded",
 	{ subscription: PendingPaymentSubscription; invoice: UnpaidInvoice }
 >;
-
-export type EndTrialError = NotInTrial;
-
-/** トライアル中ではないため、トライアル終了を適用できない。 */
-export type NotInTrial = Case<"NotInTrial">;
 
 /** 期間満了の結果。解約予約なら請求は立たないので Case で分ける。 */
 export type PeriodEnded = SubscriptionEnded | RenewalRequested;
@@ -31,6 +26,15 @@ export type RenewalRequested = Case<
 	"RenewalRequested",
 	{ subscription: PendingPaymentSubscription; invoice: UnpaidInvoice }
 >;
+
+// ===========================================================================
+// エラー
+// ===========================================================================
+
+export type EndTrialError = NotInTrial;
+
+/** トライアル中ではないため、トライアル終了を適用できない。 */
+export type NotInTrial = Case<"NotInTrial">;
 
 export type EndPeriodError = NotPaid | PaymentPending;
 

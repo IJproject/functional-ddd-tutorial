@@ -4,73 +4,76 @@ import {
 	Result,
 	type Result as ResultType,
 } from "#/domain/building-blocks";
-import type { Account } from "#/domain/subscription/model/account.model";
 import type {
 	Applied,
 	ApplyError,
 	UnvalidatedApplyRequest,
 } from "#/domain/subscription/model/apply.model";
-import { Plan } from "#/domain/subscription/model/plan.model";
-import {
-	MonthlyPrice,
-	PlanId,
-} from "#/domain/subscription/model/plan.primitive";
-import type { Subscription } from "#/domain/subscription/model/subscription.model";
+import type { StoreError } from "#/domain/subscription/model/store.model";
 
 // ===========================================================================
-// 型定義
+// 型定義（デシリアライズ: JSON → DTO）
 // ===========================================================================
 
 /** 境界（JSON）での parse。プランとして妥当かはドメインの仕事。 */
 export const applyCommandSchema = z.object({ planId: z.string() });
+
 export type ApplyCommand = z.infer<typeof applyCommandSchema>;
 
-export type PlanView = {
-	id: string;
-	name: string;
-	monthlyPrice: number;
-};
+// ===========================================================================
+// 型定義（シリアライズ: DTO → JSON）
+// ===========================================================================
 
-/** 申し込み画面が必要とする状態。 */
-export type ApplyContextView =
-	| { loggedIn: false }
-	| {
-			loggedIn: true;
-			/** 申し込み可能か。契約中なら false。 */
-			applicable: boolean;
-			/** トライアル使用済みか。文言の出し分けに使う。 */
-			trialUsed: boolean;
-			plans: PlanView[];
-	  };
+export type ApplyFieldError = { field: "planId" | null; message: string };
 
 export type ApplyResponse =
 	| { ok: true }
 	| { ok: false; errors: ApplyFieldError[] };
 
-export type ApplyFieldError = { field: "planId" | null; message: string };
-
 // ===========================================================================
-// 実装
+// decode（DTO → ドメイン）
 // ===========================================================================
 
-const ALREADY_SUBSCRIBED_MESSAGE = "すでに契約中です";
-const UNKNOWN_PLAN_MESSAGE = "有料プランを選択してください";
+/** ApplyCommand と認証済みアカウント ID → ドメインの未検証入力。 */
+export const decodeApplyCommand = (
+	command: ApplyCommand,
+	accountId: string,
+): UnvalidatedApplyRequest => ({
+	accountId,
+	planId: command.planId,
+});
 
-/** トライアル利用状況に応じた画面表示。日数を UI に重複させない。 */
-export const TRIAL_AVAILABLE_MESSAGE = "14日間の無料トライアルが始まります";
-export const PAYMENT_REQUIRED_MESSAGE = "請求が作成されます";
+// ===========================================================================
+// encode（ドメイン → DTO）
+// ===========================================================================
 
-const planName = (planId: PlanId): string =>
-	matchChoice<{ kind: "Basic" } | { kind: "Pro" }, string>(
-		{ kind: PlanId.value(planId) },
-		{
-			Basic: () => "ベーシック",
-			Pro: () => "プロ",
-		},
-	);
+/** ドメインの結果 → ApplyResponse。 */
+export const encodeApplyResponse = (
+	result: ResultType<Applied, ApplyError | StoreError>,
+): ApplyResponse =>
+	Result.match<Applied, ApplyError | StoreError, ApplyResponse>(result, {
+		ok: () => ({ ok: true }),
+		err: (error) => ({ ok: false, errors: [toFieldError(error)] }),
+	});
+
+/** ワークフロー外の失敗（通信断・想定外の例外）。 */
+export const UNEXPECTED_APPLY_RESPONSE: Extract<ApplyResponse, { ok: false }> =
+	{
+		ok: false,
+		errors: [{ field: null, message: "申し込みに失敗しました" }],
+	};
+
+/** 認証済みセッションが必要な操作へ匿名で到達した。 */
+export const AUTHENTICATION_REQUIRED_APPLY_RESPONSE: Extract<
+	ApplyResponse,
+	{ ok: false }
+> = {
+	ok: false,
+	errors: [{ field: null, message: "ログインしてください" }],
+};
 
 /** ドメインのエラーを、表示対象の項目と文言へ網羅的に翻訳する。 */
-const toFieldError = (error: ApplyError): ApplyFieldError =>
+const toFieldError = (error: ApplyError | StoreError): ApplyFieldError =>
 	matchChoice(error, {
 		InvalidApplyRequest: ({ reason }) =>
 			matchChoice(reason, {
@@ -83,48 +86,16 @@ const toFieldError = (error: ApplyError): ApplyFieldError =>
 			field: null,
 			message: ALREADY_SUBSCRIBED_MESSAGE,
 		}),
+		MalformedSubscription: () => ({
+			field: null,
+			message: MALFORMED_STORED_DATA_MESSAGE,
+		}),
+		MalformedInvoice: () => ({
+			field: null,
+			message: MALFORMED_STORED_DATA_MESSAGE,
+		}),
 	});
 
-/** ApplyCommand と認証済みアカウント ID → ドメインの未検証入力。 */
-export const decodeApplyCommand = (
-	command: ApplyCommand,
-	accountId: string,
-): UnvalidatedApplyRequest => ({
-	accountId,
-	planId: command.planId,
-});
-
-/** ドメインの結果 → ApplyResponse。 */
-export const encodeApplyResponse = (
-	result: ResultType<Applied, ApplyError>,
-): ApplyResponse =>
-	Result.match<Applied, ApplyError, ApplyResponse>(result, {
-		ok: () => ({ ok: true }),
-		err: (error) => ({ ok: false, errors: [toFieldError(error)] }),
-	});
-
-/** Account と Subscription → 申し込み画面専用の表示モデル。 */
-export const encodeApplyContextView = (
-	account: Account,
-	subscription: Subscription,
-): ApplyContextView => ({
-	loggedIn: true,
-	applicable: matchChoice<Subscription, boolean>(subscription, {
-		FreeSubscription: () => true,
-		TrialSubscription: () => false,
-		PendingPaymentSubscription: () => false,
-		PaidSubscription: () => false,
-		UpgradePendingSubscription: () => false,
-		CancelReservedSubscription: () => false,
-		PlanChangeReservedSubscription: () => false,
-	}),
-	trialUsed: matchChoice<Account, boolean>(account, {
-		TrialUnusedAccount: () => false,
-		TrialUsedAccount: () => true,
-	}),
-	plans: Plan.all().map((plan) => ({
-		id: PlanId.value(plan.id),
-		name: planName(plan.id),
-		monthlyPrice: MonthlyPrice.value(plan.monthlyPrice),
-	})),
-});
+const ALREADY_SUBSCRIBED_MESSAGE = "すでに契約中です";
+const UNKNOWN_PLAN_MESSAGE = "有料プランを選択してください";
+const MALFORMED_STORED_DATA_MESSAGE = "契約情報を読み込めませんでした";

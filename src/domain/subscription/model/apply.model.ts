@@ -2,18 +2,18 @@ import type { Case } from "#/domain/building-blocks";
 import type {
 	Account,
 	TrialUsedAccount,
-} from "#/domain/subscription/model/account.model";
+} from "#/domain/subscription/model/account.entity";
 import type { AccountId } from "#/domain/subscription/model/account.primitive";
-import type { UnpaidInvoice } from "#/domain/subscription/model/invoice.model";
+import type { UnpaidInvoice } from "#/domain/subscription/model/invoice.entity";
 import type { PlanId } from "#/domain/subscription/model/plan.primitive";
 import type {
 	PendingPaymentSubscription,
 	Subscription,
 	TrialSubscription,
-} from "#/domain/subscription/model/subscription.model";
+} from "#/domain/subscription/model/subscription.entity";
 
 // ===========================================================================
-// 型定義
+// 入力
 // ===========================================================================
 
 /** 信頼境界を越えてきた、まだドメインの型へ変換していない申し込み入力。 */
@@ -34,6 +34,10 @@ export type ApplyContext = {
 	subscription: Subscription;
 };
 
+// ===========================================================================
+// イベント
+// ===========================================================================
+
 /**
  * 申し込みの結果。トライアル未使用なら試用開始、使用済みなら請求発行と、
  * 到達する状態が異なるので Case で分ける。
@@ -49,6 +53,10 @@ export type PaymentRequested = Case<
 	"PaymentRequested",
 	{ subscription: PendingPaymentSubscription; invoice: UnpaidInvoice }
 >;
+
+// ===========================================================================
+// エラー
+// ===========================================================================
 
 export type ApplyError = InvalidApplyRequest | AlreadySubscribed;
 

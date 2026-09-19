@@ -12,6 +12,10 @@ import type {
 } from "#/domain/auth/model/user.primitive";
 import type { Case, NonEmptyArray } from "#/domain/building-blocks";
 
+// ===========================================================================
+// 入力
+// ===========================================================================
+
 export type UnvalidatedSignupRequest = {
 	name: string;
 	email: string;
@@ -24,11 +28,19 @@ export type ValidatedSignupRequest = {
 	password: Password;
 };
 
+// ===========================================================================
+// イベント
+// ===========================================================================
+
 /** 出力イベント。 */
 export type Registered = {
 	userId: UserId;
 	registeredAt: RegisteredAt;
 };
+
+// ===========================================================================
+// エラー
+// ===========================================================================
 
 export type SignupError = ValidationFailed | EmailAlreadyTaken;
 

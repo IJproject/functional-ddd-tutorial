@@ -1,14 +1,14 @@
 import type { Case } from "#/domain/building-blocks";
-import type { UnpaidInvoice } from "#/domain/subscription/model/invoice.model";
+import type { UnpaidInvoice } from "#/domain/subscription/model/invoice.entity";
 import type { PlanId } from "#/domain/subscription/model/plan.primitive";
 import type {
 	PendingPaymentSubscription,
 	PlanChangeReservedSubscription,
 	UpgradePendingSubscription,
-} from "#/domain/subscription/model/subscription.model";
+} from "#/domain/subscription/model/subscription.entity";
 
 // ===========================================================================
-// 型定義
+// 入力
 // ===========================================================================
 
 /** 信頼境界を越えてきた、まだドメインの型へ変換していないプラン変更入力。 */
@@ -16,6 +16,10 @@ export type UnvalidatedChangePlanRequest = { planId: string };
 
 /** ドメインの primitive へ変換済みのプラン変更入力。 */
 export type ChangePlanRequest = { planId: PlanId };
+
+// ===========================================================================
+// イベント
+// ===========================================================================
 
 /** プラン変更の結果。到達する状態が3通りに分かれるので Case で表す。 */
 export type PlanChanged =
@@ -37,6 +41,10 @@ export type PlanChangeReserved = Case<
 	"PlanChangeReserved",
 	{ subscription: PlanChangeReservedSubscription }
 >;
+
+// ===========================================================================
+// エラー
+// ===========================================================================
 
 export type ChangePlanError =
 	| UnknownPlan

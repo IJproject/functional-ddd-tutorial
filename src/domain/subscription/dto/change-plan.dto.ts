@@ -9,14 +9,19 @@ import type {
 	PlanChanged,
 	UnvalidatedChangePlanRequest,
 } from "#/domain/subscription/model/change-plan.model";
+import type { StoreError } from "#/domain/subscription/model/store.model";
 
 // ===========================================================================
-// 型定義
+// 型定義（デシリアライズ: JSON → DTO）
 // ===========================================================================
 
 /** 境界（JSON）での parse。プランとして妥当かはドメインの仕事。 */
 export const changePlanCommandSchema = z.object({ planId: z.string() });
 export type ChangePlanCommand = z.infer<typeof changePlanCommandSchema>;
+
+// ===========================================================================
+// 型定義（シリアライズ: DTO → JSON）
+// ===========================================================================
 
 export type ChangePlanFieldError = {
 	field: "planId" | null;
@@ -28,11 +33,50 @@ export type ChangePlanResponse =
 	| { ok: false; errors: ChangePlanFieldError[] };
 
 // ===========================================================================
-// 実装
+// decode（DTO → ドメイン）
 // ===========================================================================
 
-const toFieldError = (error: ChangePlanError): ChangePlanFieldError =>
-	matchChoice<ChangePlanError, ChangePlanFieldError>(error, {
+/** ChangePlanCommand → ドメインの未検証入力。 */
+export const decodeChangePlanCommand = (
+	command: ChangePlanCommand,
+): UnvalidatedChangePlanRequest => ({ planId: command.planId });
+
+// ===========================================================================
+// encode（ドメイン → DTO）
+// ===========================================================================
+
+/** ドメインの結果 → ChangePlanResponse。 */
+export const encodeChangePlanResponse = (
+	result: ResultType<PlanChanged, ChangePlanError | StoreError>,
+): ChangePlanResponse =>
+	Result.match<PlanChanged, ChangePlanError | StoreError, ChangePlanResponse>(
+		result,
+		{
+			ok: () => ({ ok: true }),
+			err: (error) => ({ ok: false, errors: [toFieldError(error)] }),
+		},
+	);
+
+export const UNEXPECTED_CHANGE_PLAN_RESPONSE: Extract<
+	ChangePlanResponse,
+	{ ok: false }
+> = {
+	ok: false,
+	errors: [{ field: null, message: "操作に失敗しました" }],
+};
+
+export const AUTHENTICATION_REQUIRED_CHANGE_PLAN_RESPONSE: Extract<
+	ChangePlanResponse,
+	{ ok: false }
+> = {
+	ok: false,
+	errors: [{ field: null, message: "ログインしてください" }],
+};
+
+const toFieldError = (
+	error: ChangePlanError | StoreError,
+): ChangePlanFieldError =>
+	matchChoice<ChangePlanError | StoreError, ChangePlanFieldError>(error, {
 		UnknownPlan: () => ({
 			field: "planId",
 			message: "有料プランを選択してください",
@@ -53,18 +97,14 @@ const toFieldError = (error: ChangePlanError): ChangePlanFieldError =>
 			field: null,
 			message: "すでに解約またはプラン変更の予約があります",
 		}),
+		MalformedSubscription: () => ({
+			field: null,
+			message: MALFORMED_STORED_DATA_MESSAGE,
+		}),
+		MalformedInvoice: () => ({
+			field: null,
+			message: MALFORMED_STORED_DATA_MESSAGE,
+		}),
 	});
 
-/** ChangePlanCommand → ドメインの未検証入力。 */
-export const decodeChangePlanCommand = (
-	command: ChangePlanCommand,
-): UnvalidatedChangePlanRequest => ({ planId: command.planId });
-
-/** ドメインの結果 → ChangePlanResponse。 */
-export const encodeChangePlanResponse = (
-	result: ResultType<PlanChanged, ChangePlanError>,
-): ChangePlanResponse =>
-	Result.match<PlanChanged, ChangePlanError, ChangePlanResponse>(result, {
-		ok: () => ({ ok: true }),
-		err: (error) => ({ ok: false, errors: [toFieldError(error)] }),
-	});
+const MALFORMED_STORED_DATA_MESSAGE = "契約情報を読み込めませんでした";

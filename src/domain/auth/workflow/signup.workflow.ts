@@ -11,7 +11,7 @@ import {
 	type RegisteredAt,
 	UserName,
 } from "#/domain/auth/model/signup.primitive";
-import type { AuthenticatedUser } from "#/domain/auth/model/user.model";
+import type { AuthenticatedUser } from "#/domain/auth/model/user.entity";
 import { EmailAddress, Password } from "#/domain/auth/model/user.primitive";
 import { AsyncResult, pipe, Result } from "#/domain/building-blocks";
 
@@ -19,33 +19,42 @@ import { AsyncResult, pipe, Result } from "#/domain/building-blocks";
 // 型定義
 // ===========================================================================
 
-/** ① 未検証 → ② 形式検証済み。Result を返す純粋関数。 */
+/**
+ * パイプライン全体。
+ *
+ *   UnvalidatedSignupRequest
+ *     -> validateSignupRequest  // 形式検証（純粋）
+ *     -> registerUser           // 登録（I/O・注入）
+ *     -> createRegisteredEvent  // イベント化（純粋）
+ *   Registered
+ */
+export type SignupWorkflow = (
+	request: UnvalidatedSignupRequest,
+) => AsyncResult<Registered, SignupError>;
+
+/** 未検証 → 形式検証済み。Result を返す純粋関数。 */
 export type ValidateSignupRequest = (
 	request: UnvalidatedSignupRequest,
 ) => Result<ValidatedSignupRequest, ValidationFailed>;
 
-/** ② 形式検証済み → ③ 登録済み。I/O を伴うためドメインは型だけを定め、実装は外から注入する。 */
+/** 形式検証済み → 登録済み。I/O を伴うためドメインは型だけを定め、実装は外から注入する。 */
 export type RegisterUser = (
 	request: ValidatedSignupRequest,
 ) => AsyncResult<AuthenticatedUser, EmailAlreadyTaken>;
 
-/** ③ 登録済み → 出力イベント。純粋関数。 */
+/** 登録済み → 出力イベント。純粋関数。 */
 export type CreateRegisteredEvent = (
 	user: AuthenticatedUser,
 	registeredAt: RegisteredAt,
 ) => Registered;
 
+/** パイプラインを組み立てるための依存。各ステップと現在時刻の取得を注入する。 */
 export type SignupWorkflowDeps = {
 	validateSignupRequest: ValidateSignupRequest;
 	registerUser: RegisterUser;
 	createRegisteredEvent: CreateRegisteredEvent;
 	now: () => RegisteredAt;
 };
-
-/** パイプライン全体。 */
-export type SignupWorkflow = (
-	request: UnvalidatedSignupRequest,
-) => AsyncResult<Registered, SignupError>;
 
 export type CreateSignupWorkflow = (deps: SignupWorkflowDeps) => SignupWorkflow;
 

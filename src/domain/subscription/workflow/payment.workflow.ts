@@ -9,7 +9,7 @@ import type {
 	Invoice,
 	PaidInvoice,
 	UnpaidInvoice,
-} from "#/domain/subscription/model/invoice.model";
+} from "#/domain/subscription/model/invoice.entity";
 import type {
 	InvoiceAlreadyProcessed,
 	NoPendingPayment,
@@ -17,7 +17,7 @@ import type {
 	PaymentOutcome,
 	PaymentSettled,
 } from "#/domain/subscription/model/payment.model";
-import type { Subscription } from "#/domain/subscription/model/subscription.model";
+import type { Subscription } from "#/domain/subscription/model/subscription.entity";
 import { PeriodEndsAt } from "#/domain/subscription/model/subscription.primitive";
 
 // ===========================================================================

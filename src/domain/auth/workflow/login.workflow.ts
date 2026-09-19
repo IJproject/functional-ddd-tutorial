@@ -8,7 +8,7 @@ import type {
 	ValidationFailed,
 } from "#/domain/auth/model/login.model";
 import type { LoggedInAt } from "#/domain/auth/model/login.primitive";
-import type { AuthenticatedUser } from "#/domain/auth/model/user.model";
+import type { AuthenticatedUser } from "#/domain/auth/model/user.entity";
 import { EmailAddress, Password } from "#/domain/auth/model/user.primitive";
 import { AsyncResult, pipe, Result } from "#/domain/building-blocks";
 
@@ -16,33 +16,42 @@ import { AsyncResult, pipe, Result } from "#/domain/building-blocks";
 // 型定義
 // ===========================================================================
 
-/** ① 未検証 → ② 形式検証済み。Result を返す純粋関数（AsyncResult との対比で I/O 不在を型で示す）。 */
+/**
+ * パイプライン全体。
+ *
+ *   UnvalidatedLoginRequest
+ *     -> validateLoginRequest   // 形式検証（純粋）
+ *     -> verifyCredentials      // 認証（I/O・注入）
+ *     -> createLoggedInEvent    // イベント化（純粋）
+ *   LoggedIn
+ */
+export type LoginWorkflow = (
+	request: UnvalidatedLoginRequest,
+) => AsyncResult<LoggedIn, LoginError>;
+
+/** 未検証 → 形式検証済み。Result を返す純粋関数。 */
 export type ValidateLoginRequest = (
 	request: UnvalidatedLoginRequest,
 ) => Result<ValidatedLoginRequest, ValidationFailed>;
 
-/** ② 形式検証済み → ③ 認証済み。I/O を伴うためドメインは型だけを定め、実装は外から注入する。 */
+/** 形式検証済み → 認証済み。I/O を伴うためドメインは型だけを定め、実装は外から注入する。 */
 export type VerifyCredentials = (
 	request: ValidatedLoginRequest,
 ) => AsyncResult<AuthenticatedUser, AuthenticationFailed>;
 
-/** ③ 認証済み → 出力イベント。純粋関数。 */
+/** 認証済み → 出力イベント。純粋関数。 */
 export type CreateLoggedInEvent = (
 	user: AuthenticatedUser,
 	loggedInAt: LoggedInAt,
 ) => LoggedIn;
 
+/** パイプラインを組み立てるための依存。各ステップと現在時刻の取得を注入する。 */
 export type LoginWorkflowDeps = {
 	validateLoginRequest: ValidateLoginRequest;
 	verifyCredentials: VerifyCredentials;
 	createLoggedInEvent: CreateLoggedInEvent;
 	now: () => LoggedInAt;
 };
-
-/** パイプライン全体。 */
-export type LoginWorkflow = (
-	request: UnvalidatedLoginRequest,
-) => AsyncResult<LoggedIn, LoginError>;
 
 export type CreateLoginWorkflow = (deps: LoginWorkflowDeps) => LoginWorkflow;
 

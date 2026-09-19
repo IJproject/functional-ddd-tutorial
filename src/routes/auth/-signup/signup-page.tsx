@@ -9,6 +9,7 @@ import {
 	encodeSignupResponse,
 	type SignupFieldError,
 	signupCommandSchema,
+	UNEXPECTED_SIGNUP_RESPONSE,
 } from "#/domain/auth/dto/signup.dto";
 import { RegisteredAt } from "#/domain/auth/model/signup.primitive";
 import {
@@ -38,14 +39,6 @@ const signup = createServerFn({ method: "POST" })
 		if (response.ok) await openAccount(AccountId.create(response.userId));
 		return response;
 	});
-
-// ワークフロー外の失敗に対する文言。ドメインが想定していない失敗なので、
-// 捕まえた例外の中身は表示せずに一律の表現へ落とす（内部情報を漏らさないため）。
-const UNEXPECTED_SIGNUP_ERROR: SignupFieldError = {
-	field: null,
-	message: "登録に失敗しました",
-};
-
 export function SignupPage() {
 	const navigate = useNavigate();
 	const [errors, setErrors] = useState<SignupFieldError[]>([]);
@@ -76,7 +69,7 @@ export function SignupPage() {
 			await navigate({ to: "/subscription/edit" });
 		} catch {
 			// ここに来るのは通信断や、アダプタが投げ直したインフラ障害だけ。
-			setErrors([UNEXPECTED_SIGNUP_ERROR]);
+			setErrors(UNEXPECTED_SIGNUP_RESPONSE.errors);
 		}
 	}
 	return (

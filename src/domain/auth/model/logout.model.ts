@@ -2,10 +2,18 @@ import type { LoggedOutAt } from "#/domain/auth/model/logout.primitive";
 import type { UserId } from "#/domain/auth/model/user.primitive";
 import type { Case } from "#/domain/building-blocks";
 
+// ===========================================================================
+// イベント
+// ===========================================================================
+
 export type LoggedOut = {
 	userId: UserId;
 	loggedOutAt: LoggedOutAt;
 };
+
+// ===========================================================================
+// エラー
+// ===========================================================================
 
 export type LogoutError = NotAuthenticated;
 

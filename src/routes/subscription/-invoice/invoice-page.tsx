@@ -6,12 +6,13 @@ import { UserId } from "#/domain/auth/model/user.primitive";
 import { matchChoice, Result } from "#/domain/building-blocks";
 import {
 	decodeInvoiceParams,
-	encodeInvoiceDetail,
-	INVOICE_DETAIL_TEXT,
+	encodeInvoiceDetailView,
+	INVOICE_DETAIL_UNAVAILABLE_MESSAGE,
+	INVOICE_LOGIN_REQUIRED_MESSAGE,
+	INVOICE_NOT_FOUND_DESCRIPTION,
 	type InvoiceDetailView,
 	invoiceParamsSchema,
 } from "#/domain/subscription/dto/invoice-detail.dto";
-import { STORE_UNAVAILABLE_MESSAGE } from "#/domain/subscription/dto/subscription-view.dto";
 import { AccountId } from "#/domain/subscription/model/account.primitive";
 import { currentSession } from "#/external/better-auth/current-session";
 import { findInvoice } from "#/external/subscription-store/subscription-store";
@@ -21,6 +22,21 @@ import { findInvoice } from "#/external/subscription-store/subscription-store";
  * ルートが InvoicePage を import するため、ここでは Route の直接 import による循環参照を避けて getRouteApi を使う。
  */
 const routeApi = getRouteApi("/subscription/invoice/$invoiceId");
+
+const INVOICE_DETAIL_TEXT = {
+	kicker: "サブスクリプション",
+	title: "請求の詳細",
+	loading: "読み込み中...",
+	loginLink: "ログインへ",
+	notFoundTitle: "請求が見つかりません",
+	backToEdit: "契約へ戻る",
+	invoiceIdLabel: "請求 ID",
+	amountLabel: "金額",
+	issuedAtLabel: "発行日時",
+	purposeLabel: "請求理由",
+	planLabel: "プラン",
+	statusLabel: "状態",
+} as const;
 
 /** auth BC の UserId を subscription BC の AccountId へ境界層で翻訳する。 */
 const toAccountId = (userId: UserId): AccountId =>
@@ -45,15 +61,16 @@ const getInvoiceDetail = createServerFn({ method: "GET" })
 						const loaded = await findInvoice(toAccountId(userId), invoiceId);
 						return Result.match(loaded, {
 							err: () => {
-								// StoreError の reason は内部情報なので画面へ運ばない。
-								throw new Error(STORE_UNAVAILABLE_MESSAGE);
+								// 読み取りの View は失敗の形を持たないため reject させ、クライアントの catch が INVOICE_DETAIL_UNAVAILABLE_MESSAGE を表示する。
+								// StoreError の reason は内部情報なので例外にも載せない。
+								throw new Error();
 							},
 							ok: (invoice): InvoiceDetailView =>
 								invoice === null
 									? { kind: "InvoiceNotFound" }
 									: {
 											kind: "InvoiceFound",
-											invoice: encodeInvoiceDetail(invoice),
+											invoice: encodeInvoiceDetailView(invoice),
 										},
 						});
 					},
@@ -71,7 +88,7 @@ export function InvoicePage() {
 		setErrors([]);
 		getInvoiceDetail({ data: { invoiceId } })
 			.then(setView)
-			.catch(() => setErrors([STORE_UNAVAILABLE_MESSAGE]));
+			.catch(() => setErrors([INVOICE_DETAIL_UNAVAILABLE_MESSAGE]));
 	}, [invoiceId]);
 
 	const errorAlert = <Alert messages={errors} />;
@@ -87,14 +104,14 @@ export function InvoicePage() {
 	const content = matchChoice<InvoiceDetailView, ReactNode>(view, {
 		AnonymousInvoiceDetail: () => (
 			<>
-				<p>{INVOICE_DETAIL_TEXT.loginRequiredDescription}</p>
+				<p>{INVOICE_LOGIN_REQUIRED_MESSAGE}</p>
 				<Link to="/auth/login">{INVOICE_DETAIL_TEXT.loginLink}</Link>
 			</>
 		),
 		InvoiceNotFound: () => (
 			<>
 				<h2 className="demo-title">{INVOICE_DETAIL_TEXT.notFoundTitle}</h2>
-				<p className="demo-muted">{INVOICE_DETAIL_TEXT.notFoundDescription}</p>
+				<p className="demo-muted">{INVOICE_NOT_FOUND_DESCRIPTION}</p>
 				<Link to="/subscription/edit">{INVOICE_DETAIL_TEXT.backToEdit}</Link>
 			</>
 		),

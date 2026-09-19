@@ -9,7 +9,7 @@ import {
 import type {
 	Invoice,
 	InvoicePurpose,
-} from "#/domain/subscription/model/invoice.model";
+} from "#/domain/subscription/model/invoice.entity";
 import {
 	Amount,
 	InvoiceId,
@@ -18,7 +18,7 @@ import {
 import { PlanId } from "#/domain/subscription/model/plan.primitive";
 
 // ===========================================================================
-// 型定義
+// 型定義（デシリアライズ: JSON → DTO）
 // ===========================================================================
 
 /**
@@ -30,6 +30,10 @@ export type InvoiceParams = z.infer<typeof invoiceParamsSchema>;
 
 /** 境界で受け取った請求 ID が UUID の形式ではない。 */
 export type MalformedInvoiceId = Case<"MalformedInvoiceId">;
+
+// ===========================================================================
+// 型定義（シリアライズ: DTO → JSON）
+// ===========================================================================
 
 /** 詳細画面に出す1件の請求。一覧行（InvoiceView）と違い payable を持たない（表示専用のため）。 */
 export type InvoiceDetailItemView = {
@@ -55,26 +59,8 @@ export type InvoiceDetailView =
 	| Case<"InvoiceFound", { invoice: InvoiceDetailItemView }>;
 
 // ===========================================================================
-// 実装
+// decode（DTO → ドメイン）
 // ===========================================================================
-
-/** 請求詳細画面に表示する固定文言。UI は境界層が用意した文言だけを描画する。 */
-export const INVOICE_DETAIL_TEXT = {
-	kicker: "サブスクリプション",
-	title: "請求の詳細",
-	loading: "読み込み中...",
-	loginRequiredDescription: "ログインしてください。",
-	loginLink: "ログインへ",
-	notFoundTitle: "請求が見つかりません",
-	notFoundDescription: "指定された請求を確認できませんでした。",
-	backToEdit: "契約へ戻る",
-	invoiceIdLabel: "請求 ID",
-	amountLabel: "金額",
-	issuedAtLabel: "発行日時",
-	purposeLabel: "請求理由",
-	planLabel: "プラン",
-	statusLabel: "状態",
-} as const;
 
 /**
  * InvoiceId.create は crypto.randomUUID() の結果を受ける信頼境界の内側の入口であり、
@@ -89,23 +75,13 @@ export const decodeInvoiceParams = (
 		: err({ kind: "MalformedInvoiceId" });
 };
 
-const planName = (planId: PlanId): string =>
-	matchChoice<{ kind: "Basic" } | { kind: "Pro" }, string>(
-		{ kind: PlanId.value(planId) },
-		{
-			Basic: () => "ベーシック",
-			Pro: () => "プロ",
-		},
-	);
+// ===========================================================================
+// encode（ドメイン → DTO）
+// ===========================================================================
 
-const purposeLabel = (purpose: InvoicePurpose): string =>
-	matchChoice<InvoicePurpose, string>(purpose, {
-		New: () => "新規",
-		Renewal: () => "更新",
-		UpgradeDifference: () => "アップグレード差額",
-	});
-
-export const encodeInvoiceDetail = (invoice: Invoice): InvoiceDetailItemView =>
+export const encodeInvoiceDetailView = (
+	invoice: Invoice,
+): InvoiceDetailItemView =>
 	matchChoice<Invoice, InvoiceDetailItemView>(invoice, {
 		UnpaidInvoice: (current) => ({
 			id: InvoiceId.value(current.id),
@@ -134,4 +110,26 @@ export const encodeInvoiceDetail = (invoice: Invoice): InvoiceDetailItemView =>
 			statusDescription: "決済に失敗しています。契約画面から再実行できます。",
 			issuedAt: IssuedAt.value(current.issuedAt).toLocaleString("ja-JP"),
 		}),
+	});
+
+export const INVOICE_DETAIL_UNAVAILABLE_MESSAGE =
+	"契約情報を読み込めませんでした";
+export const INVOICE_LOGIN_REQUIRED_MESSAGE = "ログインしてください。";
+export const INVOICE_NOT_FOUND_DESCRIPTION =
+	"指定された請求を確認できませんでした。";
+
+const planName = (planId: PlanId): string =>
+	matchChoice<{ kind: "Basic" } | { kind: "Pro" }, string>(
+		{ kind: PlanId.value(planId) },
+		{
+			Basic: () => "ベーシック",
+			Pro: () => "プロ",
+		},
+	);
+
+const purposeLabel = (purpose: InvoicePurpose): string =>
+	matchChoice<InvoicePurpose, string>(purpose, {
+		New: () => "新規",
+		Renewal: () => "更新",
+		UpgradeDifference: () => "アップグレード差額",
 	});

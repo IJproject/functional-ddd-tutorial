@@ -3,18 +3,30 @@ import { createServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { Alert } from "#/components/feedback/alert";
 import { UserId } from "#/domain/auth/model/user.primitive";
-import { matchChoice, Result } from "#/domain/building-blocks";
 import {
-	type ApplyContextView,
+	AsyncResult,
+	matchChoice,
+	ok,
+	pipe,
+	Result,
+} from "#/domain/building-blocks";
+import {
 	type ApplyFieldError,
 	type ApplyResponse,
+	AUTHENTICATION_REQUIRED_APPLY_RESPONSE,
 	applyCommandSchema,
 	decodeApplyCommand,
-	encodeApplyContextView,
 	encodeApplyResponse,
+	UNEXPECTED_APPLY_RESPONSE,
 } from "#/domain/subscription/dto/apply.dto";
-import { STORE_UNAVAILABLE_MESSAGE } from "#/domain/subscription/dto/subscription-view.dto";
+import {
+	ALREADY_SUBSCRIBED_APPLY_MESSAGE,
+	APPLY_CONTEXT_UNAVAILABLE_MESSAGE,
+	type ApplyContextView,
+	encodeApplyContextView,
+} from "#/domain/subscription/dto/apply-context.dto";
 import { AccountId } from "#/domain/subscription/model/account.primitive";
+import type { Applied } from "#/domain/subscription/model/apply.model";
 import { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
 import {
 	applyToSubscription,
@@ -28,18 +40,6 @@ import {
 } from "#/external/subscription-store/subscription-store";
 import { LoginRequired } from "./login-required/login-required";
 import { PlanList } from "./plan-list/plan-list";
-
-// ワークフロー外の失敗に対する文言。捕まえた例外の中身は表示しない。
-const UNEXPECTED_APPLY_ERROR: ApplyFieldError = {
-	field: null,
-	message: "申し込みに失敗しました",
-};
-
-/** StoreError の開発者向け reason は捨て、画面には一律の文言だけを渡す。 */
-const STORE_UNAVAILABLE_APPLY_ERROR: ApplyFieldError = {
-	field: null,
-	message: STORE_UNAVAILABLE_MESSAGE,
-};
 
 // composition root: ドメインのポートに具体的な実装を差し込むのはここだけ。
 const applyWorkflow = createApplyWorkflow({
@@ -60,9 +60,10 @@ const getApplyContext = createServerFn({ method: "GET" }).handler(async () => {
 		AuthenticatedSession: async ({ userId }) => {
 			const loaded = await loadApplyContext(toAccountId(userId));
 			return Result.match(loaded, {
-				// 例外にも内部理由を載せず、クライアント側の一律表示へ委ねる。
 				err: () => {
-					throw new Error(STORE_UNAVAILABLE_MESSAGE);
+					// 読み取りの View は失敗の形を持たないため reject させ、クライアントの catch が APPLY_CONTEXT_UNAVAILABLE_MESSAGE を表示する。
+					// StoreError の reason は内部情報なので例外にも載せない。
+					throw new Error();
 				},
 				ok: (context) =>
 					encodeApplyContextView(context.account, context.subscription),
@@ -76,30 +77,23 @@ const applySubscription = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const session = await currentSession();
 		return matchChoice<typeof session, Promise<ApplyResponse>>(session, {
-			AnonymousSession: async () => ({
-				ok: false,
-				errors: [UNEXPECTED_APPLY_ERROR],
-			}),
+			AnonymousSession: async () => AUTHENTICATION_REQUIRED_APPLY_RESPONSE,
 			AuthenticatedSession: async ({ userId }) => {
 				const accountId = toAccountId(userId);
-				const loaded = await loadApplyContext(accountId);
-				return Result.match(loaded, {
-					err: async (): Promise<ApplyResponse> => ({
-						ok: false,
-						errors: [STORE_UNAVAILABLE_APPLY_ERROR],
-					}),
-					ok: async (context): Promise<ApplyResponse> => {
-						const result = applyWorkflow(
+				return pipe(
+					loadApplyContext(accountId),
+					AsyncResult.flatMap((context) =>
+						applyWorkflow(
 							decodeApplyCommand(data, AccountId.value(accountId)),
 							context,
-						);
-						await Result.match(result, {
-							ok: saveApplied,
-							err: async () => undefined,
-						});
-						return encodeApplyResponse(result);
-					},
-				});
+						),
+					),
+					AsyncResult.flatMap<Applied, Applied, never>(async (applied) => {
+						await saveApplied(applied);
+						return ok(applied);
+					}),
+					async (result) => encodeApplyResponse(await result),
+				);
 			},
 		});
 	});
@@ -108,19 +102,23 @@ export function ApplyPage() {
 	const navigate = useNavigate();
 	const [data, setData] = useState<ApplyContextView | null>(null);
 	const [errors, setErrors] = useState<ApplyFieldError[]>([]);
+	const [contextNotice, setContextNotice] = useState<string | null>(null);
 	useEffect(() => {
 		getApplyContext()
 			.then(setData)
-			.catch(() => setErrors([STORE_UNAVAILABLE_APPLY_ERROR]));
+			.catch(() => setContextNotice(APPLY_CONTEXT_UNAVAILABLE_MESSAGE));
 	}, []);
 
-	/** field ごとの振り分け。field: null はフォーム全体のエラー。 */
+	/** field ごとの振り分け。field が null ならフォーム全体のエラー。 */
 	const errorsFor = (field: ApplyFieldError["field"]) =>
 		errors.filter((item) => item.field === field);
 	const formErrors = errorsFor(null);
 	const planErrors = errorsFor("planId");
 	const visibleErrors = [...formErrors, ...planErrors];
-	const errorMessages = visibleErrors.map((item) => item.message);
+	const errorMessages = [
+		...visibleErrors.map((item) => item.message),
+		...(contextNotice === null ? [] : [contextNotice]),
+	];
 
 	async function apply(planId: string) {
 		try {
@@ -132,7 +130,7 @@ export function ApplyPage() {
 			setErrors([]);
 			await navigate({ to: "/subscription/edit" });
 		} catch {
-			setErrors([UNEXPECTED_APPLY_ERROR]);
+			setErrors(UNEXPECTED_APPLY_RESPONSE.errors);
 		}
 	}
 	if (!data)
@@ -163,7 +161,7 @@ export function ApplyPage() {
 				<Alert messages={errorMessages} />
 				{!data.applicable ? (
 					<>
-						<p>すでに契約中のため申し込みできません。</p>
+						<p>{ALREADY_SUBSCRIBED_APPLY_MESSAGE}</p>
 						<Link to="/subscription/edit">契約へ</Link>
 					</>
 				) : (

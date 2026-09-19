@@ -2,7 +2,7 @@ import type { LoggedOut, LogoutError } from "#/domain/auth/model/logout.model";
 import { Result } from "#/domain/building-blocks";
 
 // ===========================================================================
-// 型定義
+// 型定義（シリアライズ: DTO → JSON）
 // ===========================================================================
 
 export type LogoutResponse =
@@ -10,11 +10,8 @@ export type LogoutResponse =
 	| { ok: false; message: string };
 
 // ===========================================================================
-// 実装
+// encode（ドメイン → DTO）
 // ===========================================================================
-
-/** 未認証状態でのログアウト要求に対する文言は境界層が決める。 */
-const NOT_AUTHENTICATED_MESSAGE = "すでにログアウトしています";
 
 export const encodeLogoutResponse = (
 	result: Result<LoggedOut, LogoutError>,
@@ -23,3 +20,15 @@ export const encodeLogoutResponse = (
 		ok: (loggedOut) => ({ ok: true, userId: loggedOut.userId }),
 		err: () => ({ ok: false, message: NOT_AUTHENTICATED_MESSAGE }),
 	});
+
+/** ワークフロー外の失敗（通信断・想定外の例外）。例外の中身は出さず一律の文言に落とす。 */
+export const UNEXPECTED_LOGOUT_RESPONSE: Extract<
+	LogoutResponse,
+	{ ok: false }
+> = {
+	ok: false,
+	message: "ログアウトに失敗しました",
+};
+
+/** 未認証状態でのログアウト要求に対する文言は境界層が決める。 */
+const NOT_AUTHENTICATED_MESSAGE = "すでにログアウトしています";

@@ -17,21 +17,21 @@ import type {
 	TrialCancelled,
 } from "#/domain/subscription/model/cancel.model";
 import type { PlanChanged } from "#/domain/subscription/model/change-plan.model";
-import type { Invoice } from "#/domain/subscription/model/invoice.model";
+import type { Invoice } from "#/domain/subscription/model/invoice.entity";
 import { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
 import type { PaymentSettled } from "#/domain/subscription/model/payment.model";
 import type {
 	PeriodEnded,
 	TrialEnded,
 } from "#/domain/subscription/model/schedule.model";
-import type { Subscription } from "#/domain/subscription/model/subscription.model";
+import type { StoreError } from "#/domain/subscription/model/store.model";
+import type { Subscription } from "#/domain/subscription/model/subscription.entity";
 import { db } from "#/external/db/client";
 import {
 	subscriptionAccount as subscriptionAccountTable,
 	subscriptionInvoice as subscriptionInvoiceTable,
 	subscription as subscriptionTable,
 } from "#/external/db/schema";
-import type { StoreError } from "#/external/subscription-store/store-error";
 import {
 	toDomainAccount,
 	toDomainInvoice,

@@ -7,12 +7,19 @@ import { TextField } from "#/components/form/text-field";
 import {
 	decodeLoginCommand,
 	encodeLoginResponse,
-	encodeSessionView,
 	type LoginFieldError,
 	loginCommandSchema,
-	type SessionView,
+	UNEXPECTED_LOGIN_RESPONSE,
 } from "#/domain/auth/dto/login.dto";
-import { encodeLogoutResponse } from "#/domain/auth/dto/logout.dto";
+import {
+	encodeLogoutResponse,
+	UNEXPECTED_LOGOUT_RESPONSE,
+} from "#/domain/auth/dto/logout.dto";
+import {
+	encodeSessionView,
+	SESSION_UNAVAILABLE_MESSAGE,
+	type SessionView,
+} from "#/domain/auth/dto/session.dto";
 import { LoggedInAt } from "#/domain/auth/model/login.primitive";
 import { LoggedOutAt } from "#/domain/auth/model/logout.primitive";
 import {
@@ -55,30 +62,16 @@ const fetchSession = createServerFn({ method: "GET" }).handler(async () =>
 	encodeSessionView(await currentSession()),
 );
 
-// ワークフロー外の失敗に対する文言。ドメインが想定していない失敗なので、
-// 捕まえた例外の中身は表示せずに一律の表現へ落とす（内部情報を漏らさないため）。
-const UNEXPECTED_LOGIN_ERROR: LoginFieldError = {
-	field: null,
-	message: "ログインに失敗しました",
-};
-const UNEXPECTED_LOGOUT_ERROR: LoginFieldError = {
-	field: null,
-	message: "ログアウトに失敗しました",
-};
-const UNEXPECTED_SESSION_ERROR: LoginFieldError = {
-	field: null,
-	message: "セッションの取得に失敗しました",
-};
-
 export function LoginPage() {
 	const navigate = useNavigate();
 	const [errors, setErrors] = useState<LoginFieldError[]>([]);
+	const [notice, setNotice] = useState<string | null>(null);
 	const [session, setSession] = useState<SessionView>({ loggedIn: false });
 	useEffect(() => {
 		fetchSession()
 			.then(setSession)
 			// 取得できなければ未ログイン扱いのままフォームを出す。黙って握り潰さず理由は見せる。
-			.catch(() => setErrors([UNEXPECTED_SESSION_ERROR]));
+			.catch(() => setNotice(SESSION_UNAVAILABLE_MESSAGE));
 	}, []);
 
 	/** field ごとの振り分け。field: null はフォーム全体のエラー。 */
@@ -105,17 +98,22 @@ export function LoginPage() {
 			await navigate({ to: "/subscription/edit" });
 		} catch {
 			// ここに来るのは通信断や、アダプタが投げ直したインフラ障害だけ。
-			setErrors([UNEXPECTED_LOGIN_ERROR]);
+			setErrors(UNEXPECTED_LOGIN_RESPONSE.errors);
 		}
 	}
 	async function signout() {
 		try {
 			const result = await logout();
 			setSession({ loggedIn: false });
-			setErrors(result.ok ? [] : [{ field: null, message: result.message }]);
+			if (!result.ok) {
+				setNotice(result.message);
+				return;
+			}
+			setNotice(null);
+			setErrors([]);
 		} catch {
 			// 破棄できたかどうか分からないので session は触らず、エラーだけ出す。
-			setErrors([UNEXPECTED_LOGOUT_ERROR]);
+			setNotice(UNEXPECTED_LOGOUT_RESPONSE.message);
 		}
 	}
 	return (
@@ -123,7 +121,12 @@ export function LoginPage() {
 			<section className="demo-panel">
 				<p className="island-kicker">ログイン</p>
 				<h1 className="demo-title">アカウントにログイン</h1>
-				<Alert messages={formErrors.map((item) => item.message)} />
+				<Alert
+					messages={[
+						...formErrors.map((item) => item.message),
+						...(notice === null ? [] : [notice]),
+					]}
+				/>
 				{session.loggedIn ? (
 					<Button kind="action" variant="danger" onClick={signout}>
 						ログアウト

@@ -1,12 +1,12 @@
 import { Button } from "#/components/control/button";
 import {
+	type ApplyPlanView,
 	PAYMENT_REQUIRED_MESSAGE,
-	type PlanView,
 	TRIAL_AVAILABLE_MESSAGE,
-} from "#/domain/subscription/dto/apply.dto";
+} from "#/domain/subscription/dto/apply-context.dto";
 
 type PlanCardProps = {
-	plan: PlanView;
+	plan: ApplyPlanView;
 	trialUsed: boolean;
 	onApply: (planId: string) => void;
 };

@@ -4,39 +4,71 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "#/components/control/button";
 import { Alert } from "#/components/feedback/alert";
 import { UserId } from "#/domain/auth/model/user.primitive";
-import { matchChoice, Result } from "#/domain/building-blocks";
 import {
+	AsyncResult,
+	err,
+	matchChoice,
+	ok,
+	pipe,
+	Result,
+} from "#/domain/building-blocks";
+import {
+	AUTHENTICATION_REQUIRED_CANCEL_RESPONSE,
 	type CancelResponse,
 	encodeCancelTrialResponse,
 	encodeReserveCancellationResponse,
+	UNEXPECTED_CANCEL_RESPONSE,
 } from "#/domain/subscription/dto/cancel.dto";
 import {
+	AUTHENTICATION_REQUIRED_CHANGE_PLAN_RESPONSE,
 	type ChangePlanResponse,
 	changePlanCommandSchema,
 	decodeChangePlanCommand,
 	encodeChangePlanResponse,
+	UNEXPECTED_CHANGE_PLAN_RESPONSE,
 } from "#/domain/subscription/dto/change-plan.dto";
 import {
+	AUTHENTICATION_REQUIRED_PAYMENT_RESPONSE,
 	decodePaymentOutcome,
 	encodePaymentResponse,
-	INVOICE_NOT_FOUND_MESSAGE,
 	type PayInvoiceCommand,
 	type PaymentResponse,
 	payInvoiceCommandSchema,
+	UNEXPECTED_PAYMENT_RESPONSE,
 } from "#/domain/subscription/dto/payment.dto";
 import {
+	AUTHENTICATION_REQUIRED_END_PERIOD_RESPONSE,
+	AUTHENTICATION_REQUIRED_END_TRIAL_RESPONSE,
 	encodeEndPeriodResponse,
 	encodeEndTrialResponse,
 	type ScheduleResponse,
+	UNEXPECTED_END_PERIOD_RESPONSE,
+	UNEXPECTED_END_TRIAL_RESPONSE,
 } from "#/domain/subscription/dto/schedule.dto";
 import {
+	APPLY_BEFORE_PLAN_CHANGE_MESSAGE,
 	encodeSubscriptionView,
-	STORE_UNAVAILABLE_MESSAGE,
-	SUBSCRIPTION_EDIT_TEXT,
+	NO_INVOICES_MESSAGE,
+	SUBSCRIPTION_LOGIN_REQUIRED_MESSAGE,
+	SUBSCRIPTION_VIEW_UNAVAILABLE_MESSAGE,
 	type SubscriptionView,
 } from "#/domain/subscription/dto/subscription-view.dto";
 import { AccountId } from "#/domain/subscription/model/account.primitive";
+import type {
+	CancellationReserved,
+	TrialCancelled,
+} from "#/domain/subscription/model/cancel.model";
+import type { PlanChanged } from "#/domain/subscription/model/change-plan.model";
 import { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
+import type {
+	InvoiceNotFound,
+	PayInvoiceError,
+	PaymentSettled,
+} from "#/domain/subscription/model/payment.model";
+import type {
+	PeriodEnded,
+	TrialEnded,
+} from "#/domain/subscription/model/schedule.model";
 import {
 	cancelTrial as cancelTrialForSubscription,
 	createCancelTrialWorkflow,
@@ -71,6 +103,32 @@ import {
 	saveTrialEnded,
 } from "#/external/subscription-store/subscription-store";
 
+const SUBSCRIPTION_EDIT_TEXT = {
+	loading: "読み込み中...",
+	loginLink: "ログインへ",
+	kicker: "サブスクリプション",
+	contractTitle: "契約",
+	trialEndLabel: "トライアル終了日:",
+	periodEndLabel: "期間満了日:",
+	cancelTrial: "トライアルを解約する",
+	applyLink: "サブスクを申し込む",
+	reserveCancellation: "解約を予約する",
+	changePlanTitle: "プラン変更",
+	applyNavigation: "申し込みへ",
+	currentPlanLabel: "現在のプラン:",
+	changePlan: "変更する",
+	invoicesTitle: "請求一覧",
+	invoiceDetailLink: "詳細を見る",
+	paymentSimulationDescription: "決済サービスの代わりに手動で結果を入れます。",
+	paymentSucceeded: "（模擬）支払い成功",
+	paymentFailed: "（模擬）支払い失敗",
+	simulationTitle: "開発用シミュレーション",
+	endTrial: "（模擬）トライアル終了日を迎える",
+	endPeriod: "（模擬）期間満了日を迎える",
+	otherScreens: "他の画面へ:",
+	applyShort: "申し込み",
+} as const;
+
 // composition root: ドメインのポートに具体的な実装を差し込むのはここだけ。
 const newInvoiceId = () => InvoiceId.create(crypto.randomUUID());
 const now = () => new Date();
@@ -104,17 +162,6 @@ const endPeriodWorkflow = createEndPeriodWorkflow({
 const toAccountId = (userId: UserId): AccountId =>
 	AccountId.create(UserId.value(userId));
 
-/** StoreError の reason は内部情報なので捨て、どの操作でも同じ公開文言へ落とす。 */
-const STORE_UNAVAILABLE_RESPONSE = {
-	ok: false,
-	message: STORE_UNAVAILABLE_MESSAGE,
-} as const;
-
-const STORE_UNAVAILABLE_CHANGE_PLAN_RESPONSE: ChangePlanResponse = {
-	ok: false,
-	errors: [{ field: null, message: STORE_UNAVAILABLE_MESSAGE }],
-};
-
 const getSubscriptionView = createServerFn({ method: "GET" }).handler(
 	async () => {
 		const session = await currentSession();
@@ -127,9 +174,10 @@ const getSubscriptionView = createServerFn({ method: "GET" }).handler(
 					loadInvoices(accountId),
 				]);
 				return Result.match(Result.combine([subscription, invoices]), {
-					// クライアントへ StoreError の reason を運ばないため、公開文言だけで失敗させる。
 					err: () => {
-						throw new Error(STORE_UNAVAILABLE_MESSAGE);
+						// 読み取りの View は失敗の形を持たないため reject させ、クライアントの catch が SUBSCRIPTION_VIEW_UNAVAILABLE_MESSAGE を表示する。
+						// StoreError の reason は内部情報なので例外にも載せない。
+						throw new Error();
 					},
 					ok: ([domainSubscription, domainInvoices]) =>
 						encodeSubscriptionView(domainSubscription, domainInvoices),
@@ -144,53 +192,41 @@ const requestPlanChange = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const session = await currentSession();
 		return matchChoice<typeof session, Promise<ChangePlanResponse>>(session, {
-			AnonymousSession: async () => ({
-				ok: false,
-				errors: [
-					{ field: null, message: SUBSCRIPTION_EDIT_TEXT.loginRequired },
-				],
-			}),
-			AuthenticatedSession: async ({ userId }) => {
-				const loaded = await loadSubscription(toAccountId(userId));
-				return Result.match(loaded, {
-					err: async () => STORE_UNAVAILABLE_CHANGE_PLAN_RESPONSE,
-					ok: async (subscription): Promise<ChangePlanResponse> => {
-						const result = changePlanWorkflow(
-							decodeChangePlanCommand(data),
-							subscription,
-						);
-						await Result.match(result, {
-							ok: savePlanChanged,
-							err: async () => undefined,
-						});
-						return encodeChangePlanResponse(result);
-					},
-				});
-			},
+			AnonymousSession: async () =>
+				AUTHENTICATION_REQUIRED_CHANGE_PLAN_RESPONSE,
+			AuthenticatedSession: async ({ userId }) =>
+				pipe(
+					loadSubscription(toAccountId(userId)),
+					AsyncResult.flatMap((subscription) =>
+						changePlanWorkflow(decodeChangePlanCommand(data), subscription),
+					),
+					AsyncResult.flatMap<PlanChanged, PlanChanged, never>(
+						async (changed) => {
+							await savePlanChanged(changed);
+							return ok(changed);
+						},
+					),
+					async (result) => encodeChangePlanResponse(await result),
+				),
 		});
 	});
 
 const cancelTrial = createServerFn({ method: "POST" }).handler(async () => {
 	const session = await currentSession();
 	return matchChoice<typeof session, Promise<CancelResponse>>(session, {
-		AnonymousSession: async () => ({
-			ok: false,
-			message: SUBSCRIPTION_EDIT_TEXT.loginRequired,
-		}),
-		AuthenticatedSession: async ({ userId }) => {
-			const loaded = await loadSubscription(toAccountId(userId));
-			return Result.match(loaded, {
-				err: async () => STORE_UNAVAILABLE_RESPONSE,
-				ok: async (subscription): Promise<CancelResponse> => {
-					const result = cancelTrialWorkflow(subscription);
-					await Result.match(result, {
-						ok: saveTrialCancelled,
-						err: async () => undefined,
-					});
-					return encodeCancelTrialResponse(result);
-				},
-			});
-		},
+		AnonymousSession: async () => AUTHENTICATION_REQUIRED_CANCEL_RESPONSE,
+		AuthenticatedSession: async ({ userId }) =>
+			pipe(
+				loadSubscription(toAccountId(userId)),
+				AsyncResult.flatMap(cancelTrialWorkflow),
+				AsyncResult.flatMap<TrialCancelled, TrialCancelled, never>(
+					async (cancelled) => {
+						await saveTrialCancelled(cancelled);
+						return ok(cancelled);
+					},
+				),
+				async (result) => encodeCancelTrialResponse(await result),
+			),
 	});
 });
 
@@ -198,24 +234,21 @@ const reserveCancellation = createServerFn({ method: "POST" }).handler(
 	async () => {
 		const session = await currentSession();
 		return matchChoice<typeof session, Promise<CancelResponse>>(session, {
-			AnonymousSession: async () => ({
-				ok: false,
-				message: SUBSCRIPTION_EDIT_TEXT.loginRequired,
-			}),
-			AuthenticatedSession: async ({ userId }) => {
-				const loaded = await loadSubscription(toAccountId(userId));
-				return Result.match(loaded, {
-					err: async () => STORE_UNAVAILABLE_RESPONSE,
-					ok: async (subscription): Promise<CancelResponse> => {
-						const result = reserveCancellationWorkflow(subscription);
-						await Result.match(result, {
-							ok: saveCancellationReserved,
-							err: async () => undefined,
-						});
-						return encodeReserveCancellationResponse(result);
-					},
-				});
-			},
+			AnonymousSession: async () => AUTHENTICATION_REQUIRED_CANCEL_RESPONSE,
+			AuthenticatedSession: async ({ userId }) =>
+				pipe(
+					loadSubscription(toAccountId(userId)),
+					AsyncResult.flatMap(reserveCancellationWorkflow),
+					AsyncResult.flatMap<
+						CancellationReserved,
+						CancellationReserved,
+						never
+					>(async (reserved) => {
+						await saveCancellationReserved(reserved);
+						return ok(reserved);
+					}),
+					async (result) => encodeReserveCancellationResponse(await result),
+				),
 		});
 	},
 );
@@ -225,34 +258,37 @@ const payInvoice = createServerFn({ method: "POST" })
 	.handler(async ({ data }) => {
 		const session = await currentSession();
 		return matchChoice<typeof session, Promise<PaymentResponse>>(session, {
-			AnonymousSession: async () => ({
-				ok: false,
-				message: SUBSCRIPTION_EDIT_TEXT.loginRequired,
-			}),
+			AnonymousSession: async () => AUTHENTICATION_REQUIRED_PAYMENT_RESPONSE,
 			AuthenticatedSession: async ({ userId }) => {
 				const accountId = toAccountId(userId);
 				const [invoice, subscription] = await Promise.all([
 					findInvoice(accountId, InvoiceId.create(data.invoiceId)),
 					loadSubscription(accountId),
 				]);
-				return Result.match(Result.combine([invoice, subscription]), {
-					err: async () => STORE_UNAVAILABLE_RESPONSE,
-					ok: async ([domainInvoice, domainSubscription]) => {
-						if (!domainInvoice)
-							return { ok: false, message: INVOICE_NOT_FOUND_MESSAGE };
-						const result = payInvoiceWorkflow(
-							domainInvoice,
-							domainSubscription,
-							decodePaymentOutcome(data),
-							{ now: now() },
-						);
-						await Result.match(result, {
-							ok: savePaymentSettled,
-							err: async () => undefined,
-						});
-						return encodePaymentResponse(result);
-					},
-				});
+				return pipe(
+					Result.combine([invoice, subscription] as const),
+					AsyncResult.flatMap(
+						([domainInvoice, domainSubscription]): Result<
+							PaymentSettled,
+							PayInvoiceError | InvoiceNotFound
+						> =>
+							domainInvoice === null
+								? err<InvoiceNotFound>({ kind: "InvoiceNotFound" })
+								: payInvoiceWorkflow(
+										domainInvoice,
+										domainSubscription,
+										decodePaymentOutcome(data),
+										{ now: now() },
+									),
+					),
+					AsyncResult.flatMap<PaymentSettled, PaymentSettled, never>(
+						async (settled) => {
+							await savePaymentSettled(settled);
+							return ok(settled);
+						},
+					),
+					async (result) => encodePaymentResponse(await result),
+				);
 			},
 		});
 	});
@@ -260,48 +296,34 @@ const payInvoice = createServerFn({ method: "POST" })
 const endTrial = createServerFn({ method: "POST" }).handler(async () => {
 	const session = await currentSession();
 	return matchChoice<typeof session, Promise<ScheduleResponse>>(session, {
-		AnonymousSession: async () => ({
-			ok: false,
-			message: SUBSCRIPTION_EDIT_TEXT.loginRequired,
-		}),
-		AuthenticatedSession: async ({ userId }) => {
-			const loaded = await loadSubscription(toAccountId(userId));
-			return Result.match(loaded, {
-				err: async () => STORE_UNAVAILABLE_RESPONSE,
-				ok: async (subscription): Promise<ScheduleResponse> => {
-					const result = endTrialWorkflow(subscription);
-					await Result.match(result, {
-						ok: saveTrialEnded,
-						err: async () => undefined,
-					});
-					return encodeEndTrialResponse(result);
-				},
-			});
-		},
+		AnonymousSession: async () => AUTHENTICATION_REQUIRED_END_TRIAL_RESPONSE,
+		AuthenticatedSession: async ({ userId }) =>
+			pipe(
+				loadSubscription(toAccountId(userId)),
+				AsyncResult.flatMap(endTrialWorkflow),
+				AsyncResult.flatMap<TrialEnded, TrialEnded, never>(async (ended) => {
+					await saveTrialEnded(ended);
+					return ok(ended);
+				}),
+				async (result) => encodeEndTrialResponse(await result),
+			),
 	});
 });
 
 const endPeriod = createServerFn({ method: "POST" }).handler(async () => {
 	const session = await currentSession();
 	return matchChoice<typeof session, Promise<ScheduleResponse>>(session, {
-		AnonymousSession: async () => ({
-			ok: false,
-			message: SUBSCRIPTION_EDIT_TEXT.loginRequired,
-		}),
-		AuthenticatedSession: async ({ userId }) => {
-			const loaded = await loadSubscription(toAccountId(userId));
-			return Result.match(loaded, {
-				err: async () => STORE_UNAVAILABLE_RESPONSE,
-				ok: async (subscription): Promise<ScheduleResponse> => {
-					const result = endPeriodWorkflow(subscription);
-					await Result.match(result, {
-						ok: savePeriodEnded,
-						err: async () => undefined,
-					});
-					return encodeEndPeriodResponse(result);
-				},
-			});
-		},
+		AnonymousSession: async () => AUTHENTICATION_REQUIRED_END_PERIOD_RESPONSE,
+		AuthenticatedSession: async ({ userId }) =>
+			pipe(
+				loadSubscription(toAccountId(userId)),
+				AsyncResult.flatMap(endPeriodWorkflow),
+				AsyncResult.flatMap<PeriodEnded, PeriodEnded, never>(async (ended) => {
+					await savePeriodEnded(ended);
+					return ok(ended);
+				}),
+				async (result) => encodeEndPeriodResponse(await result),
+			),
 	});
 });
 
@@ -310,6 +332,7 @@ type ActionResponse =
 	| CancelResponse
 	| PaymentResponse
 	| ScheduleResponse;
+type FailedActionResponse = Exclude<ActionResponse, { ok: true }>;
 
 export function EditPage() {
 	const [data, setData] = useState<SubscriptionView | null>(null);
@@ -318,14 +341,17 @@ export function EditPage() {
 		() =>
 			getSubscriptionView()
 				.then(setData)
-				.catch(() => setErrors([STORE_UNAVAILABLE_MESSAGE])),
+				.catch(() => setErrors([SUBSCRIPTION_VIEW_UNAVAILABLE_MESSAGE])),
 		[],
 	);
 	useEffect(() => {
 		reload();
 	}, [reload]);
 
-	async function act(action: () => Promise<ActionResponse>) {
+	async function act(
+		action: () => Promise<ActionResponse>,
+		unexpected: FailedActionResponse,
+	) {
 		try {
 			setErrors([]);
 			const response = await action();
@@ -339,11 +365,18 @@ export function EditPage() {
 			}
 			await reload();
 		} catch {
-			setErrors([SUBSCRIPTION_EDIT_TEXT.operationFailed]);
+			setErrors(
+				"errors" in unexpected
+					? unexpected.errors.map((item) => item.message)
+					: [unexpected.message],
+			);
 		}
 	}
 	const pay = (invoiceId: string, result: PayInvoiceCommand["result"]) =>
-		act(() => payInvoice({ data: { invoiceId, result } }));
+		act(
+			() => payInvoice({ data: { invoiceId, result } }),
+			UNEXPECTED_PAYMENT_RESPONSE,
+		);
 
 	const errorAlert = <Alert messages={errors} />;
 	if (!data)
@@ -359,7 +392,7 @@ export function EditPage() {
 			<main className="demo-page">
 				<section className="demo-panel">
 					{errorAlert}
-					<p>{SUBSCRIPTION_EDIT_TEXT.loginRequiredDescription}</p>
+					<p>{SUBSCRIPTION_LOGIN_REQUIRED_MESSAGE}</p>
 					<Link to="/auth/login">{SUBSCRIPTION_EDIT_TEXT.loginLink}</Link>
 				</section>
 			</main>
@@ -391,7 +424,7 @@ export function EditPage() {
 					<Button
 						kind="action"
 						variant="danger"
-						onClick={() => act(cancelTrial)}
+						onClick={() => act(cancelTrial, UNEXPECTED_CANCEL_RESPONSE)}
 					>
 						{SUBSCRIPTION_EDIT_TEXT.cancelTrial}
 					</Button>
@@ -406,7 +439,7 @@ export function EditPage() {
 					<Button
 						kind="action"
 						variant="danger"
-						onClick={() => act(reserveCancellation)}
+						onClick={() => act(reserveCancellation, UNEXPECTED_CANCEL_RESPONSE)}
 					>
 						{SUBSCRIPTION_EDIT_TEXT.reserveCancellation}
 					</Button>
@@ -416,7 +449,7 @@ export function EditPage() {
 				<h2 className="demo-title">{SUBSCRIPTION_EDIT_TEXT.changePlanTitle}</h2>
 				{state.showApplyLink ? (
 					<>
-						<p>{SUBSCRIPTION_EDIT_TEXT.applyFirst}</p>
+						<p>{APPLY_BEFORE_PLAN_CHANGE_MESSAGE}</p>
 						<Link to="/subscription/apply">
 							{SUBSCRIPTION_EDIT_TEXT.applyNavigation}
 						</Link>
@@ -441,8 +474,9 @@ export function EditPage() {
 										kind="action"
 										disabled={plan.changeDisabled}
 										onClick={() =>
-											act(() =>
-												requestPlanChange({ data: { planId: plan.id } }),
+											act(
+												() => requestPlanChange({ data: { planId: plan.id } }),
+												UNEXPECTED_CHANGE_PLAN_RESPONSE,
 											)
 										}
 									>
@@ -493,7 +527,7 @@ export function EditPage() {
 						</article>
 					))}
 					{data.invoices.length === 0 && (
-						<p className="demo-muted">{SUBSCRIPTION_EDIT_TEXT.noInvoices}</p>
+						<p className="demo-muted">{NO_INVOICES_MESSAGE}</p>
 					)}
 				</div>
 			</section>
@@ -504,7 +538,7 @@ export function EditPage() {
 					variant="secondary"
 					className="mr-2"
 					disabled={!state.canEndTrial}
-					onClick={() => act(endTrial)}
+					onClick={() => act(endTrial, UNEXPECTED_END_TRIAL_RESPONSE)}
 				>
 					{SUBSCRIPTION_EDIT_TEXT.endTrial}
 				</Button>
@@ -512,7 +546,7 @@ export function EditPage() {
 					kind="action"
 					variant="secondary"
 					disabled={!state.canEndPeriod}
-					onClick={() => act(endPeriod)}
+					onClick={() => act(endPeriod, UNEXPECTED_END_PERIOD_RESPONSE)}
 				>
 					{SUBSCRIPTION_EDIT_TEXT.endPeriod}
 				</Button>

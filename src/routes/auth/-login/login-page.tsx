@@ -1,6 +1,6 @@
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useState } from "react";
 import { Button } from "#/components/control/button";
 import { Alert } from "#/components/feedback/alert";
 import { TextField } from "#/components/form/text-field";
@@ -11,28 +11,12 @@ import {
 	loginCommandSchema,
 	UNEXPECTED_LOGIN_RESPONSE,
 } from "#/domain/auth/dto/login.dto";
-import {
-	encodeLogoutResponse,
-	UNEXPECTED_LOGOUT_RESPONSE,
-} from "#/domain/auth/dto/logout.dto";
-import {
-	encodeSessionView,
-	SESSION_UNAVAILABLE_MESSAGE,
-	type SessionView,
-} from "#/domain/auth/dto/session.dto";
 import { LoggedInAt } from "#/domain/auth/model/login.primitive";
-import { LoggedOutAt } from "#/domain/auth/model/logout.primitive";
 import {
 	createLoggedInEvent,
 	createLoginWorkflow,
 	validateLoginRequest,
 } from "#/domain/auth/workflow/login.workflow";
-import {
-	createLoggedOutEvent,
-	createLogoutWorkflow,
-} from "#/domain/auth/workflow/logout.workflow";
-import { currentSession } from "#/external/better-auth/current-session";
-import { discardSession } from "#/external/better-auth/discard-session";
 import { verifyCredentials } from "#/external/better-auth/verify-credentials";
 
 // composition root: ドメインのポートに具体的な実装を差し込むのはここだけ。
@@ -43,36 +27,16 @@ const loginWorkflow = createLoginWorkflow({
 	now: () => LoggedInAt.create(new Date()),
 });
 
-const logoutWorkflow = createLogoutWorkflow({
-	discardSession,
-	createLoggedOutEvent,
-	now: () => LoggedOutAt.create(new Date()),
-});
-
 const login = createServerFn({ method: "POST" })
 	.validator(loginCommandSchema)
 	.handler(async ({ data }) =>
 		encodeLoginResponse(await loginWorkflow(decodeLoginCommand(data))),
 	);
-const logout = createServerFn({ method: "POST" }).handler(async () =>
-	encodeLogoutResponse(await logoutWorkflow(await currentSession())),
-);
-
-const fetchSession = createServerFn({ method: "GET" }).handler(async () =>
-	encodeSessionView(await currentSession()),
-);
 
 export function LoginPage() {
 	const navigate = useNavigate();
+	const router = useRouter();
 	const [errors, setErrors] = useState<LoginFieldError[]>([]);
-	const [notice, setNotice] = useState<string | null>(null);
-	const [session, setSession] = useState<SessionView>({ loggedIn: false });
-	useEffect(() => {
-		fetchSession()
-			.then(setSession)
-			// 取得できなければ未ログイン扱いのままフォームを出す。黙って握り潰さず理由は見せる。
-			.catch(() => setNotice(SESSION_UNAVAILABLE_MESSAGE));
-	}, []);
 
 	/** field ごとの振り分け。field: null はフォーム全体のエラー。 */
 	const errorsFor = (field: LoginFieldError["field"]) =>
@@ -95,61 +59,37 @@ export function LoginPage() {
 				return;
 			}
 			setErrors([]);
-			await navigate({ to: "/subscription/edit" });
+			await router.invalidate();
+			await navigate({ to: "/" });
 		} catch {
 			// ここに来るのは通信断や、アダプタが投げ直したインフラ障害だけ。
 			setErrors(UNEXPECTED_LOGIN_RESPONSE.errors);
 		}
 	}
-	async function signout() {
-		try {
-			const result = await logout();
-			setSession({ loggedIn: false });
-			if (!result.ok) {
-				setNotice(result.message);
-				return;
-			}
-			setNotice(null);
-			setErrors([]);
-		} catch {
-			// 破棄できたかどうか分からないので session は触らず、エラーだけ出す。
-			setNotice(UNEXPECTED_LOGOUT_RESPONSE.message);
-		}
-	}
 	return (
-		<main className="demo-page">
+		<main className="demo-page is-narrow">
 			<section className="demo-panel">
-				<p className="island-kicker">ログイン</p>
 				<h1 className="demo-title">アカウントにログイン</h1>
-				<Alert
-					messages={[
-						...formErrors.map((item) => item.message),
-						...(notice === null ? [] : [notice]),
-					]}
-				/>
-				{session.loggedIn ? (
-					<Button kind="action" variant="danger" onClick={signout}>
-						ログアウト
+				<Alert messages={formErrors.map((item) => item.message)} />
+				<form onSubmit={submit} className="space-y-4">
+					<TextField
+						label="メールアドレス"
+						name="email"
+						type="email"
+						required
+						errors={emailErrors.map((item) => item.message)}
+					/>
+					<TextField
+						label="パスワード"
+						name="password"
+						type="password"
+						required
+						errors={passwordErrors.map((item) => item.message)}
+					/>
+					<Button kind="submit" className="w-full">
+						ログイン
 					</Button>
-				) : (
-					<form onSubmit={submit} className="space-y-4">
-						<TextField
-							label="メールアドレス"
-							name="email"
-							type="email"
-							required
-							errors={emailErrors.map((item) => item.message)}
-						/>
-						<TextField
-							label="パスワード"
-							name="password"
-							type="password"
-							required
-							errors={passwordErrors.map((item) => item.message)}
-						/>
-						<Button kind="submit">ログイン</Button>
-					</form>
-				)}
+				</form>
 				<p className="demo-muted mt-6">
 					アカウントがない場合は <Link to="/auth/signup">新規登録</Link>
 				</p>

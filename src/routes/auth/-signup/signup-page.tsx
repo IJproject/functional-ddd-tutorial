@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { type FormEvent, useState } from "react";
 import { Button } from "#/components/control/button";
@@ -41,6 +41,7 @@ const signup = createServerFn({ method: "POST" })
 	});
 export function SignupPage() {
 	const navigate = useNavigate();
+	const router = useRouter();
 	const [errors, setErrors] = useState<SignupFieldError[]>([]);
 
 	/** field ごとの振り分け。field: null はフォーム全体のエラー。 */
@@ -66,16 +67,16 @@ export function SignupPage() {
 				return;
 			}
 			setErrors([]);
-			await navigate({ to: "/subscription/edit" });
+			await router.invalidate();
+			await navigate({ to: "/" });
 		} catch {
 			// ここに来るのは通信断や、アダプタが投げ直したインフラ障害だけ。
 			setErrors(UNEXPECTED_SIGNUP_RESPONSE.errors);
 		}
 	}
 	return (
-		<main className="demo-page">
+		<main className="demo-page is-narrow">
 			<section className="demo-panel">
-				<p className="island-kicker">アカウント登録</p>
 				<h1 className="demo-title">Subsc Tutorial を始める</h1>
 				<Alert messages={formErrors.map((item) => item.message)} />
 				<form onSubmit={submit} className="space-y-4">
@@ -100,7 +101,9 @@ export function SignupPage() {
 						required
 						errors={passwordErrors.map((item) => item.message)}
 					/>
-					<Button kind="submit">登録する</Button>
+					<Button kind="submit" className="w-full">
+						登録する
+					</Button>
 				</form>
 				<p className="demo-muted mt-6">
 					すでに登録済みですか？ <Link to="/auth/login">ログイン</Link>

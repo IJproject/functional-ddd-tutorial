@@ -13,7 +13,6 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthLoginRouteImport } from './routes/auth/login'
 import { Route as AuthSignupRouteImport } from './routes/auth/signup'
 import { Route as SubscriptionApplyRouteImport } from './routes/subscription/apply'
-import { Route as SubscriptionEditRouteImport } from './routes/subscription/edit'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as SubscriptionInvoiceInvoiceIdRouteImport } from './routes/subscription/invoice.$invoiceId'
 
@@ -37,11 +36,6 @@ const SubscriptionApplyRoute = SubscriptionApplyRouteImport.update({
   path: '/subscription/apply',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SubscriptionEditRoute = SubscriptionEditRouteImport.update({
-  id: '/subscription/edit',
-  path: '/subscription/edit',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -59,7 +53,6 @@ export interface FileRoutesByFullPath {
   '/auth/login': typeof AuthLoginRoute
   '/auth/signup': typeof AuthSignupRoute
   '/subscription/apply': typeof SubscriptionApplyRoute
-  '/subscription/edit': typeof SubscriptionEditRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/subscription/invoice/$invoiceId': typeof SubscriptionInvoiceInvoiceIdRoute
 }
@@ -68,7 +61,6 @@ export interface FileRoutesByTo {
   '/auth/login': typeof AuthLoginRoute
   '/auth/signup': typeof AuthSignupRoute
   '/subscription/apply': typeof SubscriptionApplyRoute
-  '/subscription/edit': typeof SubscriptionEditRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/subscription/invoice/$invoiceId': typeof SubscriptionInvoiceInvoiceIdRoute
 }
@@ -78,7 +70,6 @@ export interface FileRoutesById {
   '/auth/login': typeof AuthLoginRoute
   '/auth/signup': typeof AuthSignupRoute
   '/subscription/apply': typeof SubscriptionApplyRoute
-  '/subscription/edit': typeof SubscriptionEditRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/subscription/invoice/$invoiceId': typeof SubscriptionInvoiceInvoiceIdRoute
 }
@@ -89,7 +80,6 @@ export interface FileRouteTypes {
     | '/auth/login'
     | '/auth/signup'
     | '/subscription/apply'
-    | '/subscription/edit'
     | '/api/auth/$'
     | '/subscription/invoice/$invoiceId'
   fileRoutesByTo: FileRoutesByTo
@@ -98,7 +88,6 @@ export interface FileRouteTypes {
     | '/auth/login'
     | '/auth/signup'
     | '/subscription/apply'
-    | '/subscription/edit'
     | '/api/auth/$'
     | '/subscription/invoice/$invoiceId'
   id:
@@ -107,7 +96,6 @@ export interface FileRouteTypes {
     | '/auth/login'
     | '/auth/signup'
     | '/subscription/apply'
-    | '/subscription/edit'
     | '/api/auth/$'
     | '/subscription/invoice/$invoiceId'
   fileRoutesById: FileRoutesById
@@ -117,7 +105,6 @@ export interface RootRouteChildren {
   AuthLoginRoute: typeof AuthLoginRoute
   AuthSignupRoute: typeof AuthSignupRoute
   SubscriptionApplyRoute: typeof SubscriptionApplyRoute
-  SubscriptionEditRoute: typeof SubscriptionEditRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   SubscriptionInvoiceInvoiceIdRoute: typeof SubscriptionInvoiceInvoiceIdRoute
 }
@@ -152,13 +139,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SubscriptionApplyRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/subscription/edit': {
-      id: '/subscription/edit'
-      path: '/subscription/edit'
-      fullPath: '/subscription/edit'
-      preLoaderRoute: typeof SubscriptionEditRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -181,10 +161,18 @@ const rootRouteChildren: RootRouteChildren = {
   AuthLoginRoute: AuthLoginRoute,
   AuthSignupRoute: AuthSignupRoute,
   SubscriptionApplyRoute: SubscriptionApplyRoute,
-  SubscriptionEditRoute: SubscriptionEditRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   SubscriptionInvoiceInvoiceIdRoute: SubscriptionInvoiceInvoiceIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}

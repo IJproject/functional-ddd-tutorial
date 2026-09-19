@@ -9,7 +9,7 @@ type PlanListProps = {
 
 export function PlanList({ plans, trialUsed, onApply }: PlanListProps) {
 	return (
-		<div className="space-y-3">
+		<div className="space-y-4">
 			{plans.map((plan) => (
 				<PlanCard
 					key={plan.id}

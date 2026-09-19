@@ -13,10 +13,10 @@ type PlanCardProps = {
 
 export function PlanCard({ plan, trialUsed, onApply }: PlanCardProps) {
 	return (
-		<article className="demo-card flex items-center justify-between">
-			<div>
-				<strong>{plan.name}</strong>
-				<p className="demo-muted">
+		<article className="demo-card flex flex-wrap items-center justify-between gap-4">
+			<div className="space-y-1">
+				<p className="demo-metric-sm">{plan.name}</p>
+				<p className="demo-note">
 					月額 ¥{plan.monthlyPrice.toLocaleString()}・
 					{trialUsed ? PAYMENT_REQUIRED_MESSAGE : TRIAL_AVAILABLE_MESSAGE}
 				</p>

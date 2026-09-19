@@ -1,6 +1,7 @@
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
+import { Button } from "#/components/control/button";
 import { Alert } from "#/components/feedback/alert";
 import { UserId } from "#/domain/auth/model/user.primitive";
 import {
@@ -128,7 +129,7 @@ export function ApplyPage() {
 				return;
 			}
 			setErrors([]);
-			await navigate({ to: "/subscription/edit" });
+			await navigate({ to: "/" });
 		} catch {
 			setErrors(UNEXPECTED_APPLY_RESPONSE.errors);
 		}
@@ -140,7 +141,7 @@ export function ApplyPage() {
 					{errorMessages.length > 0 ? (
 						<Alert messages={errorMessages} />
 					) : (
-						"読み込み中..."
+						<p className="demo-note">読み込み中...</p>
 					)}
 				</section>
 			</main>
@@ -155,15 +156,16 @@ export function ApplyPage() {
 		);
 	return (
 		<main className="demo-page">
-			<section className="demo-panel">
-				<p className="island-kicker">サブスクリプション</p>
+			<section className="demo-panel space-y-6">
 				<h1 className="demo-title">プランを申し込む</h1>
 				<Alert messages={errorMessages} />
 				{!data.applicable ? (
-					<>
-						<p>{ALREADY_SUBSCRIBED_APPLY_MESSAGE}</p>
-						<Link to="/subscription/edit">契約へ</Link>
-					</>
+					<div className="space-y-4">
+						<p className="demo-note">{ALREADY_SUBSCRIBED_APPLY_MESSAGE}</p>
+						<Button kind="link" to="/">
+							契約へ
+						</Button>
+					</div>
 				) : (
 					<PlanList
 						plans={data.plans}

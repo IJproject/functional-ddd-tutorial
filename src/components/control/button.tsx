@@ -8,6 +8,8 @@ type ButtonBase = {
 	variant?: ButtonVariant;
 	/** 余白など、配置のためのクラスだけを受け取る。見た目は variant が決める。 */
 	className?: string;
+	/** スクリーンリーダー向けの説明。表示文字だけでは用が足りないときに使う。 */
+	label?: string;
 	children: ReactNode;
 };
 
@@ -19,7 +21,7 @@ export type ButtonProps = ButtonBase &
 	(
 		| { kind: "submit"; disabled?: boolean }
 		| { kind: "action"; onClick: () => void; disabled?: boolean }
-		| { kind: "link"; to: LinkProps["to"] }
+		| { kind: "link"; to: LinkProps["to"]; params?: LinkProps["params"] }
 	);
 
 const VARIANT_CLASS: Record<ButtonVariant, string> = {
@@ -33,13 +35,19 @@ function buttonClassName(variant: ButtonVariant, className?: string): string {
 }
 
 export function Button(props: ButtonProps) {
-	const { variant = "primary", className, children } = props;
+	const { variant = "primary", className, children, label } = props;
 	const cls = buttonClassName(variant, className);
 
 	switch (props.kind) {
 		case "submit":
 			return (
-				<button type="submit" disabled={props.disabled} className={cls}>
+				<button
+					type="submit"
+					disabled={props.disabled}
+					className={cls}
+					aria-label={label}
+					title={label}
+				>
 					{children}
 				</button>
 			);
@@ -50,13 +58,21 @@ export function Button(props: ButtonProps) {
 					onClick={props.onClick}
 					disabled={props.disabled}
 					className={cls}
+					aria-label={label}
+					title={label}
 				>
 					{children}
 				</button>
 			);
 		case "link":
 			return (
-				<Link to={props.to} className={cls}>
+				<Link
+					to={props.to}
+					params={props.params}
+					className={cls}
+					aria-label={label}
+					title={label}
+				>
 					{children}
 				</Link>
 			);

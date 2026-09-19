@@ -25,6 +25,9 @@
   --warning: #b45309;
   --warning-soft: #fffbeb;
   --warning-line: #fde68a;
+  --success: #059669;
+  --success-soft: #ecfdf5;
+  --success-line: #a7f3d0;
   --header-bg: rgba(255, 255, 255, 0.85);
   --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
   --shadow-md: 0 6px 16px rgba(15, 23, 42, 0.08);
@@ -52,6 +55,9 @@
   --warning: #fbbf24;
   --warning-soft: rgba(251, 191, 36, 0.12);
   --warning-line: rgba(251, 191, 36, 0.32);
+  --success: #34d399;
+  --success-soft: rgba(52, 211, 153, 0.12);
+  --success-line: rgba(52, 211, 153, 0.32);
   --header-bg: rgba(11, 18, 32, 0.85);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.45);
@@ -113,6 +119,17 @@ pre code {
   width: min(1080px, calc(100% - 2rem));
   margin-inline: auto;
   padding-block: 2.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* 認証ページのように、内容が少なく視線を中央に集めたいページ。
+   ヘッダー（約 4rem）を除いた高さいっぱいを使い、パネルを上下中央に置く。 */
+.demo-page.is-narrow {
+  width: min(640px, calc(100% - 2rem));
+  min-height: calc(100dvh - 4rem);
+  justify-content: center;
 }
 
 .demo-panel {
@@ -139,13 +156,60 @@ pre code {
   font-weight: 700;
 }
 
-.island-kicker {
-  margin: 0 0 0.35rem;
-  color: var(--primary);
+/* 主役の値。ページで最も大きい文字。 */
+.demo-metric {
+  margin: 0;
+  color: var(--text);
+  font-size: 2.5rem;
+  line-height: 1.15;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+/* カード内の主役。.demo-metric より一段小さい。 */
+.demo-metric-sm {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.5rem;
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* セクション見出し。ページ見出し（.demo-title）より一段下。
+   本文 1rem に対して 1.25 倍、主役 .demo-metric に対して 1/2。 */
+.demo-section-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.25rem;
+  line-height: 1.4;
+  font-weight: 700;
+}
+
+/* 値に添えるラベル。 */
+.demo-label {
+  margin: 0;
+  color: var(--text-muted);
   font-size: 0.75rem;
+  line-height: 1.4;
   font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+}
+
+/* .demo-label と対になる値。ラベルより濃く・太くしてコントラストを付ける。 */
+.demo-value {
+  margin: 0;
+  color: var(--text);
+  font-size: 1rem;
+  line-height: 1.5;
+  font-weight: 600;
+}
+
+/* 補助テキスト。 */
+.demo-note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.5;
 }
 
 .demo-muted {
@@ -232,6 +296,48 @@ pre code {
 .demo-button-danger:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
+}
+
+.demo-badge,
+.demo-badge-info,
+.demo-badge-warning,
+.demo-badge-success,
+.demo-badge-danger {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  padding: 0.2rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.demo-badge-info {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.demo-badge-warning {
+  border-color: var(--warning-line);
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.demo-badge-success {
+  border-color: var(--success-line);
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.demo-badge-danger {
+  border-color: var(--danger-line);
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 
 .demo-alert {

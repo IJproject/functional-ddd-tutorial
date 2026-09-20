@@ -48,9 +48,7 @@ import {
 } from "#/domain/subscription/operation/change-plan/change-plan.workflow";
 import {
 	AUTHENTICATION_REQUIRED_PAYMENT_RESPONSE,
-	decodePaymentOutcome,
 	encodePaymentResponse,
-	type PayInvoiceCommand,
 	type PaymentResponse,
 	payInvoiceCommandSchema,
 	UNEXPECTED_PAYMENT_RESPONSE,
@@ -93,6 +91,7 @@ import {
 	type SubscriptionView,
 } from "#/domain/subscription/operation/subscription-view/subscription-view.dto";
 import { currentSession } from "#/external/better-auth/current-session";
+import { chargeInvoice } from "#/external/payment-gateway/charge-invoice";
 import {
 	findInvoice,
 	loadInvoices,
@@ -118,9 +117,9 @@ const HOME_TEXT = {
 	changePlan: "変更する",
 	invoicesTitle: "請求一覧",
 	invoiceDetailLink: "詳細を見る",
-	paymentSimulationDescription: "決済サービスの代わりに手動で結果を入れます。",
-	paymentSucceeded: "（模擬）支払い成功",
-	paymentFailed: "（模擬）支払い失敗",
+	paymentSimulationDescription:
+		"決済サービスの代わりにフェイクのゲートウェイが応答します。成否は請求 ID で決まります。",
+	payInvoice: "（模擬）支払う",
 	simulationTitle: "開発用シミュレーション",
 	endTrial: "（模擬）トライアル終了日を迎える",
 	endPeriod: "（模擬）期間満了日を迎える",
@@ -177,6 +176,7 @@ const reserveCancellationWorkflow = createReserveCancellationWorkflow({
 	reserveCancellation: reserveCancellationForSubscription,
 });
 const payInvoiceWorkflow = createPayInvoiceWorkflow({
+	chargeInvoice,
 	payInvoice: payInvoiceForSubscription,
 });
 const endTrialWorkflow = createEndTrialWorkflow({
@@ -300,18 +300,17 @@ const payInvoice = createServerFn({ method: "POST" })
 				return pipe(
 					Result.combine([invoice, subscription] as const),
 					AsyncResult.flatMap(
-						([domainInvoice, domainSubscription]): Result<
+						([domainInvoice, domainSubscription]): AsyncResult<
 							PaymentSettled,
 							PayInvoiceError | InvoiceNotFound
 						> =>
 							domainInvoice === null
-								? err<InvoiceNotFound>({ kind: "InvoiceNotFound" })
-								: payInvoiceWorkflow(
-										domainInvoice,
-										domainSubscription,
-										decodePaymentOutcome(data),
-										{ now: now() },
-									),
+								? Promise.resolve(
+										err<InvoiceNotFound>({ kind: "InvoiceNotFound" }),
+									)
+								: payInvoiceWorkflow(domainInvoice, domainSubscription, {
+										now: now(),
+									}),
 					),
 					AsyncResult.flatMap<PaymentSettled, PaymentSettled, never>(
 						async (settled) => {
@@ -404,11 +403,8 @@ export function HomePage() {
 			);
 		}
 	}
-	const pay = (invoiceId: string, result: PayInvoiceCommand["result"]) =>
-		act(
-			() => payInvoice({ data: { invoiceId, result } }),
-			UNEXPECTED_PAYMENT_RESPONSE,
-		);
+	const pay = (invoiceId: string) =>
+		act(() => payInvoice({ data: { invoiceId } }), UNEXPECTED_PAYMENT_RESPONSE);
 
 	const errorAlert = <Alert messages={errors} />;
 	if (!data)
@@ -589,18 +585,8 @@ export function HomePage() {
 							</div>
 							{invoice.payable && (
 								<div className="flex flex-wrap gap-2">
-									<Button
-										kind="action"
-										onClick={() => pay(invoice.id, "success")}
-									>
-										{HOME_TEXT.paymentSucceeded}
-									</Button>
-									<Button
-										kind="action"
-										variant="danger"
-										onClick={() => pay(invoice.id, "failure")}
-									>
-										{HOME_TEXT.paymentFailed}
+									<Button kind="action" onClick={() => pay(invoice.id)}>
+										{HOME_TEXT.payInvoice}
 									</Button>
 								</div>
 							)}

@@ -1,4 +1,5 @@
 import {
+	type AsyncResult,
 	err,
 	matchChoice,
 	ok,
@@ -24,14 +25,26 @@ import type {
 // 型定義
 // ===========================================================================
 
-export type PayInvoiceWorkflow = PayInvoice;
+export type PayInvoiceWorkflow = (
+	invoice: Invoice,
+	subscription: Subscription,
+	settled: { now: Date },
+) => AsyncResult<PaymentSettled, PayInvoiceError>;
 
 export type PayInvoiceWorkflowDeps = {
+	chargeInvoice: ChargeInvoice;
 	payInvoice: PayInvoice;
 };
 export type CreatePayInvoiceWorkflow = (
 	deps: PayInvoiceWorkflowDeps,
 ) => PayInvoiceWorkflow;
+
+/**
+ * 未払いの請求 → 決済サービスの結果。I/O を伴うためドメインは型だけを定め、実装は外から注入する。
+ * 決済サービスの失敗も正常な応答として扱うため、Failed は Result の err ではなく
+ * PaymentOutcome の一方の枝として返す。
+ */
+export type ChargeInvoice = (invoice: UnpaidInvoice) => Promise<PaymentOutcome>;
 
 /** 請求 + 現在の状態 + 決済結果 → 支払い反映結果。純粋関数（I/O を含まない）。 */
 export type PayInvoice = (
@@ -158,7 +171,19 @@ export const payInvoice: PayInvoice = (
 			err<InvoiceAlreadyProcessed>({ kind: "InvoiceAlreadyProcessed" }),
 	});
 
-/** 純粋関数で I/O を含まないため AsyncResult ではなく Result を使う。 */
+/** 課金 I/O の後に、純粋な状態遷移へ決済結果を渡す。処理済みの請求には課金しない。 */
 export const createPayInvoiceWorkflow: CreatePayInvoiceWorkflow =
-	(deps) => (invoice, subscription, outcome, settled) =>
-		deps.payInvoice(invoice, subscription, outcome, settled);
+	(deps) => (invoice, subscription, settled) =>
+		matchChoice<Invoice, AsyncResult<PaymentSettled, PayInvoiceError>>(
+			invoice,
+			{
+				UnpaidInvoice: async (unpaid) => {
+					const outcome = await deps.chargeInvoice(unpaid);
+					return deps.payInvoice(unpaid, subscription, outcome, settled);
+				},
+				PaidInvoice: async () =>
+					err<InvoiceAlreadyProcessed>({ kind: "InvoiceAlreadyProcessed" }),
+				FailedInvoice: async () =>
+					err<InvoiceAlreadyProcessed>({ kind: "InvoiceAlreadyProcessed" }),
+			},
+		);

@@ -8,7 +8,6 @@ import type { StoreError } from "#/domain/subscription/model/store.model";
 import type {
 	InvoiceNotFound,
 	PayInvoiceError,
-	PaymentOutcome,
 	PaymentSettled,
 } from "#/domain/subscription/operation/payment/payment.model";
 
@@ -18,25 +17,8 @@ import type {
 
 export const payInvoiceCommandSchema = z.object({
 	invoiceId: z.string(),
-	result: z.enum(["success", "failure"]),
 });
 export type PayInvoiceCommand = z.infer<typeof payInvoiceCommandSchema>;
-
-// ===========================================================================
-// decode（DTO → ドメイン）
-// ===========================================================================
-
-/** 境界の決済結果 → ドメインの PaymentOutcome。 */
-export const decodePaymentOutcome = (
-	command: PayInvoiceCommand,
-): PaymentOutcome =>
-	matchChoice<{ kind: "success" } | { kind: "failure" }, PaymentOutcome>(
-		{ kind: command.result },
-		{
-			success: () => ({ kind: "Succeeded" }),
-			failure: () => ({ kind: "Failed" }),
-		},
-	);
 
 // ===========================================================================
 // encode（ドメイン → DTO）

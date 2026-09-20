@@ -9,7 +9,7 @@ import type { Subscription } from "#/domain/subscription/model/subscription.enti
 // 入力
 // ===========================================================================
 
-/** 決済サービスの結果。実サービスの代わりに境界層が与える。 */
+/** 決済サービスの結果。ChargeInvoice ポートの実装が返す。 */
 export type PaymentOutcome = Case<"Succeeded"> | Case<"Failed">;
 
 // ===========================================================================

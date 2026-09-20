@@ -228,7 +228,7 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 
 		return {
 			name: must("表示名", UserName.create("支払い待ち / Pro")),
-			note: SeedNote.create("支払いに成功・失敗させられる"),
+			note: SeedNote.create("支払いに成功する"),
 			account: Account.trialUsed({
 				id: accountId,
 				trialUsedAt: TrialUsedAt.create(daysAgo(20)),
@@ -241,6 +241,38 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 			invoices: [pendingInvoice],
 		};
 	}),
+	// slug により請求 ID が seed-inv-pending-fail-1 となり、"-fail" を含むためフェイクゲートウェイは失敗を返す。
+	defineSeedAccount(
+		SeedSlug.create("pending-fail"),
+		({ accountId, invoiceId }) => {
+			const pendingInvoice = must(
+				"請求",
+				Invoice.unpaid({
+					id: invoiceId(1),
+					accountId,
+					planId: PlanId.create("Pro"),
+					amount: Amount.create(2980),
+					purpose: InvoicePurpose.New,
+					issuedAt: IssuedAt.create(daysAgo(1)),
+				}),
+			);
+
+			return {
+				name: must("表示名", UserName.create("支払い待ち / Pro（決済失敗）")),
+				note: SeedNote.create("支払いが必ず失敗する"),
+				account: Account.trialUsed({
+					id: accountId,
+					trialUsedAt: TrialUsedAt.create(daysAgo(20)),
+				}),
+				subscription: Subscription.pendingPayment({
+					accountId,
+					planId: PlanId.create("Pro"),
+					pendingInvoiceId: pendingInvoice.id,
+				}),
+				invoices: [pendingInvoice],
+			};
+		},
+	),
 	defineSeedAccount(
 		SeedSlug.create("paid-basic"),
 		({ accountId, invoiceId }) => ({

@@ -6,17 +6,6 @@ import {
 	Result,
 	type Result as ResultType,
 } from "#/domain/building-blocks";
-import type {
-	ChangePlanError,
-	ChangePlanRequest,
-	NotSubscribed,
-	PaymentPending,
-	PlanChanged,
-	PlanChangeNotAllowed,
-	ReservationExists,
-	UnknownPlan,
-	UnvalidatedChangePlanRequest,
-} from "#/domain/subscription/model/change-plan.model";
 import type { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
 import {
 	Amount,
@@ -28,10 +17,36 @@ import {
 	PlanId,
 } from "#/domain/subscription/model/plan.primitive";
 import type { Subscription } from "#/domain/subscription/model/subscription.entity";
+import type {
+	ChangePlanError,
+	ChangePlanRequest,
+	NotSubscribed,
+	PaymentPending,
+	PlanChanged,
+	PlanChangeNotAllowed,
+	ReservationExists,
+	UnknownPlan,
+	UnvalidatedChangePlanRequest,
+} from "#/domain/subscription/operation/change-plan/change-plan.model";
 
 // ===========================================================================
 // 型定義
 // ===========================================================================
+
+export type ChangePlanWorkflow = (
+	request: UnvalidatedChangePlanRequest,
+	subscription: Subscription,
+) => ResultType<PlanChanged, ChangePlanError>;
+
+export type ChangePlanWorkflowDeps = {
+	validateChangePlanRequest: ValidateChangePlanRequest;
+	changePlanForSubscription: ChangePlanForSubscription;
+	newInvoiceId: () => InvoiceId;
+	now: () => Date;
+};
+export type CreateChangePlanWorkflow = (
+	deps: ChangePlanWorkflowDeps,
+) => ChangePlanWorkflow;
 
 /** ① 未検証 → ② 検証済み。純粋関数。 */
 export type ValidateChangePlanRequest = (
@@ -44,22 +59,6 @@ export type ChangePlanForSubscription = (
 	subscription: Subscription,
 	issued: { invoiceId: InvoiceId; now: Date },
 ) => ResultType<PlanChanged, Exclude<ChangePlanError, UnknownPlan>>;
-
-export type ChangePlanWorkflowDeps = {
-	validateChangePlanRequest: ValidateChangePlanRequest;
-	changePlanForSubscription: ChangePlanForSubscription;
-	newInvoiceId: () => InvoiceId;
-	now: () => Date;
-};
-
-export type ChangePlanWorkflow = (
-	request: UnvalidatedChangePlanRequest,
-	subscription: Subscription,
-) => ResultType<PlanChanged, ChangePlanError>;
-
-export type CreateChangePlanWorkflow = (
-	deps: ChangePlanWorkflowDeps,
-) => ChangePlanWorkflow;
 
 // ===========================================================================
 // 実装

@@ -32,33 +32,6 @@ export type InvoiceParams = z.infer<typeof invoiceParamsSchema>;
 export type MalformedInvoiceId = Case<"MalformedInvoiceId">;
 
 // ===========================================================================
-// 型定義（シリアライズ: DTO → JSON）
-// ===========================================================================
-
-/** 詳細画面に出す1件の請求。一覧行（InvoiceView）と違い payable を持たない（表示専用のため）。 */
-export type InvoiceDetailItemView = {
-	/** 一覧では出さない請求 ID の全文。URL と突き合わせられるように出す。 */
-	id: string;
-	purposeLabel: string;
-	planName: string;
-	amount: number;
-	statusLabel: string;
-	/** 状態ごとの説明文。UI に if を持ち込まないため境界層で文にしておく。 */
-	statusDescription: string;
-	issuedAt: string;
-};
-
-/**
- * この画面には未ログイン・見つからない・見つかったの3状態がある。
- * boolean フラグ2本では、未ログインかつ発見済みというありえない組み合わせも型上表現できるため、
- * Case の union で有効な3状態だけを表す。
- */
-export type InvoiceDetailView =
-	| Case<"AnonymousInvoiceDetail">
-	| Case<"InvoiceNotFound">
-	| Case<"InvoiceFound", { invoice: InvoiceDetailItemView }>;
-
-// ===========================================================================
 // decode（DTO → ドメイン）
 // ===========================================================================
 
@@ -133,3 +106,30 @@ const purposeLabel = (purpose: InvoicePurpose): string =>
 		Renewal: () => "更新",
 		UpgradeDifference: () => "アップグレード差額",
 	});
+
+// ===========================================================================
+// 型定義（シリアライズ: DTO → JSON）
+// ===========================================================================
+
+/** 詳細画面に出す1件の請求。一覧行（InvoiceView）と違い payable を持たない（表示専用のため）。 */
+export type InvoiceDetailItemView = {
+	/** 一覧では出さない請求 ID の全文。URL と突き合わせられるように出す。 */
+	id: string;
+	purposeLabel: string;
+	planName: string;
+	amount: number;
+	statusLabel: string;
+	/** 状態ごとの説明文。UI に if を持ち込まないため境界層で文にしておく。 */
+	statusDescription: string;
+	issuedAt: string;
+};
+
+/**
+ * この画面には未ログイン・見つからない・見つかったの3状態がある。
+ * boolean フラグ2本では、未ログインかつ発見済みというありえない組み合わせも型上表現できるため、
+ * Case の union で有効な3状態だけを表す。
+ */
+export type InvoiceDetailView =
+	| Case<"AnonymousInvoiceDetail">
+	| Case<"InvoiceNotFound">
+	| Case<"InvoiceFound", { invoice: InvoiceDetailItemView }>;

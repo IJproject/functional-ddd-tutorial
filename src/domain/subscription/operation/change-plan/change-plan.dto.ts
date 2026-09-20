@@ -4,12 +4,12 @@ import {
 	Result,
 	type Result as ResultType,
 } from "#/domain/building-blocks";
+import type { StoreError } from "#/domain/subscription/model/store.model";
 import type {
 	ChangePlanError,
 	PlanChanged,
 	UnvalidatedChangePlanRequest,
-} from "#/domain/subscription/model/change-plan.model";
-import type { StoreError } from "#/domain/subscription/model/store.model";
+} from "#/domain/subscription/operation/change-plan/change-plan.model";
 
 // ===========================================================================
 // 型定義（デシリアライズ: JSON → DTO）
@@ -18,19 +18,6 @@ import type { StoreError } from "#/domain/subscription/model/store.model";
 /** 境界（JSON）での parse。プランとして妥当かはドメインの仕事。 */
 export const changePlanCommandSchema = z.object({ planId: z.string() });
 export type ChangePlanCommand = z.infer<typeof changePlanCommandSchema>;
-
-// ===========================================================================
-// 型定義（シリアライズ: DTO → JSON）
-// ===========================================================================
-
-export type ChangePlanFieldError = {
-	field: "planId" | null;
-	message: string;
-};
-
-export type ChangePlanResponse =
-	| { ok: true }
-	| { ok: false; errors: ChangePlanFieldError[] };
 
 // ===========================================================================
 // decode（DTO → ドメイン）
@@ -108,3 +95,16 @@ const toFieldError = (
 	});
 
 const MALFORMED_STORED_DATA_MESSAGE = "契約情報を読み込めませんでした";
+
+// ===========================================================================
+// 型定義（シリアライズ: DTO → JSON）
+// ===========================================================================
+
+export type ChangePlanFieldError = {
+	field: "planId" | null;
+	message: string;
+};
+
+export type ChangePlanResponse =
+	| { ok: true }
+	| { ok: false; errors: ChangePlanFieldError[] };

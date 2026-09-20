@@ -6,6 +6,7 @@ import { Badge, type BadgeTone } from "#/components/data/badge";
 import { Alert } from "#/components/feedback/alert";
 import { UserId } from "#/domain/auth/model/user.primitive";
 import { matchChoice, Result } from "#/domain/building-blocks";
+import { AccountId } from "#/domain/subscription/model/account.primitive";
 import {
 	decodeInvoiceParams,
 	encodeInvoiceDetailView,
@@ -14,8 +15,7 @@ import {
 	INVOICE_NOT_FOUND_DESCRIPTION,
 	type InvoiceDetailView,
 	invoiceParamsSchema,
-} from "#/domain/subscription/dto/invoice-detail.dto";
-import { AccountId } from "#/domain/subscription/model/account.primitive";
+} from "#/domain/subscription/operation/invoice-detail/invoice-detail.dto";
 import { currentSession } from "#/external/better-auth/current-session";
 import { findInvoice } from "#/external/subscription-store/subscription-store";
 

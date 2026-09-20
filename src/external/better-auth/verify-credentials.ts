@@ -1,8 +1,8 @@
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { APIError } from "better-auth/api";
-import type { AuthenticationFailed } from "#/domain/auth/model/login.model";
 import { UserId } from "#/domain/auth/model/user.primitive";
-import type { VerifyCredentials } from "#/domain/auth/workflow/login.workflow";
+import type { AuthenticationFailed } from "#/domain/auth/operation/login/login.model";
+import type { VerifyCredentials } from "#/domain/auth/operation/login/login.workflow";
 import { err, ok } from "#/domain/building-blocks";
 import { auth } from "#/external/better-auth/auth";
 

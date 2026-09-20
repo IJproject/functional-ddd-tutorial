@@ -3,19 +3,13 @@ import {
 	Result,
 	type Result as ResultType,
 } from "#/domain/building-blocks";
+import type { StoreError } from "#/domain/subscription/model/store.model";
 import type {
 	EndPeriodError,
 	EndTrialError,
 	PeriodEnded,
 	TrialEnded,
-} from "#/domain/subscription/model/schedule.model";
-import type { StoreError } from "#/domain/subscription/model/store.model";
-
-// ===========================================================================
-// 型定義（シリアライズ: DTO → JSON）
-// ===========================================================================
-
-export type ScheduleResponse = { ok: true } | { ok: false; message: string };
+} from "#/domain/subscription/operation/schedule/schedule.model";
 
 // ===========================================================================
 // encode（ドメイン → DTO）
@@ -94,3 +88,9 @@ export const AUTHENTICATION_REQUIRED_END_PERIOD_RESPONSE: Extract<
 };
 
 const MALFORMED_STORED_DATA_MESSAGE = "契約情報を読み込めませんでした";
+
+// ===========================================================================
+// 型定義（シリアライズ: DTO → JSON）
+// ===========================================================================
+
+export type ScheduleResponse = { ok: true } | { ok: false; message: string };

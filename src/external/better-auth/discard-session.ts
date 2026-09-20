@@ -1,5 +1,5 @@
 import { getRequestHeaders } from "@tanstack/react-start/server";
-import type { DiscardSession } from "#/domain/auth/workflow/logout.workflow";
+import type { DiscardSession } from "#/domain/auth/operation/logout/logout.workflow";
 import { auth } from "#/external/better-auth/auth";
 
 /**

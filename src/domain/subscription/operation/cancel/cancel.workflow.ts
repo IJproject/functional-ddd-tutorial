@@ -4,6 +4,7 @@ import {
 	ok,
 	type Result as ResultType,
 } from "#/domain/building-blocks";
+import type { Subscription } from "#/domain/subscription/model/subscription.entity";
 import type {
 	CancellationReserved,
 	CancelTrialError,
@@ -12,42 +13,39 @@ import type {
 	PaymentPending,
 	ReserveCancellationError,
 	TrialCancelled,
-} from "#/domain/subscription/model/cancel.model";
-import type { Subscription } from "#/domain/subscription/model/subscription.entity";
+} from "#/domain/subscription/operation/cancel/cancel.model";
 
 // ===========================================================================
 // 型定義
 // ===========================================================================
+
+export type CancelTrialWorkflow = CancelTrial;
+
+export type CancelTrialWorkflowDeps = {
+	cancelTrial: CancelTrial;
+};
+export type CreateCancelTrialWorkflow = (
+	deps: CancelTrialWorkflowDeps,
+) => CancelTrialWorkflow;
 
 /** 現在の状態 → トライアル解約結果。純粋関数（I/O を含まない）。 */
 export type CancelTrial = (
 	subscription: Subscription,
 ) => ResultType<TrialCancelled, CancelTrialError>;
 
-export type CancelTrialWorkflowDeps = {
-	cancelTrial: CancelTrial;
+export type ReserveCancellationWorkflow = ReserveCancellation;
+
+export type ReserveCancellationWorkflowDeps = {
+	reserveCancellation: ReserveCancellation;
 };
-
-export type CancelTrialWorkflow = CancelTrial;
-
-export type CreateCancelTrialWorkflow = (
-	deps: CancelTrialWorkflowDeps,
-) => CancelTrialWorkflow;
+export type CreateReserveCancellationWorkflow = (
+	deps: ReserveCancellationWorkflowDeps,
+) => ReserveCancellationWorkflow;
 
 /** 現在の状態 → 解約予約結果。純粋関数（I/O を含まない）。 */
 export type ReserveCancellation = (
 	subscription: Subscription,
 ) => ResultType<CancellationReserved, ReserveCancellationError>;
-
-export type ReserveCancellationWorkflowDeps = {
-	reserveCancellation: ReserveCancellation;
-};
-
-export type ReserveCancellationWorkflow = ReserveCancellation;
-
-export type CreateReserveCancellationWorkflow = (
-	deps: ReserveCancellationWorkflowDeps,
-) => ReserveCancellationWorkflow;
 
 // ===========================================================================
 // 実装

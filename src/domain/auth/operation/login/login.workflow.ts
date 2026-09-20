@@ -1,3 +1,5 @@
+import type { AuthenticatedUser } from "#/domain/auth/model/user.entity";
+import { EmailAddress, Password } from "#/domain/auth/model/user.primitive";
 import type {
 	AuthenticationFailed,
 	LoggedIn,
@@ -6,10 +8,8 @@ import type {
 	UnvalidatedLoginRequest,
 	ValidatedLoginRequest,
 	ValidationFailed,
-} from "#/domain/auth/model/login.model";
-import type { LoggedInAt } from "#/domain/auth/model/login.primitive";
-import type { AuthenticatedUser } from "#/domain/auth/model/user.entity";
-import { EmailAddress, Password } from "#/domain/auth/model/user.primitive";
+} from "#/domain/auth/operation/login/login.model";
+import type { LoggedInAt } from "#/domain/auth/operation/login/login.primitive";
 import { AsyncResult, pipe, Result } from "#/domain/building-blocks";
 
 // ===========================================================================

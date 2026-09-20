@@ -4,12 +4,12 @@ import {
 	Result,
 	type Result as ResultType,
 } from "#/domain/building-blocks";
+import type { StoreError } from "#/domain/subscription/model/store.model";
 import type {
 	Applied,
 	ApplyError,
 	UnvalidatedApplyRequest,
-} from "#/domain/subscription/model/apply.model";
-import type { StoreError } from "#/domain/subscription/model/store.model";
+} from "#/domain/subscription/operation/apply/apply.model";
 
 // ===========================================================================
 // 型定義（デシリアライズ: JSON → DTO）
@@ -19,16 +19,6 @@ import type { StoreError } from "#/domain/subscription/model/store.model";
 export const applyCommandSchema = z.object({ planId: z.string() });
 
 export type ApplyCommand = z.infer<typeof applyCommandSchema>;
-
-// ===========================================================================
-// 型定義（シリアライズ: DTO → JSON）
-// ===========================================================================
-
-export type ApplyFieldError = { field: "planId" | null; message: string };
-
-export type ApplyResponse =
-	| { ok: true }
-	| { ok: false; errors: ApplyFieldError[] };
 
 // ===========================================================================
 // decode（DTO → ドメイン）
@@ -99,3 +89,13 @@ const toFieldError = (error: ApplyError | StoreError): ApplyFieldError =>
 const ALREADY_SUBSCRIBED_MESSAGE = "すでに契約中です";
 const UNKNOWN_PLAN_MESSAGE = "有料プランを選択してください";
 const MALFORMED_STORED_DATA_MESSAGE = "契約情報を読み込めませんでした";
+
+// ===========================================================================
+// 型定義（シリアライズ: DTO → JSON）
+// ===========================================================================
+
+export type ApplyFieldError = { field: "planId" | null; message: string };
+
+export type ApplyResponse =
+	| { ok: true }
+	| { ok: false; errors: ApplyFieldError[] };

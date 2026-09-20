@@ -4,13 +4,13 @@ import {
 	Result,
 	type Result as ResultType,
 } from "#/domain/building-blocks";
+import type { StoreError } from "#/domain/subscription/model/store.model";
 import type {
 	InvoiceNotFound,
 	PayInvoiceError,
 	PaymentOutcome,
 	PaymentSettled,
-} from "#/domain/subscription/model/payment.model";
-import type { StoreError } from "#/domain/subscription/model/store.model";
+} from "#/domain/subscription/operation/payment/payment.model";
 
 // ===========================================================================
 // 型定義（デシリアライズ: JSON → DTO）
@@ -21,12 +21,6 @@ export const payInvoiceCommandSchema = z.object({
 	result: z.enum(["success", "failure"]),
 });
 export type PayInvoiceCommand = z.infer<typeof payInvoiceCommandSchema>;
-
-// ===========================================================================
-// 型定義（シリアライズ: DTO → JSON）
-// ===========================================================================
-
-export type PaymentResponse = { ok: true } | { ok: false; message: string };
 
 // ===========================================================================
 // decode（DTO → ドメイン）
@@ -95,3 +89,9 @@ export const AUTHENTICATION_REQUIRED_PAYMENT_RESPONSE: Extract<
 /** ポートが請求を見つけられなかったときの境界層の文言。 */
 const INVOICE_NOT_FOUND_MESSAGE = "請求が見つかりません";
 const MALFORMED_STORED_DATA_MESSAGE = "契約情報を読み込めませんでした";
+
+// ===========================================================================
+// 型定義（シリアライズ: DTO → JSON）
+// ===========================================================================
+
+export type PaymentResponse = { ok: true } | { ok: false; message: string };

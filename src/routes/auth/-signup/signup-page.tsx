@@ -10,13 +10,13 @@ import {
 	type SignupFieldError,
 	signupCommandSchema,
 	UNEXPECTED_SIGNUP_RESPONSE,
-} from "#/domain/auth/dto/signup.dto";
-import { RegisteredAt } from "#/domain/auth/model/signup.primitive";
+} from "#/domain/auth/operation/signup/signup.dto";
+import { RegisteredAt } from "#/domain/auth/operation/signup/signup.primitive";
 import {
 	createRegisteredEvent,
 	createSignupWorkflow,
 	validateSignupRequest,
-} from "#/domain/auth/workflow/signup.workflow";
+} from "#/domain/auth/operation/signup/signup.workflow";
 import { AccountId } from "#/domain/subscription/model/account.primitive";
 import { registerUser } from "#/external/better-auth/register-user";
 import { openAccount } from "#/external/subscription-store/subscription-store";

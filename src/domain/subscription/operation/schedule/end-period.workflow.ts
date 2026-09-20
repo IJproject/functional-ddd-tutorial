@@ -11,45 +11,20 @@ import {
 } from "#/domain/subscription/model/invoice.primitive";
 import { Plan } from "#/domain/subscription/model/plan.entity";
 import { MonthlyPrice } from "#/domain/subscription/model/plan.primitive";
+import type { Subscription } from "#/domain/subscription/model/subscription.entity";
 import type {
 	EndPeriodError,
-	EndTrialError,
-	NotInTrial,
 	NotPaid,
 	PaymentPending,
 	PeriodEnded,
-	TrialEnded,
-} from "#/domain/subscription/model/schedule.model";
-import type { Subscription } from "#/domain/subscription/model/subscription.entity";
+} from "#/domain/subscription/operation/schedule/schedule.model";
 
 // ===========================================================================
 // 型定義
 // ===========================================================================
 
-/** 現在の状態 → トライアル終了結果。純粋関数（I/O を含まない）。 */
-export type EndTrial = (
+export type EndPeriodWorkflow = (
 	subscription: Subscription,
-	issued: { invoiceId: InvoiceId; now: Date },
-) => ResultType<TrialEnded, EndTrialError>;
-
-export type EndTrialWorkflowDeps = {
-	endTrial: EndTrial;
-	newInvoiceId: () => InvoiceId;
-	now: () => Date;
-};
-
-export type EndTrialWorkflow = (
-	subscription: Subscription,
-) => ResultType<TrialEnded, EndTrialError>;
-
-export type CreateEndTrialWorkflow = (
-	deps: EndTrialWorkflowDeps,
-) => EndTrialWorkflow;
-
-/** 現在の状態 → 期間満了結果。純粋関数（I/O を含まない）。 */
-export type EndPeriod = (
-	subscription: Subscription,
-	issued: { invoiceId: InvoiceId; now: Date },
 ) => ResultType<PeriodEnded, EndPeriodError>;
 
 export type EndPeriodWorkflowDeps = {
@@ -57,55 +32,19 @@ export type EndPeriodWorkflowDeps = {
 	newInvoiceId: () => InvoiceId;
 	now: () => Date;
 };
-
-export type EndPeriodWorkflow = (
-	subscription: Subscription,
-) => ResultType<PeriodEnded, EndPeriodError>;
-
 export type CreateEndPeriodWorkflow = (
 	deps: EndPeriodWorkflowDeps,
 ) => EndPeriodWorkflow;
 
+/** 現在の状態 → 期間満了結果。純粋関数（I/O を含まない）。 */
+export type EndPeriod = (
+	subscription: Subscription,
+	issued: { invoiceId: InvoiceId; now: Date },
+) => ResultType<PeriodEnded, EndPeriodError>;
+
 // ===========================================================================
 // 実装
 // ===========================================================================
-
-const notInTrial = (): ResultType<TrialEnded, NotInTrial> =>
-	err({ kind: "NotInTrial" });
-
-export const endTrial: EndTrial = (subscription, issued) =>
-	matchChoice<Subscription, ResultType<TrialEnded, EndTrialError>>(
-		subscription,
-		{
-			FreeSubscription: notInTrial,
-			TrialSubscription: (current) => {
-				const plan = Plan.of(current.planId);
-				return ok({
-					kind: "TrialEnded",
-					subscription: {
-						kind: "PendingPaymentSubscription",
-						accountId: current.accountId,
-						planId: current.planId,
-						pendingInvoiceId: issued.invoiceId,
-					},
-					invoice: {
-						kind: "UnpaidInvoice",
-						id: issued.invoiceId,
-						accountId: current.accountId,
-						planId: current.planId,
-						amount: Amount.create(MonthlyPrice.value(plan.monthlyPrice)),
-						purpose: { kind: "New" },
-						issuedAt: IssuedAt.create(issued.now),
-					},
-				});
-			},
-			PendingPaymentSubscription: notInTrial,
-			PaidSubscription: notInTrial,
-			UpgradePendingSubscription: notInTrial,
-			CancelReservedSubscription: notInTrial,
-			PlanChangeReservedSubscription: notInTrial,
-		},
-	);
 
 const notPaid = (): ResultType<PeriodEnded, NotPaid> =>
 	err({ kind: "NotPaid" });
@@ -175,14 +114,6 @@ export const endPeriod: EndPeriod = (subscription, issued) =>
 			},
 		},
 	);
-
-/** 純粋関数で I/O を含まないため AsyncResult ではなく Result を使う。 */
-export const createEndTrialWorkflow: CreateEndTrialWorkflow =
-	(deps) => (subscription) =>
-		deps.endTrial(subscription, {
-			invoiceId: deps.newInvoiceId(),
-			now: deps.now(),
-		});
 
 /** 純粋関数で I/O を含まないため AsyncResult ではなく Result を使う。 */
 export const createEndPeriodWorkflow: CreateEndPeriodWorkflow =

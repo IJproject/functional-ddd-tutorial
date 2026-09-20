@@ -1,9 +1,12 @@
-import type { LoggedOut, LogoutError } from "#/domain/auth/model/logout.model";
-import type { LoggedOutAt } from "#/domain/auth/model/logout.primitive";
 import type {
 	AuthenticatedSession,
 	Session,
 } from "#/domain/auth/model/session.model";
+import type {
+	LoggedOut,
+	LogoutError,
+} from "#/domain/auth/operation/logout/logout.model";
+import type { LoggedOutAt } from "#/domain/auth/operation/logout/logout.primitive";
 import {
 	type AsyncResult,
 	err,

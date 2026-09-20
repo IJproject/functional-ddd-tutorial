@@ -11,6 +11,8 @@ import {
 	pipe,
 	Result,
 } from "#/domain/building-blocks";
+import { AccountId } from "#/domain/subscription/model/account.primitive";
+import { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
 import {
 	type ApplyFieldError,
 	type ApplyResponse,
@@ -19,21 +21,19 @@ import {
 	decodeApplyCommand,
 	encodeApplyResponse,
 	UNEXPECTED_APPLY_RESPONSE,
-} from "#/domain/subscription/dto/apply.dto";
+} from "#/domain/subscription/operation/apply/apply.dto";
+import type { Applied } from "#/domain/subscription/operation/apply/apply.model";
+import {
+	applyToSubscription,
+	createApplyWorkflow,
+	validateApplyRequest,
+} from "#/domain/subscription/operation/apply/apply.workflow";
 import {
 	ALREADY_SUBSCRIBED_APPLY_MESSAGE,
 	APPLY_CONTEXT_UNAVAILABLE_MESSAGE,
 	type ApplyContextView,
 	encodeApplyContextView,
-} from "#/domain/subscription/dto/apply-context.dto";
-import { AccountId } from "#/domain/subscription/model/account.primitive";
-import type { Applied } from "#/domain/subscription/model/apply.model";
-import { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
-import {
-	applyToSubscription,
-	createApplyWorkflow,
-	validateApplyRequest,
-} from "#/domain/subscription/workflow/apply.workflow";
+} from "#/domain/subscription/operation/apply/apply-context.dto";
 import { currentSession } from "#/external/better-auth/current-session";
 import {
 	loadApplyContext,

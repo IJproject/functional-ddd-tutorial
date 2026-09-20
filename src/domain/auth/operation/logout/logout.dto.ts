@@ -1,4 +1,7 @@
-import type { LoggedOut, LogoutError } from "#/domain/auth/model/logout.model";
+import type {
+	LoggedOut,
+	LogoutError,
+} from "#/domain/auth/operation/logout/logout.model";
 import { Result } from "#/domain/building-blocks";
 
 // ===========================================================================

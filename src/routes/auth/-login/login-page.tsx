@@ -10,13 +10,13 @@ import {
 	type LoginFieldError,
 	loginCommandSchema,
 	UNEXPECTED_LOGIN_RESPONSE,
-} from "#/domain/auth/dto/login.dto";
-import { LoggedInAt } from "#/domain/auth/model/login.primitive";
+} from "#/domain/auth/operation/login/login.dto";
+import { LoggedInAt } from "#/domain/auth/operation/login/login.primitive";
 import {
 	createLoggedInEvent,
 	createLoginWorkflow,
 	validateLoginRequest,
-} from "#/domain/auth/workflow/login.workflow";
+} from "#/domain/auth/operation/login/login.workflow";
 import { verifyCredentials } from "#/external/better-auth/verify-credentials";
 
 // composition root: ドメインのポートに具体的な実装を差し込むのはここだけ。

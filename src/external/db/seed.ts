@@ -26,13 +26,12 @@
 
 import { hashPassword } from "better-auth/crypto";
 import { like } from "drizzle-orm";
-
-import { UserName } from "#/domain/auth/model/signup.primitive";
 import {
 	EmailAddress,
 	type EmailAddressError,
 	UserId,
 } from "#/domain/auth/model/user.primitive";
+import { UserName } from "#/domain/auth/operation/signup/signup.primitive";
 import {
 	type Primitive,
 	Result,

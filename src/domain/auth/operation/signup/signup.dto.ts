@@ -4,7 +4,7 @@ import type {
 	SignupError,
 	SignupValidationError,
 	UnvalidatedSignupRequest,
-} from "#/domain/auth/model/signup.model";
+} from "#/domain/auth/operation/signup/signup.model";
 import { matchChoice, Result } from "#/domain/building-blocks";
 
 // ===========================================================================

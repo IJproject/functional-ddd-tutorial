@@ -11,15 +11,6 @@ import {
 	AccountId,
 	TrialUsedAt,
 } from "#/domain/subscription/model/account.primitive";
-import type {
-	AlreadySubscribed,
-	Applied,
-	ApplyContext,
-	ApplyError,
-	ApplyRequest,
-	InvalidApplyRequest,
-	UnvalidatedApplyRequest,
-} from "#/domain/subscription/model/apply.model";
 import type { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
 import {
 	Amount,
@@ -32,10 +23,32 @@ import {
 } from "#/domain/subscription/model/plan.primitive";
 import type { Subscription } from "#/domain/subscription/model/subscription.entity";
 import { TrialEndsAt } from "#/domain/subscription/model/subscription.primitive";
+import type {
+	AlreadySubscribed,
+	Applied,
+	ApplyContext,
+	ApplyError,
+	ApplyRequest,
+	InvalidApplyRequest,
+	UnvalidatedApplyRequest,
+} from "#/domain/subscription/operation/apply/apply.model";
 
 // ===========================================================================
 // 型定義
 // ===========================================================================
+
+export type ApplyWorkflow = (
+	request: UnvalidatedApplyRequest,
+	context: ApplyContext,
+) => ResultType<Applied, ApplyError>;
+
+export type ApplyWorkflowDeps = {
+	validateApplyRequest: ValidateApplyRequest;
+	applyToSubscription: ApplyToSubscription;
+	newInvoiceId: () => InvoiceId;
+	now: () => Date;
+};
+export type CreateApplyWorkflow = (deps: ApplyWorkflowDeps) => ApplyWorkflow;
 
 /** ① 未検証 → ② 検証済み。純粋関数。 */
 export type ValidateApplyRequest = (
@@ -48,20 +61,6 @@ export type ApplyToSubscription = (
 	context: ApplyContext,
 	issued: { invoiceId: InvoiceId; now: Date },
 ) => ResultType<Applied, AlreadySubscribed>;
-
-export type ApplyWorkflowDeps = {
-	validateApplyRequest: ValidateApplyRequest;
-	applyToSubscription: ApplyToSubscription;
-	newInvoiceId: () => InvoiceId;
-	now: () => Date;
-};
-
-export type ApplyWorkflow = (
-	request: UnvalidatedApplyRequest,
-	context: ApplyContext,
-) => ResultType<Applied, ApplyError>;
-
-export type CreateApplyWorkflow = (deps: ApplyWorkflowDeps) => ApplyWorkflow;
 
 // ===========================================================================
 // 実装

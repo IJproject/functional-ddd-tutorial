@@ -2,13 +2,13 @@ import { Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { Button } from "#/components/control/button";
 import ThemeToggle from "#/components/theme/theme-toggle";
-import { encodeLogoutResponse } from "#/domain/auth/dto/logout.dto";
-import { LoggedOutAt } from "#/domain/auth/model/logout.primitive";
 import type { Session } from "#/domain/auth/model/session.model";
+import { encodeLogoutResponse } from "#/domain/auth/operation/logout/logout.dto";
+import { LoggedOutAt } from "#/domain/auth/operation/logout/logout.primitive";
 import {
 	createLoggedOutEvent,
 	createLogoutWorkflow,
-} from "#/domain/auth/workflow/logout.workflow";
+} from "#/domain/auth/operation/logout/logout.workflow";
 import { matchChoice } from "#/domain/building-blocks";
 import { currentSession } from "#/external/better-auth/current-session";
 import { discardSession } from "#/external/better-auth/discard-session";

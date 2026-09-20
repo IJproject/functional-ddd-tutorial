@@ -1,4 +1,3 @@
-import type { LoggedInAt } from "#/domain/auth/model/login.primitive";
 import type {
 	EmailAddress,
 	EmailAddressError,
@@ -6,6 +5,7 @@ import type {
 	PasswordError,
 	UserId,
 } from "#/domain/auth/model/user.primitive";
+import type { LoggedInAt } from "#/domain/auth/operation/login/login.primitive";
 import type { Case, NonEmptyArray } from "#/domain/building-blocks";
 
 // ===========================================================================

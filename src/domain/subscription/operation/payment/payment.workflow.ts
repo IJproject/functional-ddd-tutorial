@@ -10,19 +10,28 @@ import type {
 	PaidInvoice,
 	UnpaidInvoice,
 } from "#/domain/subscription/model/invoice.entity";
+import type { Subscription } from "#/domain/subscription/model/subscription.entity";
+import { PeriodEndsAt } from "#/domain/subscription/model/subscription.primitive";
 import type {
 	InvoiceAlreadyProcessed,
 	NoPendingPayment,
 	PayInvoiceError,
 	PaymentOutcome,
 	PaymentSettled,
-} from "#/domain/subscription/model/payment.model";
-import type { Subscription } from "#/domain/subscription/model/subscription.entity";
-import { PeriodEndsAt } from "#/domain/subscription/model/subscription.primitive";
+} from "#/domain/subscription/operation/payment/payment.model";
 
 // ===========================================================================
 // 型定義
 // ===========================================================================
+
+export type PayInvoiceWorkflow = PayInvoice;
+
+export type PayInvoiceWorkflowDeps = {
+	payInvoice: PayInvoice;
+};
+export type CreatePayInvoiceWorkflow = (
+	deps: PayInvoiceWorkflowDeps,
+) => PayInvoiceWorkflow;
 
 /** 請求 + 現在の状態 + 決済結果 → 支払い反映結果。純粋関数（I/O を含まない）。 */
 export type PayInvoice = (
@@ -31,16 +40,6 @@ export type PayInvoice = (
 	outcome: PaymentOutcome,
 	settled: { now: Date },
 ) => ResultType<PaymentSettled, PayInvoiceError>;
-
-export type PayInvoiceWorkflowDeps = {
-	payInvoice: PayInvoice;
-};
-
-export type PayInvoiceWorkflow = PayInvoice;
-
-export type CreatePayInvoiceWorkflow = (
-	deps: PayInvoiceWorkflowDeps,
-) => PayInvoiceWorkflow;
 
 // ===========================================================================
 // 実装

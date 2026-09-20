@@ -1,6 +1,6 @@
 import { Button } from "#/components/control/button";
 import { Alert } from "#/components/feedback/alert";
-import { APPLY_LOGIN_REQUIRED_MESSAGE } from "#/domain/subscription/dto/apply-context.dto";
+import { APPLY_LOGIN_REQUIRED_MESSAGE } from "#/domain/subscription/operation/apply/apply-context.dto";
 
 type LoginRequiredProps = {
 	errorMessages: readonly string[];

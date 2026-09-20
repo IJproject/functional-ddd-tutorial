@@ -1,8 +1,8 @@
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { APIError } from "better-auth/api";
-import { UserName } from "#/domain/auth/model/signup.primitive";
 import { UserId } from "#/domain/auth/model/user.primitive";
-import type { RegisterUser } from "#/domain/auth/workflow/signup.workflow";
+import { UserName } from "#/domain/auth/operation/signup/signup.primitive";
+import type { RegisterUser } from "#/domain/auth/operation/signup/signup.workflow";
 import { err, ok } from "#/domain/building-blocks";
 import { auth } from "#/external/better-auth/auth";
 

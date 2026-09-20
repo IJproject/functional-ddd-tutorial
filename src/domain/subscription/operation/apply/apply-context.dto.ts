@@ -8,28 +8,6 @@ import {
 import type { Subscription } from "#/domain/subscription/model/subscription.entity";
 
 // ===========================================================================
-// 型定義（シリアライズ: DTO → JSON）
-// ===========================================================================
-
-export type ApplyPlanView = {
-	id: string;
-	name: string;
-	monthlyPrice: number;
-};
-
-/** 申し込み画面が必要とする状態。 */
-export type ApplyContextView =
-	| { loggedIn: false }
-	| {
-			loggedIn: true;
-			/** 申し込み可能か。契約中なら false。 */
-			applicable: boolean;
-			/** トライアル使用済みか。文言の出し分けに使う。 */
-			trialUsed: boolean;
-			plans: ApplyPlanView[];
-	  };
-
-// ===========================================================================
 // encode（ドメイン → DTO）
 // ===========================================================================
 
@@ -76,3 +54,25 @@ const planName = (planId: PlanId): string =>
 			Pro: () => "プロ",
 		},
 	);
+
+// ===========================================================================
+// 型定義（シリアライズ: DTO → JSON）
+// ===========================================================================
+
+export type ApplyPlanView = {
+	id: string;
+	name: string;
+	monthlyPrice: number;
+};
+
+/** 申し込み画面が必要とする状態。 */
+export type ApplyContextView =
+	| { loggedIn: false }
+	| {
+			loggedIn: true;
+			/** 申し込み可能か。契約中なら false。 */
+			applicable: boolean;
+			/** トライアル使用済みか。文言の出し分けに使う。 */
+			trialUsed: boolean;
+			plans: ApplyPlanView[];
+	  };

@@ -1,5 +1,5 @@
-import type { LoggedOutAt } from "#/domain/auth/model/logout.primitive";
 import type { UserId } from "#/domain/auth/model/user.primitive";
+import type { LoggedOutAt } from "#/domain/auth/operation/logout/logout.primitive";
 import type { Case } from "#/domain/building-blocks";
 
 // ===========================================================================

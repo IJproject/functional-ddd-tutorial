@@ -3,7 +3,7 @@ import {
 	type ApplyPlanView,
 	PAYMENT_REQUIRED_MESSAGE,
 	TRIAL_AVAILABLE_MESSAGE,
-} from "#/domain/subscription/dto/apply-context.dto";
+} from "#/domain/subscription/operation/apply/apply-context.dto";
 
 type PlanCardProps = {
 	plan: ApplyPlanView;

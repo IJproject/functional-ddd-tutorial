@@ -4,7 +4,7 @@ import type {
 	LoginError,
 	LoginValidationError,
 	UnvalidatedLoginRequest,
-} from "#/domain/auth/model/login.model";
+} from "#/domain/auth/operation/login/login.model";
 import { matchChoice, Result } from "#/domain/building-blocks";
 
 // ===========================================================================

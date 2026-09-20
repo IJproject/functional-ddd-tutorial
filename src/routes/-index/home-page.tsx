@@ -13,13 +13,25 @@ import {
 	pipe,
 	Result,
 } from "#/domain/building-blocks";
+import { AccountId } from "#/domain/subscription/model/account.primitive";
+import { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
 import {
 	AUTHENTICATION_REQUIRED_CANCEL_RESPONSE,
 	type CancelResponse,
 	encodeCancelTrialResponse,
 	encodeReserveCancellationResponse,
 	UNEXPECTED_CANCEL_RESPONSE,
-} from "#/domain/subscription/dto/cancel.dto";
+} from "#/domain/subscription/operation/cancel/cancel.dto";
+import type {
+	CancellationReserved,
+	TrialCancelled,
+} from "#/domain/subscription/operation/cancel/cancel.model";
+import {
+	cancelTrial as cancelTrialForSubscription,
+	createCancelTrialWorkflow,
+	createReserveCancellationWorkflow,
+	reserveCancellation as reserveCancellationForSubscription,
+} from "#/domain/subscription/operation/cancel/cancel.workflow";
 import {
 	AUTHENTICATION_REQUIRED_CHANGE_PLAN_RESPONSE,
 	type ChangePlanResponse,
@@ -27,7 +39,13 @@ import {
 	decodeChangePlanCommand,
 	encodeChangePlanResponse,
 	UNEXPECTED_CHANGE_PLAN_RESPONSE,
-} from "#/domain/subscription/dto/change-plan.dto";
+} from "#/domain/subscription/operation/change-plan/change-plan.dto";
+import type { PlanChanged } from "#/domain/subscription/operation/change-plan/change-plan.model";
+import {
+	changePlanForSubscription,
+	createChangePlanWorkflow,
+	validateChangePlanRequest,
+} from "#/domain/subscription/operation/change-plan/change-plan.workflow";
 import {
 	AUTHENTICATION_REQUIRED_PAYMENT_RESPONSE,
 	decodePaymentOutcome,
@@ -36,7 +54,24 @@ import {
 	type PaymentResponse,
 	payInvoiceCommandSchema,
 	UNEXPECTED_PAYMENT_RESPONSE,
-} from "#/domain/subscription/dto/payment.dto";
+} from "#/domain/subscription/operation/payment/payment.dto";
+import type {
+	InvoiceNotFound,
+	PayInvoiceError,
+	PaymentSettled,
+} from "#/domain/subscription/operation/payment/payment.model";
+import {
+	createPayInvoiceWorkflow,
+	payInvoice as payInvoiceForSubscription,
+} from "#/domain/subscription/operation/payment/payment.workflow";
+import {
+	createEndPeriodWorkflow,
+	endPeriod as endPeriodForSubscription,
+} from "#/domain/subscription/operation/schedule/end-period.workflow";
+import {
+	createEndTrialWorkflow,
+	endTrial as endTrialForSubscription,
+} from "#/domain/subscription/operation/schedule/end-trial.workflow";
 import {
 	AUTHENTICATION_REQUIRED_END_PERIOD_RESPONSE,
 	AUTHENTICATION_REQUIRED_END_TRIAL_RESPONSE,
@@ -45,51 +80,18 @@ import {
 	type ScheduleResponse,
 	UNEXPECTED_END_PERIOD_RESPONSE,
 	UNEXPECTED_END_TRIAL_RESPONSE,
-} from "#/domain/subscription/dto/schedule.dto";
+} from "#/domain/subscription/operation/schedule/schedule.dto";
+import type {
+	PeriodEnded,
+	TrialEnded,
+} from "#/domain/subscription/operation/schedule/schedule.model";
 import {
 	encodeSubscriptionView,
 	NO_INVOICES_MESSAGE,
 	SUBSCRIPTION_LOGIN_REQUIRED_MESSAGE,
 	SUBSCRIPTION_VIEW_UNAVAILABLE_MESSAGE,
 	type SubscriptionView,
-} from "#/domain/subscription/dto/subscription-view.dto";
-import { AccountId } from "#/domain/subscription/model/account.primitive";
-import type {
-	CancellationReserved,
-	TrialCancelled,
-} from "#/domain/subscription/model/cancel.model";
-import type { PlanChanged } from "#/domain/subscription/model/change-plan.model";
-import { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
-import type {
-	InvoiceNotFound,
-	PayInvoiceError,
-	PaymentSettled,
-} from "#/domain/subscription/model/payment.model";
-import type {
-	PeriodEnded,
-	TrialEnded,
-} from "#/domain/subscription/model/schedule.model";
-import {
-	cancelTrial as cancelTrialForSubscription,
-	createCancelTrialWorkflow,
-	createReserveCancellationWorkflow,
-	reserveCancellation as reserveCancellationForSubscription,
-} from "#/domain/subscription/workflow/cancel.workflow";
-import {
-	changePlanForSubscription,
-	createChangePlanWorkflow,
-	validateChangePlanRequest,
-} from "#/domain/subscription/workflow/change-plan.workflow";
-import {
-	createPayInvoiceWorkflow,
-	payInvoice as payInvoiceForSubscription,
-} from "#/domain/subscription/workflow/payment.workflow";
-import {
-	createEndPeriodWorkflow,
-	createEndTrialWorkflow,
-	endPeriod as endPeriodForSubscription,
-	endTrial as endTrialForSubscription,
-} from "#/domain/subscription/workflow/schedule.workflow";
+} from "#/domain/subscription/operation/subscription-view/subscription-view.dto";
 import { currentSession } from "#/external/better-auth/current-session";
 import {
 	findInvoice,

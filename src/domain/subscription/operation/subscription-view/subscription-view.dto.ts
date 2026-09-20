@@ -20,70 +20,6 @@ import {
 } from "#/domain/subscription/model/subscription.primitive";
 
 // ===========================================================================
-// 型定義（シリアライズ: DTO → JSON）
-// ===========================================================================
-
-export type ReservationView =
-	| Case<"None">
-	| Case<"Cancel">
-	| Case<"PlanChange", { nextPlanName: string }>;
-
-export type SubscriptionStateView = {
-	/** 状態の表示名。 */
-	statusLabel: string;
-	/** 契約中のプラン名。FreeSubscription なら null。 */
-	planName: string | null;
-	/** 表示用に整形済みの日時。該当しない状態では null。 */
-	trialEndsAt: string | null;
-	periodEndsAt: string | null;
-	reservation: ReservationView;
-	/** 予約状態の表示文言。 */
-	bookingText: string | null;
-	/** 契約欄に出す案内。 */
-	notice: string | null;
-	/** 無料状態から申し込み画面へ案内するか。 */
-	showApplyLink: boolean;
-	/**
-	 * ボタンの disabled を決めるための表示上の都合。
-	 * 可否の最終的な権威はワークフロー側にあり、ここはその手前で操作を隠すだけ。
-	 * どちらも同じ Subscription の Case から導くので二重管理にはならない。
-	 */
-	canChangePlan: boolean;
-	canCancelTrial: boolean;
-	canReserveCancellation: boolean;
-	canEndTrial: boolean;
-	canEndPeriod: boolean;
-};
-
-export type SubscriptionPlanView = {
-	id: string;
-	name: string;
-	monthlyPrice: number;
-	changeDescription: string;
-	changeDisabled: boolean;
-};
-
-export type InvoiceView = {
-	id: string;
-	purposeLabel: string;
-	planName: string;
-	amount: number;
-	statusLabel: string;
-	issuedAt: string;
-	/** 支払い操作を出すか。UnpaidInvoice のときだけ true。 */
-	payable: boolean;
-};
-
-export type SubscriptionView =
-	| { loggedIn: false }
-	| {
-			loggedIn: true;
-			state: SubscriptionStateView;
-			plans: SubscriptionPlanView[];
-			invoices: InvoiceView[];
-	  };
-
-// ===========================================================================
 // encode（ドメイン → DTO）
 // ===========================================================================
 
@@ -359,3 +295,67 @@ const encodeInvoice = (invoice: Invoice): InvoiceView =>
 			payable: false,
 		}),
 	});
+
+// ===========================================================================
+// 型定義（シリアライズ: DTO → JSON）
+// ===========================================================================
+
+export type ReservationView =
+	| Case<"None">
+	| Case<"Cancel">
+	| Case<"PlanChange", { nextPlanName: string }>;
+
+export type SubscriptionStateView = {
+	/** 状態の表示名。 */
+	statusLabel: string;
+	/** 契約中のプラン名。FreeSubscription なら null。 */
+	planName: string | null;
+	/** 表示用に整形済みの日時。該当しない状態では null。 */
+	trialEndsAt: string | null;
+	periodEndsAt: string | null;
+	reservation: ReservationView;
+	/** 予約状態の表示文言。 */
+	bookingText: string | null;
+	/** 契約欄に出す案内。 */
+	notice: string | null;
+	/** 無料状態から申し込み画面へ案内するか。 */
+	showApplyLink: boolean;
+	/**
+	 * ボタンの disabled を決めるための表示上の都合。
+	 * 可否の最終的な権威はワークフロー側にあり、ここはその手前で操作を隠すだけ。
+	 * どちらも同じ Subscription の Case から導くので二重管理にはならない。
+	 */
+	canChangePlan: boolean;
+	canCancelTrial: boolean;
+	canReserveCancellation: boolean;
+	canEndTrial: boolean;
+	canEndPeriod: boolean;
+};
+
+export type SubscriptionPlanView = {
+	id: string;
+	name: string;
+	monthlyPrice: number;
+	changeDescription: string;
+	changeDisabled: boolean;
+};
+
+export type InvoiceView = {
+	id: string;
+	purposeLabel: string;
+	planName: string;
+	amount: number;
+	statusLabel: string;
+	issuedAt: string;
+	/** 支払い操作を出すか。UnpaidInvoice のときだけ true。 */
+	payable: boolean;
+};
+
+export type SubscriptionView =
+	| { loggedIn: false }
+	| {
+			loggedIn: true;
+			state: SubscriptionStateView;
+			plans: SubscriptionPlanView[];
+			invoices: InvoiceView[];
+	  };

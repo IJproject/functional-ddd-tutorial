@@ -9,24 +9,24 @@ import {
 } from "#/domain/building-blocks";
 import { Account } from "#/domain/subscription/model/account.entity";
 import { AccountId } from "#/domain/subscription/model/account.primitive";
+import type { Invoice } from "#/domain/subscription/model/invoice.entity";
+import { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
+import type { StoreError } from "#/domain/subscription/model/store.model";
+import { Subscription } from "#/domain/subscription/model/subscription.entity";
 import type {
 	Applied,
 	ApplyContext,
-} from "#/domain/subscription/model/apply.model";
+} from "#/domain/subscription/operation/apply/apply.model";
 import type {
 	CancellationReserved,
 	TrialCancelled,
-} from "#/domain/subscription/model/cancel.model";
-import type { PlanChanged } from "#/domain/subscription/model/change-plan.model";
-import type { Invoice } from "#/domain/subscription/model/invoice.entity";
-import { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
-import type { PaymentSettled } from "#/domain/subscription/model/payment.model";
+} from "#/domain/subscription/operation/cancel/cancel.model";
+import type { PlanChanged } from "#/domain/subscription/operation/change-plan/change-plan.model";
+import type { PaymentSettled } from "#/domain/subscription/operation/payment/payment.model";
 import type {
 	PeriodEnded,
 	TrialEnded,
-} from "#/domain/subscription/model/schedule.model";
-import type { StoreError } from "#/domain/subscription/model/store.model";
-import { Subscription } from "#/domain/subscription/model/subscription.entity";
+} from "#/domain/subscription/operation/schedule/schedule.model";
 import { db } from "#/external/db/client";
 import {
 	subscriptionAccount as subscriptionAccountTable,

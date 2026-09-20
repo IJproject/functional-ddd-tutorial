@@ -1,15 +1,15 @@
 import type {
-	RegisteredAt,
-	UserName,
-	UserNameError,
-} from "#/domain/auth/model/signup.primitive";
-import type {
 	EmailAddress,
 	EmailAddressError,
 	Password,
 	PasswordError,
 	UserId,
 } from "#/domain/auth/model/user.primitive";
+import type {
+	RegisteredAt,
+	UserName,
+	UserNameError,
+} from "#/domain/auth/operation/signup/signup.primitive";
 import type { Case, NonEmptyArray } from "#/domain/building-blocks";
 
 // ===========================================================================

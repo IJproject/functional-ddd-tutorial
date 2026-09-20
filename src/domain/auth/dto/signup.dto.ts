@@ -21,19 +21,6 @@ export const signupCommandSchema = z.object({
 export type SignupCommand = z.infer<typeof signupCommandSchema>;
 
 // ===========================================================================
-// 型定義（シリアライズ: DTO → JSON）
-// ===========================================================================
-
-export type SignupFieldError = {
-	field: "name" | "email" | "password" | null;
-	message: string;
-};
-
-export type SignupResponse =
-	| { ok: true; userId: string }
-	| { ok: false; errors: SignupFieldError[] };
-
-// ===========================================================================
 // decode（DTO → ドメイン）
 // ===========================================================================
 
@@ -112,3 +99,16 @@ const toFieldError = (error: SignupValidationError): SignupFieldError =>
 			}),
 		}),
 	});
+
+// ===========================================================================
+// 型定義（シリアライズ: DTO → JSON）
+// ===========================================================================
+
+export type SignupFieldError = {
+	field: "name" | "email" | "password" | null;
+	message: string;
+};
+
+export type SignupResponse =
+	| { ok: true; userId: string }
+	| { ok: false; errors: SignupFieldError[] };

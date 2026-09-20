@@ -16,18 +16,18 @@ import { AsyncResult, pipe, Result } from "#/domain/building-blocks";
 // 型定義
 // ===========================================================================
 
-/**
- * パイプライン全体。
- *
- *   UnvalidatedLoginRequest
- *     -> validateLoginRequest   // 形式検証（純粋）
- *     -> verifyCredentials      // 認証（I/O・注入）
- *     -> createLoggedInEvent    // イベント化（純粋）
- *   LoggedIn
- */
 export type LoginWorkflow = (
 	request: UnvalidatedLoginRequest,
 ) => AsyncResult<LoggedIn, LoginError>;
+
+/** パイプラインを組み立てるための依存。各ステップと現在時刻の取得を注入する。 */
+export type LoginWorkflowDeps = {
+	validateLoginRequest: ValidateLoginRequest;
+	verifyCredentials: VerifyCredentials;
+	createLoggedInEvent: CreateLoggedInEvent;
+	now: () => LoggedInAt;
+};
+export type CreateLoginWorkflow = (deps: LoginWorkflowDeps) => LoginWorkflow;
 
 /** 未検証 → 形式検証済み。Result を返す純粋関数。 */
 export type ValidateLoginRequest = (
@@ -44,16 +44,6 @@ export type CreateLoggedInEvent = (
 	user: AuthenticatedUser,
 	loggedInAt: LoggedInAt,
 ) => LoggedIn;
-
-/** パイプラインを組み立てるための依存。各ステップと現在時刻の取得を注入する。 */
-export type LoginWorkflowDeps = {
-	validateLoginRequest: ValidateLoginRequest;
-	verifyCredentials: VerifyCredentials;
-	createLoggedInEvent: CreateLoggedInEvent;
-	now: () => LoggedInAt;
-};
-
-export type CreateLoginWorkflow = (deps: LoginWorkflowDeps) => LoginWorkflow;
 
 // ===========================================================================
 // 実装

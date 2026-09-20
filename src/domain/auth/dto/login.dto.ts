@@ -20,19 +20,6 @@ export const loginCommandSchema = z.object({
 export type LoginCommand = z.infer<typeof loginCommandSchema>;
 
 // ===========================================================================
-// 型定義（シリアライズ: DTO → JSON）
-// ===========================================================================
-
-export type LoginFieldError = {
-	field: "email" | "password" | null;
-	message: string;
-};
-
-export type LoginResponse =
-	| { ok: true; userId: string }
-	| { ok: false; errors: LoginFieldError[] };
-
-// ===========================================================================
 // decode（DTO → ドメイン）
 // ===========================================================================
 
@@ -103,3 +90,16 @@ const toFieldError = (error: LoginValidationError): LoginFieldError =>
 			}),
 		}),
 	});
+
+// ===========================================================================
+// 型定義（シリアライズ: DTO → JSON）
+// ===========================================================================
+
+export type LoginFieldError = {
+	field: "email" | "password" | null;
+	message: string;
+};
+
+export type LoginResponse =
+	| { ok: true; userId: string }
+	| { ok: false; errors: LoginFieldError[] };

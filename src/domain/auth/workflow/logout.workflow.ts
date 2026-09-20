@@ -15,20 +15,17 @@ import {
 // 型定義
 // ===========================================================================
 
-/**
- * パイプライン全体。
- * 入力は現在のセッション。取得の I/O は境界層が担い、ここは状態の解釈だけを行う。
- * 直線のパイプラインではなく、セッションの状態で分岐する。
- *
- *   Session
- *     AnonymousSession      -> NotAuthenticated（エラー）
- *     AuthenticatedSession  -> discardSession         // 破棄（I/O・注入）
- *                           -> createLoggedOutEvent   // イベント化（純粋）
- *   LoggedOut
- */
 export type LogoutWorkflow = (
 	session: Session,
 ) => AsyncResult<LoggedOut, LogoutError>;
+
+/** パイプラインを組み立てるための依存。各ステップと現在時刻の取得を注入する。 */
+export type LogoutWorkflowDeps = {
+	discardSession: DiscardSession;
+	createLoggedOutEvent: CreateLoggedOutEvent;
+	now: () => LoggedOutAt;
+};
+export type CreateLogoutWorkflow = (deps: LogoutWorkflowDeps) => LogoutWorkflow;
 
 /**
  * 認証済み → 破棄済み。
@@ -41,15 +38,6 @@ export type CreateLoggedOutEvent = (
 	session: AuthenticatedSession,
 	loggedOutAt: LoggedOutAt,
 ) => LoggedOut;
-
-/** パイプラインを組み立てるための依存。各ステップと現在時刻の取得を注入する。 */
-export type LogoutWorkflowDeps = {
-	discardSession: DiscardSession;
-	createLoggedOutEvent: CreateLoggedOutEvent;
-	now: () => LoggedOutAt;
-};
-
-export type CreateLogoutWorkflow = (deps: LogoutWorkflowDeps) => LogoutWorkflow;
 
 // ===========================================================================
 // 実装

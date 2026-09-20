@@ -19,18 +19,18 @@ import { AsyncResult, pipe, Result } from "#/domain/building-blocks";
 // 型定義
 // ===========================================================================
 
-/**
- * パイプライン全体。
- *
- *   UnvalidatedSignupRequest
- *     -> validateSignupRequest  // 形式検証（純粋）
- *     -> registerUser           // 登録（I/O・注入）
- *     -> createRegisteredEvent  // イベント化（純粋）
- *   Registered
- */
 export type SignupWorkflow = (
 	request: UnvalidatedSignupRequest,
 ) => AsyncResult<Registered, SignupError>;
+
+/** パイプラインを組み立てるための依存。各ステップと現在時刻の取得を注入する。 */
+export type SignupWorkflowDeps = {
+	validateSignupRequest: ValidateSignupRequest;
+	registerUser: RegisterUser;
+	createRegisteredEvent: CreateRegisteredEvent;
+	now: () => RegisteredAt;
+};
+export type CreateSignupWorkflow = (deps: SignupWorkflowDeps) => SignupWorkflow;
 
 /** 未検証 → 形式検証済み。Result を返す純粋関数。 */
 export type ValidateSignupRequest = (
@@ -47,16 +47,6 @@ export type CreateRegisteredEvent = (
 	user: AuthenticatedUser,
 	registeredAt: RegisteredAt,
 ) => Registered;
-
-/** パイプラインを組み立てるための依存。各ステップと現在時刻の取得を注入する。 */
-export type SignupWorkflowDeps = {
-	validateSignupRequest: ValidateSignupRequest;
-	registerUser: RegisterUser;
-	createRegisteredEvent: CreateRegisteredEvent;
-	now: () => RegisteredAt;
-};
-
-export type CreateSignupWorkflow = (deps: SignupWorkflowDeps) => SignupWorkflow;
 
 // ===========================================================================
 // 実装

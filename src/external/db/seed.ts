@@ -37,9 +37,10 @@ import {
 	Result,
 	type Result as ResultType,
 } from "#/domain/building-blocks";
+import { toAccountId } from "#/domain/context-map/auth-to-subscription";
 import { Account } from "#/domain/subscription/model/account.entity";
 import {
-	AccountId,
+	type AccountId,
 	TrialUsedAt,
 } from "#/domain/subscription/model/account.primitive";
 import {
@@ -124,10 +125,6 @@ const must = <T, E>(label: string, result: ResultType<T, E>): T =>
 			);
 		},
 	});
-
-/** auth BC の利用者 ID を subscription BC の契約者 ID に翻訳する。 */
-const toAccountId = (userId: UserId): AccountId =>
-	AccountId.create(UserId.value(userId));
 
 type SeedContext = {
 	accountId: AccountId;

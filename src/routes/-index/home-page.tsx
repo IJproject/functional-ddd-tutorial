@@ -4,7 +4,6 @@ import { Button } from "#/components/control/button";
 import { Badge, type BadgeTone } from "#/components/data/badge";
 import { Alert } from "#/components/feedback/alert";
 import type { Session } from "#/domain/auth/model/session.model";
-import { UserId } from "#/domain/auth/model/user.primitive";
 import {
 	AsyncResult,
 	err,
@@ -13,7 +12,7 @@ import {
 	pipe,
 	Result,
 } from "#/domain/building-blocks";
-import { AccountId } from "#/domain/subscription/model/account.primitive";
+import { toAccountId } from "#/domain/context-map/auth-to-subscription";
 import { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
 import {
 	AUTHENTICATION_REQUIRED_CANCEL_RESPONSE,
@@ -189,10 +188,6 @@ const endPeriodWorkflow = createEndPeriodWorkflow({
 	newInvoiceId,
 	now,
 });
-
-/** auth BC の UserId を subscription BC の AccountId へ境界層で翻訳する。 */
-const toAccountId = (userId: UserId): AccountId =>
-	AccountId.create(UserId.value(userId));
 
 const getSubscriptionView = createServerFn({ method: "GET" }).handler(
 	async () => {

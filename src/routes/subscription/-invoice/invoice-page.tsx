@@ -4,9 +4,8 @@ import { type ReactNode, useEffect, useState } from "react";
 import { Button } from "#/components/control/button";
 import { Badge, type BadgeTone } from "#/components/data/badge";
 import { Alert } from "#/components/feedback/alert";
-import { UserId } from "#/domain/auth/model/user.primitive";
 import { matchChoice, Result } from "#/domain/building-blocks";
-import { AccountId } from "#/domain/subscription/model/account.primitive";
+import { toAccountId } from "#/domain/context-map/auth-to-subscription";
 import {
 	decodeInvoiceParams,
 	encodeInvoiceDetailView,
@@ -47,10 +46,6 @@ const INVOICE_STATUS_TONE: Record<string, BadgeTone> = {
 	支払い済み: "success",
 	失敗: "danger",
 };
-
-/** auth BC の UserId を subscription BC の AccountId へ境界層で翻訳する。 */
-const toAccountId = (userId: UserId): AccountId =>
-	AccountId.create(UserId.value(userId));
 
 const getInvoiceDetail = createServerFn({ method: "GET" })
 	.validator(invoiceParamsSchema)

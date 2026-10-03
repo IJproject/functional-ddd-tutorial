@@ -3,7 +3,6 @@ import { createServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { Button } from "#/components/control/button";
 import { Alert } from "#/components/feedback/alert";
-import { UserId } from "#/domain/auth/model/user.primitive";
 import {
 	AsyncResult,
 	matchChoice,
@@ -11,6 +10,7 @@ import {
 	pipe,
 	Result,
 } from "#/domain/building-blocks";
+import { toAccountId } from "#/domain/context-map/auth-to-subscription";
 import { AccountId } from "#/domain/subscription/model/account.primitive";
 import { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
 import {
@@ -49,10 +49,6 @@ const applyWorkflow = createApplyWorkflow({
 	newInvoiceId: () => InvoiceId.create(crypto.randomUUID()),
 	now: () => new Date(),
 });
-
-/** auth BC の UserId を subscription BC の AccountId へ境界層で翻訳する。 */
-const toAccountId = (userId: UserId): AccountId =>
-	AccountId.create(UserId.value(userId));
 
 const getApplyContext = createServerFn({ method: "GET" }).handler(async () => {
 	const session = await currentSession();

@@ -17,7 +17,7 @@ import {
 } from "#/domain/auth/operation/login/login.workflow";
 import { verifyCredentials } from "#/external/better-auth/verify-credentials";
 
-// composition root: ドメインのポートに具体的な実装を差し込むのはここだけ。
+// composition root: ドメインのポートに具体的な実装を差し込む。
 const loginWorkflow = createLoginWorkflow({
 	validateLoginCommand,
 	verifyCredentials,

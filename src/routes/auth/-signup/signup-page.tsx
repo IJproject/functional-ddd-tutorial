@@ -19,7 +19,7 @@ import { AccountId } from "#/domain/subscription/model/account.primitive";
 import { registerUser } from "#/external/better-auth/register-user";
 import { openAccount } from "#/external/subscription-store/subscription-store";
 
-// composition root: ドメインのポートに具体的な実装を差し込むのはここだけ。
+// composition root: ドメインのポートに具体的な実装を差し込む。
 const signupWorkflow = createSignupWorkflow({
 	validateSignupCommand,
 	registerUser,

@@ -135,7 +135,7 @@ export const fetchHomeSession = createServerFn({ method: "GET" }).handler(
 	},
 );
 
-// composition root: ドメインのポートに具体的な実装を差し込むのはここだけ。
+// composition root: ドメインのポートに具体的な実装を差し込む。
 const newInvoiceId = () => InvoiceId.create(crypto.randomUUID());
 const now = () => new Date();
 const changePlanWorkflow = createChangePlanWorkflow({

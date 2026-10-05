@@ -22,7 +22,8 @@ import {
 	saveTrialCancelled,
 } from "#/external/subscription-store/subscription-store";
 
-// composition root: ドメインのポートに具体的な実装を差し込むのはここだけ。
+// 差し込んでいるのは同じドメインの純粋関数で、external の実装も非決定性も無い。
+// この2つは composition root ではなく、依存の無いワークフローの部分適用である。
 const cancelTrialWorkflow = createCancelTrialWorkflow({
 	cancelTrial: cancelTrialForSubscription,
 });

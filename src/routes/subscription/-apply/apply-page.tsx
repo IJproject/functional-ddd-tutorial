@@ -37,7 +37,7 @@ import {
 import { LoginRequired } from "./login-required/login-required";
 import { PlanList } from "./plan-list/plan-list";
 
-// composition root: ドメインのポートに具体的な実装を差し込むのはここだけ。
+// composition root: ドメインのポートに具体的な実装を差し込む。
 const applyWorkflow = createApplyWorkflow({
 	validateApplyCommand,
 	applyToSubscription,

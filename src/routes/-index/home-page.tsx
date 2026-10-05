@@ -1,5 +1,9 @@
 import { createServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useState } from "react";
+import {
+	cancelTrial as cancelTrialAction,
+	reserveCancellation as reserveCancellationAction,
+} from "#/application/subscription/cancel";
 import { Button } from "#/components/control/button";
 import { Badge, type BadgeTone } from "#/components/data/badge";
 import { Alert } from "#/components/feedback/alert";
@@ -18,16 +22,6 @@ import {
 	CancelTrialResponse,
 	ReserveCancellationResponse,
 } from "#/domain/subscription/operation/cancel/cancel.dto";
-import type {
-	CancellationReserved,
-	TrialCancelled,
-} from "#/domain/subscription/operation/cancel/cancel.model";
-import {
-	cancelTrial as cancelTrialForSubscription,
-	createCancelTrialWorkflow,
-	createReserveCancellationWorkflow,
-	reserveCancellation as reserveCancellationForSubscription,
-} from "#/domain/subscription/operation/cancel/cancel.workflow";
 import {
 	ChangePlanRequest,
 	ChangePlanResponse,
@@ -79,11 +73,9 @@ import {
 	findInvoice,
 	loadInvoices,
 	loadSubscription,
-	saveCancellationReserved,
 	savePaymentSettled,
 	savePeriodEnded,
 	savePlanChanged,
-	saveTrialCancelled,
 	saveTrialEnded,
 } from "#/external/subscription-store/subscription-store";
 
@@ -152,12 +144,6 @@ const changePlanWorkflow = createChangePlanWorkflow({
 	newInvoiceId,
 	now,
 });
-const cancelTrialWorkflow = createCancelTrialWorkflow({
-	cancelTrial: cancelTrialForSubscription,
-});
-const reserveCancellationWorkflow = createReserveCancellationWorkflow({
-	reserveCancellation: reserveCancellationForSubscription,
-});
 const payInvoiceWorkflow = createPayInvoiceWorkflow({
 	chargeInvoice,
 	payInvoice: payInvoiceForSubscription,
@@ -221,50 +207,12 @@ const requestPlanChange = createServerFn({ method: "POST" })
 		});
 	});
 
-const cancelTrial = createServerFn({ method: "POST" }).handler(async () => {
-	const session = await currentSession();
-	return matchChoice<typeof session, Promise<CancelTrialResponse>>(session, {
-		AnonymousSession: async () => CancelTrialResponse.authenticationRequired,
-		AuthenticatedSession: async ({ userId }) =>
-			pipe(
-				loadSubscription(toAccountId(userId)),
-				AsyncResult.flatMap(cancelTrialWorkflow),
-				AsyncResult.flatMap<TrialCancelled, TrialCancelled, never>(
-					async (cancelled) => {
-						await saveTrialCancelled(cancelled);
-						return ok(cancelled);
-					},
-				),
-				async (result) => CancelTrialResponse.encode(await result),
-			),
-	});
-});
+const cancelTrial = createServerFn({ method: "POST" }).handler(
+	cancelTrialAction,
+);
 
 const reserveCancellation = createServerFn({ method: "POST" }).handler(
-	async () => {
-		const session = await currentSession();
-		return matchChoice<typeof session, Promise<ReserveCancellationResponse>>(
-			session,
-			{
-				AnonymousSession: async () =>
-					ReserveCancellationResponse.authenticationRequired,
-				AuthenticatedSession: async ({ userId }) =>
-					pipe(
-						loadSubscription(toAccountId(userId)),
-						AsyncResult.flatMap(reserveCancellationWorkflow),
-						AsyncResult.flatMap<
-							CancellationReserved,
-							CancellationReserved,
-							never
-						>(async (reserved) => {
-							await saveCancellationReserved(reserved);
-							return ok(reserved);
-						}),
-						async (result) => ReserveCancellationResponse.encode(await result),
-					),
-			},
-		);
-	},
+	reserveCancellationAction,
 );
 
 const payInvoice = createServerFn({ method: "POST" })

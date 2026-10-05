@@ -39,8 +39,6 @@ export type ChangePlanWorkflow = (
 ) => ResultType<PlanChanged, ChangePlanError>;
 
 export type ChangePlanWorkflowDeps = {
-	validateChangePlanCommand: ValidateChangePlanCommand;
-	changePlanForSubscription: ChangePlanForSubscription;
 	newInvoiceId: () => InvoiceId;
 	now: () => Date;
 };
@@ -179,9 +177,9 @@ export const changePlanForSubscription: ChangePlanForSubscription = (
 export const createChangePlanWorkflow: CreateChangePlanWorkflow =
 	(deps) => (command, subscription) =>
 		pipe(
-			deps.validateChangePlanCommand(command),
+			validateChangePlanCommand(command),
 			Result.flatMap((validated) =>
-				deps.changePlanForSubscription(validated, subscription, {
+				changePlanForSubscription(validated, subscription, {
 					invoiceId: deps.newInvoiceId(),
 					now: deps.now(),
 				}),

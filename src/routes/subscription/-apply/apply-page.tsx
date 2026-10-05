@@ -19,11 +19,7 @@ import {
 	ApplyResponse,
 } from "#/domain/subscription/operation/apply/apply.dto";
 import type { Applied } from "#/domain/subscription/operation/apply/apply.model";
-import {
-	applyToSubscription,
-	createApplyWorkflow,
-	validateApplyCommand,
-} from "#/domain/subscription/operation/apply/apply.workflow";
+import { createApplyWorkflow } from "#/domain/subscription/operation/apply/apply.workflow";
 import {
 	ALREADY_SUBSCRIBED_APPLY_MESSAGE,
 	APPLY_CONTEXT_UNAVAILABLE_MESSAGE,
@@ -39,8 +35,6 @@ import { PlanList } from "./plan-list/plan-list";
 
 // composition root: ドメインのポートに具体的な実装を差し込む。
 const applyWorkflow = createApplyWorkflow({
-	validateApplyCommand,
-	applyToSubscription,
 	newInvoiceId: () => InvoiceId.create(crypto.randomUUID()),
 	now: () => new Date(),
 });

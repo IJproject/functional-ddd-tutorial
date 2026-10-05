@@ -22,9 +22,7 @@ export type LoginWorkflow = (
 
 /** パイプラインを組み立てるための依存。各ステップと現在時刻の取得を注入する。 */
 export type LoginWorkflowDeps = {
-	validateLoginCommand: ValidateLoginCommand;
 	verifyCredentials: VerifyCredentials;
-	createLoggedInEvent: CreateLoggedInEvent;
 	now: () => LoggedInAt;
 };
 export type CreateLoginWorkflow = (deps: LoginWorkflowDeps) => LoginWorkflow;
@@ -80,7 +78,7 @@ export const createLoggedInEvent: CreateLoggedInEvent = (user, loggedInAt) => ({
 
 export const createLoginWorkflow: CreateLoginWorkflow = (deps) => (command) =>
 	pipe(
-		deps.validateLoginCommand(command),
+		validateLoginCommand(command),
 		AsyncResult.flatMap(deps.verifyCredentials),
-		AsyncResult.map((user) => deps.createLoggedInEvent(user, deps.now())),
+		AsyncResult.map((user) => createLoggedInEvent(user, deps.now())),
 	);

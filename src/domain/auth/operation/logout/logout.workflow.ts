@@ -25,7 +25,6 @@ export type LogoutWorkflow = (
 /** パイプラインを組み立てるための依存。各ステップと現在時刻の取得を注入する。 */
 export type LogoutWorkflowDeps = {
 	discardSession: DiscardSession;
-	createLoggedOutEvent: CreateLoggedOutEvent;
 	now: () => LoggedOutAt;
 };
 export type CreateLogoutWorkflow = (deps: LogoutWorkflowDeps) => LogoutWorkflow;
@@ -60,6 +59,6 @@ export const createLogoutWorkflow: CreateLogoutWorkflow = (deps) => (session) =>
 		AnonymousSession: async () => err({ kind: "NotAuthenticated" }),
 		AuthenticatedSession: async (authenticated) => {
 			await deps.discardSession(authenticated);
-			return ok(deps.createLoggedOutEvent(authenticated, deps.now()));
+			return ok(createLoggedOutEvent(authenticated, deps.now()));
 		},
 	});

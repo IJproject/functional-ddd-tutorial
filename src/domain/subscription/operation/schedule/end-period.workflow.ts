@@ -28,7 +28,6 @@ export type EndPeriodWorkflow = (
 ) => ResultType<PeriodEnded, EndPeriodError>;
 
 export type EndPeriodWorkflowDeps = {
-	endPeriod: EndPeriod;
 	newInvoiceId: () => InvoiceId;
 	now: () => Date;
 };
@@ -118,7 +117,7 @@ export const endPeriod: EndPeriod = (subscription, issued) =>
 /** 純粋関数で I/O を含まないため AsyncResult ではなく Result を使う。 */
 export const createEndPeriodWorkflow: CreateEndPeriodWorkflow =
 	(deps) => (subscription) =>
-		deps.endPeriod(subscription, {
+		endPeriod(subscription, {
 			invoiceId: deps.newInvoiceId(),
 			now: deps.now(),
 		});

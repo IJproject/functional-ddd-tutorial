@@ -19,31 +19,13 @@ import type {
 // 型定義
 // ===========================================================================
 
-export type CancelTrialWorkflow = CancelTrial;
-
-export type CancelTrialWorkflowDeps = {
-	cancelTrial: CancelTrial;
-};
-export type CreateCancelTrialWorkflow = (
-	deps: CancelTrialWorkflowDeps,
-) => CancelTrialWorkflow;
-
-/** 現在の状態 → トライアル解約結果。純粋関数（I/O を含まない）。 */
-export type CancelTrial = (
+/** 現在の状態 → トライアル解約結果。純粋関数で I/O を含まないため Result を返す。 */
+export type CancelTrialWorkflow = (
 	subscription: Subscription,
 ) => ResultType<TrialCancelled, CancelTrialError>;
 
-export type ReserveCancellationWorkflow = ReserveCancellation;
-
-export type ReserveCancellationWorkflowDeps = {
-	reserveCancellation: ReserveCancellation;
-};
-export type CreateReserveCancellationWorkflow = (
-	deps: ReserveCancellationWorkflowDeps,
-) => ReserveCancellationWorkflow;
-
-/** 現在の状態 → 解約予約結果。純粋関数（I/O を含まない）。 */
-export type ReserveCancellation = (
+/** 現在の状態 → 解約予約結果。純粋関数で I/O を含まないため Result を返す。 */
+export type ReserveCancellationWorkflow = (
 	subscription: Subscription,
 ) => ResultType<CancellationReserved, ReserveCancellationError>;
 
@@ -54,7 +36,7 @@ export type ReserveCancellation = (
 const notInTrial = (): ResultType<TrialCancelled, NotInTrial> =>
 	err({ kind: "NotInTrial" });
 
-export const cancelTrial: CancelTrial = (subscription) =>
+export const cancelTrialWorkflow: CancelTrialWorkflow = (subscription) =>
 	matchChoice<Subscription, ResultType<TrialCancelled, CancelTrialError>>(
 		subscription,
 		{
@@ -82,7 +64,9 @@ const notPaid = (): ResultType<CancellationReserved, NotPaid> =>
  * UpgradePendingSubscription は未払いの差額請求 ID を持つ一方、
  * 「アップグレード支払い待ちかつ解約予約中」を表す Case がないため失敗させる。
  */
-export const reserveCancellation: ReserveCancellation = (subscription) =>
+export const reserveCancellationWorkflow: ReserveCancellationWorkflow = (
+	subscription,
+) =>
 	matchChoice<
 		Subscription,
 		ResultType<CancellationReserved, ReserveCancellationError>
@@ -115,13 +99,3 @@ export const reserveCancellation: ReserveCancellation = (subscription) =>
 				},
 			}),
 	});
-
-/** 純粋関数で I/O を含まないため AsyncResult ではなく Result を使う。 */
-export const createCancelTrialWorkflow: CreateCancelTrialWorkflow =
-	(deps) => (subscription) =>
-		deps.cancelTrial(subscription);
-
-/** 純粋関数で I/O を含まないため AsyncResult ではなく Result を使う。 */
-export const createReserveCancellationWorkflow: CreateReserveCancellationWorkflow =
-	(deps) => (subscription) =>
-		deps.reserveCancellation(subscription);

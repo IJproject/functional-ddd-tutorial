@@ -25,9 +25,7 @@ export type SignupWorkflow = (
 
 /** パイプラインを組み立てるための依存。各ステップと現在時刻の取得を注入する。 */
 export type SignupWorkflowDeps = {
-	validateSignupCommand: ValidateSignupCommand;
 	registerUser: RegisterUser;
-	createRegisteredEvent: CreateRegisteredEvent;
 	now: () => RegisteredAt;
 };
 export type CreateSignupWorkflow = (deps: SignupWorkflowDeps) => SignupWorkflow;
@@ -92,7 +90,7 @@ export const createRegisteredEvent: CreateRegisteredEvent = (
 
 export const createSignupWorkflow: CreateSignupWorkflow = (deps) => (command) =>
 	pipe(
-		deps.validateSignupCommand(command),
+		validateSignupCommand(command),
 		AsyncResult.flatMap(deps.registerUser),
-		AsyncResult.map((user) => deps.createRegisteredEvent(user, deps.now())),
+		AsyncResult.map((user) => createRegisteredEvent(user, deps.now())),
 	);

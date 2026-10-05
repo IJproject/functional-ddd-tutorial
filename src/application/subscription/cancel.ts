@@ -10,10 +10,8 @@ import type {
 	TrialCancelled,
 } from "#/domain/subscription/operation/cancel/cancel.model";
 import {
-	cancelTrial as cancelTrialForSubscription,
-	createCancelTrialWorkflow,
-	createReserveCancellationWorkflow,
-	reserveCancellation as reserveCancellationForSubscription,
+	cancelTrialWorkflow,
+	reserveCancellationWorkflow,
 } from "#/domain/subscription/operation/cancel/cancel.workflow";
 import { currentSession } from "#/external/better-auth/current-session";
 import {
@@ -21,15 +19,6 @@ import {
 	saveCancellationReserved,
 	saveTrialCancelled,
 } from "#/external/subscription-store/subscription-store";
-
-// 差し込んでいるのは同じドメインの純粋関数で、external の実装も非決定性も無い。
-// この2つは composition root ではなく、依存の無いワークフローの部分適用である。
-const cancelTrialWorkflow = createCancelTrialWorkflow({
-	cancelTrial: cancelTrialForSubscription,
-});
-const reserveCancellationWorkflow = createReserveCancellationWorkflow({
-	reserveCancellation: reserveCancellationForSubscription,
-});
 
 /** トライアル解約。読む → 純粋な核 → 書く → encode。 */
 export const cancelTrial = async (): Promise<CancelTrialResponse> => {

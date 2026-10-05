@@ -10,18 +10,12 @@ import {
 	LoginResponse,
 } from "#/domain/auth/operation/login/login.dto";
 import { LoggedInAt } from "#/domain/auth/operation/login/login.primitive";
-import {
-	createLoggedInEvent,
-	createLoginWorkflow,
-	validateLoginCommand,
-} from "#/domain/auth/operation/login/login.workflow";
+import { createLoginWorkflow } from "#/domain/auth/operation/login/login.workflow";
 import { verifyCredentials } from "#/external/better-auth/verify-credentials";
 
 // composition root: ドメインのポートに具体的な実装を差し込む。
 const loginWorkflow = createLoginWorkflow({
-	validateLoginCommand,
 	verifyCredentials,
-	createLoggedInEvent,
 	now: () => LoggedInAt.create(new Date()),
 });
 

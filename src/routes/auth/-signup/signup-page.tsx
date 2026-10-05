@@ -10,20 +10,14 @@ import {
 	SignupResponse,
 } from "#/domain/auth/operation/signup/signup.dto";
 import { RegisteredAt } from "#/domain/auth/operation/signup/signup.primitive";
-import {
-	createRegisteredEvent,
-	createSignupWorkflow,
-	validateSignupCommand,
-} from "#/domain/auth/operation/signup/signup.workflow";
+import { createSignupWorkflow } from "#/domain/auth/operation/signup/signup.workflow";
 import { AccountId } from "#/domain/subscription/model/account.primitive";
 import { registerUser } from "#/external/better-auth/register-user";
 import { openAccount } from "#/external/subscription-store/subscription-store";
 
 // composition root: ドメインのポートに具体的な実装を差し込む。
 const signupWorkflow = createSignupWorkflow({
-	validateSignupCommand,
 	registerUser,
-	createRegisteredEvent,
 	now: () => RegisteredAt.create(new Date()),
 });
 

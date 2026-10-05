@@ -33,7 +33,6 @@ export type PayInvoiceWorkflow = (
 
 export type PayInvoiceWorkflowDeps = {
 	chargeInvoice: ChargeInvoice;
-	payInvoice: PayInvoice;
 };
 export type CreatePayInvoiceWorkflow = (
 	deps: PayInvoiceWorkflowDeps,
@@ -179,7 +178,7 @@ export const createPayInvoiceWorkflow: CreatePayInvoiceWorkflow =
 			{
 				UnpaidInvoice: async (unpaid) => {
 					const outcome = await deps.chargeInvoice(unpaid);
-					return deps.payInvoice(unpaid, subscription, outcome, settled);
+					return payInvoice(unpaid, subscription, outcome, settled);
 				},
 				PaidInvoice: async () =>
 					err<InvoiceAlreadyProcessed>({ kind: "InvoiceAlreadyProcessed" }),

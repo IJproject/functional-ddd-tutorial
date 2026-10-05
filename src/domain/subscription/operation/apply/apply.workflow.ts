@@ -43,8 +43,6 @@ export type ApplyWorkflow = (
 ) => ResultType<Applied, ApplyError>;
 
 export type ApplyWorkflowDeps = {
-	validateApplyCommand: ValidateApplyCommand;
-	applyToSubscription: ApplyToSubscription;
 	newInvoiceId: () => InvoiceId;
 	now: () => Date;
 };
@@ -161,9 +159,9 @@ export const applyToSubscription: ApplyToSubscription = (
 export const createApplyWorkflow: CreateApplyWorkflow =
 	(deps) => (command, context) =>
 		pipe(
-			deps.validateApplyCommand(command),
+			validateApplyCommand(command),
 			Result.flatMap((validated) =>
-				deps.applyToSubscription(validated, context, {
+				applyToSubscription(validated, context, {
 					invoiceId: deps.newInvoiceId(),
 					now: deps.now(),
 				}),

@@ -27,7 +27,6 @@ export type EndTrialWorkflow = (
 ) => ResultType<TrialEnded, EndTrialError>;
 
 export type EndTrialWorkflowDeps = {
-	endTrial: EndTrial;
 	newInvoiceId: () => InvoiceId;
 	now: () => Date;
 };
@@ -85,7 +84,7 @@ export const endTrial: EndTrial = (subscription, issued) =>
 /** 純粋関数で I/O を含まないため AsyncResult ではなく Result を使う。 */
 export const createEndTrialWorkflow: CreateEndTrialWorkflow =
 	(deps) => (subscription) =>
-		deps.endTrial(subscription, {
+		endTrial(subscription, {
 			invoiceId: deps.newInvoiceId(),
 			now: deps.now(),
 		});

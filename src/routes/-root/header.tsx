@@ -5,10 +5,7 @@ import ThemeToggle from "#/components/theme/theme-toggle";
 import type { Session } from "#/domain/auth/model/session.model";
 import { LogoutResponse } from "#/domain/auth/operation/logout/logout.dto";
 import { LoggedOutAt } from "#/domain/auth/operation/logout/logout.primitive";
-import {
-	createLoggedOutEvent,
-	createLogoutWorkflow,
-} from "#/domain/auth/operation/logout/logout.workflow";
+import { createLogoutWorkflow } from "#/domain/auth/operation/logout/logout.workflow";
 import { matchChoice } from "#/domain/building-blocks";
 import { currentSession } from "#/external/better-auth/current-session";
 import { discardSession } from "#/external/better-auth/discard-session";
@@ -33,7 +30,6 @@ export const fetchHeaderSession = createServerFn({ method: "GET" }).handler(
 
 const logoutWorkflow = createLogoutWorkflow({
 	discardSession,
-	createLoggedOutEvent,
 	now: () => LoggedOutAt.create(new Date()),
 });
 

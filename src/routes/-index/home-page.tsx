@@ -27,11 +27,7 @@ import {
 	ChangePlanResponse,
 } from "#/domain/subscription/operation/change-plan/change-plan.dto";
 import type { PlanChanged } from "#/domain/subscription/operation/change-plan/change-plan.model";
-import {
-	changePlanForSubscription,
-	createChangePlanWorkflow,
-	validateChangePlanCommand,
-} from "#/domain/subscription/operation/change-plan/change-plan.workflow";
+import { createChangePlanWorkflow } from "#/domain/subscription/operation/change-plan/change-plan.workflow";
 import {
 	PayInvoiceRequest,
 	PaymentResponse,
@@ -41,18 +37,9 @@ import type {
 	PayInvoiceError,
 	PaymentSettled,
 } from "#/domain/subscription/operation/payment/payment.model";
-import {
-	createPayInvoiceWorkflow,
-	payInvoice as payInvoiceForSubscription,
-} from "#/domain/subscription/operation/payment/payment.workflow";
-import {
-	createEndPeriodWorkflow,
-	endPeriod as endPeriodForSubscription,
-} from "#/domain/subscription/operation/schedule/end-period.workflow";
-import {
-	createEndTrialWorkflow,
-	endTrial as endTrialForSubscription,
-} from "#/domain/subscription/operation/schedule/end-trial.workflow";
+import { createPayInvoiceWorkflow } from "#/domain/subscription/operation/payment/payment.workflow";
+import { createEndPeriodWorkflow } from "#/domain/subscription/operation/schedule/end-period.workflow";
+import { createEndTrialWorkflow } from "#/domain/subscription/operation/schedule/end-trial.workflow";
 import {
 	EndPeriodResponse,
 	EndTrialResponse,
@@ -139,22 +126,17 @@ export const fetchHomeSession = createServerFn({ method: "GET" }).handler(
 const newInvoiceId = () => InvoiceId.create(crypto.randomUUID());
 const now = () => new Date();
 const changePlanWorkflow = createChangePlanWorkflow({
-	validateChangePlanCommand,
-	changePlanForSubscription,
 	newInvoiceId,
 	now,
 });
 const payInvoiceWorkflow = createPayInvoiceWorkflow({
 	chargeInvoice,
-	payInvoice: payInvoiceForSubscription,
 });
 const endTrialWorkflow = createEndTrialWorkflow({
-	endTrial: endTrialForSubscription,
 	newInvoiceId,
 	now,
 });
 const endPeriodWorkflow = createEndPeriodWorkflow({
-	endPeriod: endPeriodForSubscription,
 	newInvoiceId,
 	now,
 });

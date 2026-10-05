@@ -1,23 +1,20 @@
 import { createServerFn } from "@tanstack/react-start";
 import { useCallback, useEffect, useState } from "react";
+import { sessionView } from "#/application/auth/session-view";
 import {
 	cancelTrial as cancelTrialAction,
 	reserveCancellation as reserveCancellationAction,
 } from "#/application/subscription/cancel";
+import { changePlan as changePlanAction } from "#/application/subscription/change-plan";
+import { payInvoice as payInvoiceAction } from "#/application/subscription/payment";
+import {
+	endPeriod as endPeriodAction,
+	endTrial as endTrialAction,
+} from "#/application/subscription/schedule";
+import { subscriptionView } from "#/application/subscription/subscription-view";
 import { Button } from "#/components/control/button";
 import { Badge, type BadgeTone } from "#/components/data/badge";
 import { Alert } from "#/components/feedback/alert";
-import type { Session } from "#/domain/auth/model/session.model";
-import {
-	AsyncResult,
-	err,
-	matchChoice,
-	ok,
-	pipe,
-	Result,
-} from "#/domain/building-blocks";
-import { toAccountId } from "#/domain/context-map/auth-to-subscription";
-import { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
 import {
 	CancelTrialResponse,
 	ReserveCancellationResponse,
@@ -26,45 +23,20 @@ import {
 	ChangePlanRequest,
 	ChangePlanResponse,
 } from "#/domain/subscription/operation/change-plan/change-plan.dto";
-import type { PlanChanged } from "#/domain/subscription/operation/change-plan/change-plan.model";
-import { createChangePlanWorkflow } from "#/domain/subscription/operation/change-plan/change-plan.workflow";
 import {
 	PayInvoiceRequest,
 	PaymentResponse,
 } from "#/domain/subscription/operation/payment/payment.dto";
-import type {
-	InvoiceNotFound,
-	PayInvoiceError,
-	PaymentSettled,
-} from "#/domain/subscription/operation/payment/payment.model";
-import { createPayInvoiceWorkflow } from "#/domain/subscription/operation/payment/payment.workflow";
-import { createEndPeriodWorkflow } from "#/domain/subscription/operation/schedule/end-period.workflow";
-import { createEndTrialWorkflow } from "#/domain/subscription/operation/schedule/end-trial.workflow";
 import {
 	EndPeriodResponse,
 	EndTrialResponse,
 } from "#/domain/subscription/operation/schedule/schedule.dto";
-import type {
-	PeriodEnded,
-	TrialEnded,
-} from "#/domain/subscription/operation/schedule/schedule.model";
 import {
 	NO_INVOICES_MESSAGE,
 	SUBSCRIPTION_LOGIN_REQUIRED_MESSAGE,
 	SUBSCRIPTION_VIEW_UNAVAILABLE_MESSAGE,
-	SubscriptionView,
+	type SubscriptionView,
 } from "#/domain/subscription/operation/subscription-view/subscription-view.dto";
-import { currentSession } from "#/external/better-auth/current-session";
-import { chargeInvoice } from "#/external/payment-gateway/charge-invoice";
-import {
-	findInvoice,
-	loadInvoices,
-	loadSubscription,
-	savePaymentSettled,
-	savePeriodEnded,
-	savePlanChanged,
-	saveTrialEnded,
-} from "#/external/subscription-store/subscription-store";
 
 const HOME_TEXT = {
 	loading: "読み込み中...",
@@ -111,83 +83,16 @@ const INVOICE_STATUS_TONE: Record<string, BadgeTone> = {
 
 /** `/` のガード用。ログイン済みかどうかだけを返す。 */
 export const fetchHomeSession = createServerFn({ method: "GET" }).handler(
-	async (): Promise<{ loggedIn: boolean }> => {
-		const session = await currentSession();
-		return {
-			loggedIn: matchChoice<Session, boolean>(session, {
-				AuthenticatedSession: () => true,
-				AnonymousSession: () => false,
-			}),
-		};
-	},
+	sessionView,
 );
 
-// composition root: ドメインのポートに具体的な実装を差し込む。
-const newInvoiceId = () => InvoiceId.create(crypto.randomUUID());
-const now = () => new Date();
-const changePlanWorkflow = createChangePlanWorkflow({
-	newInvoiceId,
-	now,
-});
-const payInvoiceWorkflow = createPayInvoiceWorkflow({
-	chargeInvoice,
-});
-const endTrialWorkflow = createEndTrialWorkflow({
-	newInvoiceId,
-	now,
-});
-const endPeriodWorkflow = createEndPeriodWorkflow({
-	newInvoiceId,
-	now,
-});
-
 const getSubscriptionView = createServerFn({ method: "GET" }).handler(
-	async () => {
-		const session = await currentSession();
-		return matchChoice<typeof session, Promise<SubscriptionView>>(session, {
-			AnonymousSession: async () => ({ loggedIn: false }),
-			AuthenticatedSession: async ({ userId }) => {
-				const accountId = toAccountId(userId);
-				const [subscription, invoices] = await Promise.all([
-					loadSubscription(accountId),
-					loadInvoices(accountId),
-				]);
-				return Result.match(Result.combine([subscription, invoices]), {
-					err: () => {
-						// 読み取りの View は失敗の形を持たないため reject させ、クライアントの catch が SUBSCRIPTION_VIEW_UNAVAILABLE_MESSAGE を表示する。
-						// StoreError の reason は内部情報なので例外にも載せない。
-						throw new Error();
-					},
-					ok: ([domainSubscription, domainInvoices]) =>
-						SubscriptionView.encode(domainSubscription, domainInvoices),
-				});
-			},
-		});
-	},
+	subscriptionView,
 );
 
 const requestPlanChange = createServerFn({ method: "POST" })
 	.validator(ChangePlanRequest.schema)
-	.handler(async ({ data }) => {
-		const session = await currentSession();
-		return matchChoice<typeof session, Promise<ChangePlanResponse>>(session, {
-			AnonymousSession: async () => ChangePlanResponse.authenticationRequired,
-			AuthenticatedSession: async ({ userId }) =>
-				pipe(
-					loadSubscription(toAccountId(userId)),
-					AsyncResult.flatMap((subscription) =>
-						changePlanWorkflow(ChangePlanRequest.decode(data), subscription),
-					),
-					AsyncResult.flatMap<PlanChanged, PlanChanged, never>(
-						async (changed) => {
-							await savePlanChanged(changed);
-							return ok(changed);
-						},
-					),
-					async (result) => ChangePlanResponse.encode(await result),
-				),
-		});
-	});
+	.handler(async ({ data }) => changePlanAction(data));
 
 const cancelTrial = createServerFn({ method: "POST" }).handler(
 	cancelTrialAction,
@@ -199,76 +104,11 @@ const reserveCancellation = createServerFn({ method: "POST" }).handler(
 
 const payInvoice = createServerFn({ method: "POST" })
 	.validator(PayInvoiceRequest.schema)
-	.handler(async ({ data }) => {
-		const session = await currentSession();
-		return matchChoice<typeof session, Promise<PaymentResponse>>(session, {
-			AnonymousSession: async () => PaymentResponse.authenticationRequired,
-			AuthenticatedSession: async ({ userId }) => {
-				const accountId = toAccountId(userId);
-				const [invoice, subscription] = await Promise.all([
-					findInvoice(accountId, InvoiceId.create(data.invoiceId)),
-					loadSubscription(accountId),
-				]);
-				return pipe(
-					Result.combine([invoice, subscription] as const),
-					AsyncResult.flatMap(
-						([domainInvoice, domainSubscription]): AsyncResult<
-							PaymentSettled,
-							PayInvoiceError | InvoiceNotFound
-						> =>
-							domainInvoice === null
-								? Promise.resolve(
-										err<InvoiceNotFound>({ kind: "InvoiceNotFound" }),
-									)
-								: payInvoiceWorkflow(domainInvoice, domainSubscription, {
-										now: now(),
-									}),
-					),
-					AsyncResult.flatMap<PaymentSettled, PaymentSettled, never>(
-						async (settled) => {
-							await savePaymentSettled(settled);
-							return ok(settled);
-						},
-					),
-					async (result) => PaymentResponse.encode(await result),
-				);
-			},
-		});
-	});
+	.handler(async ({ data }) => payInvoiceAction(data));
 
-const endTrial = createServerFn({ method: "POST" }).handler(async () => {
-	const session = await currentSession();
-	return matchChoice<typeof session, Promise<EndTrialResponse>>(session, {
-		AnonymousSession: async () => EndTrialResponse.authenticationRequired,
-		AuthenticatedSession: async ({ userId }) =>
-			pipe(
-				loadSubscription(toAccountId(userId)),
-				AsyncResult.flatMap(endTrialWorkflow),
-				AsyncResult.flatMap<TrialEnded, TrialEnded, never>(async (ended) => {
-					await saveTrialEnded(ended);
-					return ok(ended);
-				}),
-				async (result) => EndTrialResponse.encode(await result),
-			),
-	});
-});
+const endTrial = createServerFn({ method: "POST" }).handler(endTrialAction);
 
-const endPeriod = createServerFn({ method: "POST" }).handler(async () => {
-	const session = await currentSession();
-	return matchChoice<typeof session, Promise<EndPeriodResponse>>(session, {
-		AnonymousSession: async () => EndPeriodResponse.authenticationRequired,
-		AuthenticatedSession: async ({ userId }) =>
-			pipe(
-				loadSubscription(toAccountId(userId)),
-				AsyncResult.flatMap(endPeriodWorkflow),
-				AsyncResult.flatMap<PeriodEnded, PeriodEnded, never>(async (ended) => {
-					await savePeriodEnded(ended);
-					return ok(ended);
-				}),
-				async (result) => EndPeriodResponse.encode(await result),
-			),
-	});
-});
+const endPeriod = createServerFn({ method: "POST" }).handler(endPeriodAction);
 
 type ActionResponse =
 	| ChangePlanResponse

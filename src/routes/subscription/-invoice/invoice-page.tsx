@@ -1,21 +1,18 @@
 import { getRouteApi } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { type ReactNode, useEffect, useState } from "react";
+import { invoiceDetail } from "#/application/subscription/invoice-detail";
 import { Button } from "#/components/control/button";
 import { Badge, type BadgeTone } from "#/components/data/badge";
 import { Alert } from "#/components/feedback/alert";
-import { matchChoice, Result } from "#/domain/building-blocks";
-import { toAccountId } from "#/domain/context-map/auth-to-subscription";
+import { matchChoice } from "#/domain/building-blocks";
 import {
 	INVOICE_DETAIL_UNAVAILABLE_MESSAGE,
 	INVOICE_LOGIN_REQUIRED_MESSAGE,
 	INVOICE_NOT_FOUND_DESCRIPTION,
-	InvoiceDetailItemView,
 	InvoiceDetailRequest,
 	type InvoiceDetailView,
 } from "#/domain/subscription/operation/invoice-detail/invoice-detail.dto";
-import { currentSession } from "#/external/better-auth/current-session";
-import { findInvoice } from "#/external/subscription-store/subscription-store";
 
 /**
  * 動的セグメントはフラットルート側へ置き、ページ本体は既存の -<ページ>/<ページ>-page 規則に揃える。
@@ -48,39 +45,7 @@ const INVOICE_STATUS_TONE: Record<string, BadgeTone> = {
 
 const getInvoiceDetail = createServerFn({ method: "GET" })
 	.validator(InvoiceDetailRequest.schema)
-	.handler(async ({ data }) => {
-		const session = await currentSession();
-		return matchChoice<typeof session, Promise<InvoiceDetailView>>(session, {
-			AnonymousSession: async () => ({ kind: "AnonymousInvoiceDetail" }),
-			AuthenticatedSession: async ({ userId }) =>
-				Result.match(InvoiceDetailRequest.decode(data), {
-					/**
-					 * 形式不正・存在しない・他アカウント所有を区別すると、URL の総当たりから
-					 * 他人の請求 ID の存在を推測できるため、すべて InvoiceNotFound に落とす。
-					 */
-					err: async (): Promise<InvoiceDetailView> => ({
-						kind: "InvoiceNotFound",
-					}),
-					ok: async (invoiceId): Promise<InvoiceDetailView> => {
-						const loaded = await findInvoice(toAccountId(userId), invoiceId);
-						return Result.match(loaded, {
-							err: () => {
-								// 読み取りの View は失敗の形を持たないため reject させ、クライアントの catch が INVOICE_DETAIL_UNAVAILABLE_MESSAGE を表示する。
-								// StoreError の reason は内部情報なので例外にも載せない。
-								throw new Error();
-							},
-							ok: (invoice): InvoiceDetailView =>
-								invoice === null
-									? { kind: "InvoiceNotFound" }
-									: {
-											kind: "InvoiceFound",
-											invoice: InvoiceDetailItemView.encode(invoice),
-										},
-						});
-					},
-				}),
-		});
-	});
+	.handler(async ({ data }) => invoiceDetail(data));
 
 export function InvoicePage() {
 	const { invoiceId } = routeApi.useParams();

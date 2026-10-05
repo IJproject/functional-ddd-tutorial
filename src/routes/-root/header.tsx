@@ -1,43 +1,18 @@
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
+import { logout as logoutAction } from "#/application/auth/logout";
+import { sessionViewOrAnonymous } from "#/application/auth/session-view";
 import { Button } from "#/components/control/button";
 import ThemeToggle from "#/components/theme/theme-toggle";
-import type { Session } from "#/domain/auth/model/session.model";
-import { LogoutResponse } from "#/domain/auth/operation/logout/logout.dto";
-import { LoggedOutAt } from "#/domain/auth/operation/logout/logout.primitive";
-import { createLogoutWorkflow } from "#/domain/auth/operation/logout/logout.workflow";
-import { matchChoice } from "#/domain/building-blocks";
-import { currentSession } from "#/external/better-auth/current-session";
-import { discardSession } from "#/external/better-auth/discard-session";
-
-export type HeaderSession = { loggedIn: boolean };
+import type { SessionView } from "#/domain/auth/operation/session-view/session-view.dto";
 
 export const fetchHeaderSession = createServerFn({ method: "GET" }).handler(
-	async (): Promise<HeaderSession> => {
-		try {
-			const session = await currentSession();
-			return {
-				loggedIn: matchChoice<Session, boolean>(session, {
-					AuthenticatedSession: () => true,
-					AnonymousSession: () => false,
-				}),
-			};
-		} catch {
-			return { loggedIn: false };
-		}
-	},
+	sessionViewOrAnonymous,
 );
 
-const logoutWorkflow = createLogoutWorkflow({
-	discardSession,
-	now: () => LoggedOutAt.create(new Date()),
-});
+const logout = createServerFn({ method: "POST" }).handler(logoutAction);
 
-const logout = createServerFn({ method: "POST" }).handler(async () =>
-	LogoutResponse.encode(await logoutWorkflow(await currentSession())),
-);
-
-export default function Header({ session }: { session: HeaderSession }) {
+export default function Header({ session }: { session: SessionView }) {
 	const router = useRouter();
 	const navigate = useNavigate();
 

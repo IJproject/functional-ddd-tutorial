@@ -1,88 +1,30 @@
 import { useNavigate } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
+import {
+	apply as applyAction,
+	applyContext,
+} from "#/application/subscription/apply";
 import { Button } from "#/components/control/button";
 import { Alert } from "#/components/feedback/alert";
-import {
-	AsyncResult,
-	matchChoice,
-	ok,
-	pipe,
-	Result,
-} from "#/domain/building-blocks";
-import { toAccountId } from "#/domain/context-map/auth-to-subscription";
-import { AccountId } from "#/domain/subscription/model/account.primitive";
-import { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
 import {
 	type ApplyFieldError,
 	ApplyRequest,
 	ApplyResponse,
 } from "#/domain/subscription/operation/apply/apply.dto";
-import type { Applied } from "#/domain/subscription/operation/apply/apply.model";
-import { createApplyWorkflow } from "#/domain/subscription/operation/apply/apply.workflow";
 import {
 	ALREADY_SUBSCRIBED_APPLY_MESSAGE,
 	APPLY_CONTEXT_UNAVAILABLE_MESSAGE,
-	ApplyContextView,
+	type ApplyContextView,
 } from "#/domain/subscription/operation/apply/apply-context.dto";
-import { currentSession } from "#/external/better-auth/current-session";
-import {
-	loadApplyContext,
-	saveApplied,
-} from "#/external/subscription-store/subscription-store";
 import { LoginRequired } from "./login-required/login-required";
 import { PlanList } from "./plan-list/plan-list";
 
-// composition root: ドメインのポートに具体的な実装を差し込む。
-const applyWorkflow = createApplyWorkflow({
-	newInvoiceId: () => InvoiceId.create(crypto.randomUUID()),
-	now: () => new Date(),
-});
-
-const getApplyContext = createServerFn({ method: "GET" }).handler(async () => {
-	const session = await currentSession();
-	return matchChoice<typeof session, Promise<ApplyContextView>>(session, {
-		AnonymousSession: async () => ({ loggedIn: false }),
-		AuthenticatedSession: async ({ userId }) => {
-			const loaded = await loadApplyContext(toAccountId(userId));
-			return Result.match(loaded, {
-				err: () => {
-					// 読み取りの View は失敗の形を持たないため reject させ、クライアントの catch が APPLY_CONTEXT_UNAVAILABLE_MESSAGE を表示する。
-					// StoreError の reason は内部情報なので例外にも載せない。
-					throw new Error();
-				},
-				ok: (context) =>
-					ApplyContextView.encode(context.account, context.subscription),
-			});
-		},
-	});
-});
+const getApplyContext = createServerFn({ method: "GET" }).handler(applyContext);
 
 const applySubscription = createServerFn({ method: "POST" })
 	.validator(ApplyRequest.schema)
-	.handler(async ({ data }) => {
-		const session = await currentSession();
-		return matchChoice<typeof session, Promise<ApplyResponse>>(session, {
-			AnonymousSession: async () => ApplyResponse.authenticationRequired,
-			AuthenticatedSession: async ({ userId }) => {
-				const accountId = toAccountId(userId);
-				return pipe(
-					loadApplyContext(accountId),
-					AsyncResult.flatMap((context) =>
-						applyWorkflow(
-							ApplyRequest.decode(data, AccountId.value(accountId)),
-							context,
-						),
-					),
-					AsyncResult.flatMap<Applied, Applied, never>(async (applied) => {
-						await saveApplied(applied);
-						return ok(applied);
-					}),
-					async (result) => ApplyResponse.encode(await result),
-				);
-			},
-		});
-	});
+	.handler(async ({ data }) => applyAction(data));
 
 export function ApplyPage() {
 	const navigate = useNavigate();

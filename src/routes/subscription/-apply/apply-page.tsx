@@ -1,12 +1,13 @@
 import { useNavigate } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import {
 	apply as applyAction,
 	applyContext,
 } from "#/application/subscription/apply";
 import { Button } from "#/components/control/button";
 import { Alert } from "#/components/feedback/alert";
+import { matchChoice } from "#/domain/building-blocks";
 import {
 	type ApplyFieldError,
 	ApplyRequest,
@@ -73,34 +74,40 @@ export function ApplyPage() {
 				</section>
 			</main>
 		);
-	if (!data.loggedIn)
-		return (
+	return matchChoice<ApplyContextView, ReactNode>(data, {
+		AnonymousApplyContext: () => (
 			<main className="demo-page">
 				<section className="demo-panel">
 					<LoginRequired errorMessages={errorMessages} />
 				</section>
 			</main>
-		);
-	return (
-		<main className="demo-page">
-			<section className="demo-panel space-y-6">
-				<h1 className="demo-title">プランを申し込む</h1>
-				<Alert messages={errorMessages} />
-				{!data.applicable ? (
-					<div className="space-y-4">
-						<p className="demo-note">{ALREADY_SUBSCRIBED_APPLY_MESSAGE}</p>
-						<Button kind="link" to="/">
-							契約へ
-						</Button>
-					</div>
-				) : (
-					<PlanList
-						plans={data.plans}
-						trialUsed={data.trialUsed}
-						onApply={apply}
+		),
+		ApplyContextUnavailable: () => (
+			<main className="demo-page">
+				<section className="demo-panel">
+					<Alert
+						messages={[...errorMessages, APPLY_CONTEXT_UNAVAILABLE_MESSAGE]}
 					/>
-				)}
-			</section>
-		</main>
-	);
+				</section>
+			</main>
+		),
+		ApplyContextFound: ({ applicable, plans, trialUsed }) => (
+			<main className="demo-page">
+				<section className="demo-panel space-y-6">
+					<h1 className="demo-title">プランを申し込む</h1>
+					<Alert messages={errorMessages} />
+					{!applicable ? (
+						<div className="space-y-4">
+							<p className="demo-note">{ALREADY_SUBSCRIBED_APPLY_MESSAGE}</p>
+							<Button kind="link" to="/">
+								契約へ
+							</Button>
+						</div>
+					) : (
+						<PlanList plans={plans} trialUsed={trialUsed} onApply={apply} />
+					)}
+				</section>
+			</main>
+		),
+	});
 }

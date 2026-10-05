@@ -55,6 +55,7 @@ export const PaymentResponse = {
 					InvoiceNotFound: () => INVOICE_NOT_FOUND_MESSAGE,
 					MalformedSubscription: () => MALFORMED_STORED_DATA_MESSAGE,
 					MalformedInvoice: () => MALFORMED_STORED_DATA_MESSAGE,
+					StoreUnavailable: () => STORE_UNAVAILABLE_MESSAGE,
 				}),
 			}),
 		}),
@@ -71,6 +72,7 @@ export const PaymentResponse = {
 /** ポートが請求を見つけられなかったときの境界層の文言。 */
 const INVOICE_NOT_FOUND_MESSAGE = "請求が見つかりません";
 const MALFORMED_STORED_DATA_MESSAGE = "契約情報を読み込めませんでした";
+const STORE_UNAVAILABLE_MESSAGE = "時間をおいてもう一度お試しください";
 
 // ===========================================================================
 // 型定義（シリアライズ: DTO → JSON）

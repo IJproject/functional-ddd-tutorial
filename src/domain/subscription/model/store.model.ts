@@ -8,7 +8,9 @@ import type { Case } from "#/domain/building-blocks";
  */
 export type StoreError =
 	| Case<"MalformedSubscription", { accountId: string; reason: string }>
-	| Case<"MalformedInvoice", { invoiceId: string; reason: string }>;
+	| Case<"MalformedInvoice", { invoiceId: string; reason: string }>
+	/** ストアに到達できない、または操作が失敗した。読み取りと書き込みの両方で起きる。 */
+	| Case<"StoreUnavailable", { reason: string }>;
 
 /** reason は調査用の内部情報であり、Response には含めない。 */
 export const StoreError = {
@@ -20,6 +22,10 @@ export const StoreError = {
 	malformedInvoice: (invoiceId: string, reason: string): StoreError => ({
 		kind: "MalformedInvoice",
 		invoiceId,
+		reason,
+	}),
+	storeUnavailable: (reason: string): StoreError => ({
+		kind: "StoreUnavailable",
 		reason,
 	}),
 };

@@ -128,11 +128,12 @@ export type InvoiceDetailItemView = {
 };
 
 /**
- * この画面には未ログイン・見つからない・見つかったの3状態がある。
+ * この画面には未ログイン・見つからない・読み取り失敗・見つかったの4状態がある。
  * boolean フラグ2本では、未ログインかつ発見済みというありえない組み合わせも型上表現できるため、
  * Case の union で有効な3状態だけを表す。
  */
 export type InvoiceDetailView =
 	| Case<"AnonymousInvoiceDetail">
 	| Case<"InvoiceNotFound">
+	| Case<"InvoiceDetailUnavailable">
 	| Case<"InvoiceFound", { invoice: InvoiceDetailItemView }>;

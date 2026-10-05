@@ -83,11 +83,16 @@ const toFieldError = (error: ApplyError | StoreError): ApplyFieldError =>
 			field: null,
 			message: MALFORMED_STORED_DATA_MESSAGE,
 		}),
+		StoreUnavailable: () => ({
+			field: null,
+			message: STORE_UNAVAILABLE_MESSAGE,
+		}),
 	});
 
 const ALREADY_SUBSCRIBED_MESSAGE = "すでに契約中です";
 const UNKNOWN_PLAN_MESSAGE = "有料プランを選択してください";
 const MALFORMED_STORED_DATA_MESSAGE = "契約情報を読み込めませんでした";
+const STORE_UNAVAILABLE_MESSAGE = "時間をおいてもう一度お試しください";
 
 // ===========================================================================
 // 型定義（シリアライズ: DTO → JSON）

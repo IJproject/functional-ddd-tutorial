@@ -4,7 +4,9 @@ import {
 } from "#/domain/auth/operation/signup/signup.dto";
 import { RegisteredAt } from "#/domain/auth/operation/signup/signup.primitive";
 import { createSignupWorkflow } from "#/domain/auth/operation/signup/signup.workflow";
+import { Result } from "#/domain/building-blocks";
 import { AccountId } from "#/domain/subscription/model/account.primitive";
+import type { StoreError } from "#/domain/subscription/model/store.model";
 import { registerUser } from "#/external/better-auth/register-user";
 import { openAccount } from "#/external/subscription-store/subscription-store";
 
@@ -22,6 +24,13 @@ export const signup = async (
 		await signupWorkflow(SignupRequest.decode(request)),
 	);
 	// subscription BC の口座開設。BC を跨ぐ型の翻訳は境界層で行う。
-	if (response.ok) await openAccount(AccountId.create(response.userId));
+	if (response.ok)
+		return Result.match<void, StoreError, SignupResponse>(
+			await openAccount(AccountId.create(response.userId)),
+			{
+				err: () => SignupResponse.unexpected,
+				ok: () => response,
+			},
+		);
 	return response;
 };

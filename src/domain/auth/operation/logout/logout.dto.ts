@@ -14,6 +14,11 @@ export const LogoutResponse = {
 			ok: (loggedOut) => ({ ok: true, userId: loggedOut.userId }),
 			err: () => ({ ok: false, message: NOT_AUTHENTICATED_MESSAGE }),
 		}),
+	/** ワークフロー外の失敗（認証基盤に到達できないなど）。 */
+	unexpected: {
+		ok: false,
+		message: "ログアウトに失敗しました",
+	} satisfies Extract<LogoutResponse, { ok: false }>,
 };
 
 /** 未認証状態でのログアウト要求に対する文言は境界層が決める。 */

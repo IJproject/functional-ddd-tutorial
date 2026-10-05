@@ -1,4 +1,4 @@
-import { matchChoice } from "#/domain/building-blocks";
+import { type Case, matchChoice } from "#/domain/building-blocks";
 import type { Account } from "#/domain/subscription/model/account.entity";
 import { Plan } from "#/domain/subscription/model/plan.entity";
 import {
@@ -14,7 +14,7 @@ import type { Subscription } from "#/domain/subscription/model/subscription.enti
 /** Account と Subscription → 申し込み画面専用の表示モデル。 */
 export const ApplyContextView = {
 	encode: (account: Account, subscription: Subscription): ApplyContextView => ({
-		loggedIn: true,
+		kind: "ApplyContextFound",
 		applicable: matchChoice<Subscription, boolean>(subscription, {
 			FreeSubscription: () => true,
 			TrialSubscription: () => false,
@@ -66,12 +66,15 @@ export type ApplyPlanView = {
 
 /** 申し込み画面が必要とする状態。 */
 export type ApplyContextView =
-	| { loggedIn: false }
-	| {
-			loggedIn: true;
-			/** 申し込み可能か。契約中なら false。 */
-			applicable: boolean;
-			/** トライアル使用済みか。文言の出し分けに使う。 */
-			trialUsed: boolean;
-			plans: ApplyPlanView[];
-	  };
+	| Case<"AnonymousApplyContext">
+	| Case<"ApplyContextUnavailable">
+	| Case<
+			"ApplyContextFound",
+			{
+				/** 申し込み可能か。契約中なら false。 */
+				applicable: boolean;
+				/** トライアル使用済みか。文言の出し分けに使う。 */
+				trialUsed: boolean;
+				plans: ApplyPlanView[];
+			}
+	  >;

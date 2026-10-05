@@ -1,5 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
-import { useCallback, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { sessionView } from "#/application/auth/session-view";
 import {
 	cancelTrial as cancelTrialAction,
@@ -15,6 +15,7 @@ import { subscriptionView } from "#/application/subscription/subscription-view";
 import { Button } from "#/components/control/button";
 import { Badge, type BadgeTone } from "#/components/data/badge";
 import { Alert } from "#/components/feedback/alert";
+import { matchChoice } from "#/domain/building-blocks";
 import {
 	CancelTrialResponse,
 	ReserveCancellationResponse,
@@ -173,8 +174,8 @@ export function HomePage() {
 				</section>
 			</main>
 		);
-	if (!data.loggedIn)
-		return (
+	return matchChoice<SubscriptionView, ReactNode>(data, {
+		AnonymousSubscription: () => (
 			<main className="demo-page">
 				<section className="demo-panel space-y-4">
 					{errorAlert}
@@ -184,197 +185,209 @@ export function HomePage() {
 					</Button>
 				</section>
 			</main>
-		);
+		),
+		SubscriptionUnavailable: () => (
+			<main className="demo-page">
+				<section className="demo-panel">
+					<Alert messages={[SUBSCRIPTION_VIEW_UNAVAILABLE_MESSAGE]} />
+				</section>
+			</main>
+		),
 
-	const { state } = data;
-	return (
-		<main className="demo-page">
-			<section className="demo-panel space-y-6">
-				{errorAlert}
-				<div className="space-y-2">
-					<div className="flex flex-wrap items-center gap-3">
-						<h1 className="demo-metric">
-							{state.planName ?? state.statusLabel}
-						</h1>
-						{state.planName !== null && (
-							<Badge tone={STATUS_TONE[state.statusLabel] ?? "neutral"}>
-								{state.statusLabel}
-							</Badge>
-						)}
-					</div>
-					{state.notice && <p className="demo-note">{state.notice}</p>}
-					{state.bookingText && (
-						<p className="demo-note">{state.bookingText}</p>
-					)}
-				</div>
-				{(state.trialEndsAt || state.periodEndsAt) && (
-					<div className="flex flex-wrap gap-x-10 gap-y-4">
-						{state.trialEndsAt && (
-							<div className="space-y-1">
-								<p className="demo-label">{HOME_TEXT.trialEndLabel}</p>
-								<p className="demo-value">{state.trialEndsAt}</p>
-							</div>
-						)}
-						{state.periodEndsAt && (
-							<div className="space-y-1">
-								<p className="demo-label">{HOME_TEXT.periodEndLabel}</p>
-								<p className="demo-value">{state.periodEndsAt}</p>
-							</div>
-						)}
-					</div>
-				)}
-				{(state.showApplyLink ||
-					state.canCancelTrial ||
-					state.canReserveCancellation) && (
-					<div className="flex flex-wrap gap-3">
-						{state.showApplyLink && (
-							<Button kind="link" to="/subscription/apply">
-								{HOME_TEXT.applyLink}
-							</Button>
-						)}
-						{state.canCancelTrial && (
-							<Button
-								kind="action"
-								variant="danger"
-								onClick={() => act(cancelTrial, CancelTrialResponse.unexpected)}
-							>
-								{HOME_TEXT.cancelTrial}
-							</Button>
-						)}
-						{state.canReserveCancellation && (
-							<Button
-								kind="action"
-								variant="danger"
-								onClick={() =>
-									act(
-										reserveCancellation,
-										ReserveCancellationResponse.unexpected,
-									)
-								}
-							>
-								{HOME_TEXT.reserveCancellation}
-							</Button>
-						)}
-					</div>
-				)}
-			</section>
-			{/*
-			 * プラン変更が実際にできる状態のときだけ出す。
-			 * 無料プランのときは「先に申し込んでください」と案内するだけで、
-			 * 行き先がヒーローの「サブスクを申し込む」と同じになり導線が重複するため。
-			 */}
-			{!state.showApplyLink && (
+		SubscriptionFound: ({ state, plans, invoices }) => (
+			<main className="demo-page">
 				<section className="demo-panel space-y-6">
-					<h2 className="demo-section-title">{HOME_TEXT.changePlanTitle}</h2>
-					<div className="space-y-6">
-						<div className="space-y-1">
-							<p className="demo-label">{HOME_TEXT.currentPlanLabel}</p>
-							<div className="flex flex-wrap items-center gap-2">
-								<p className="demo-value">{state.planName}</p>
+					{errorAlert}
+					<div className="space-y-2">
+						<div className="flex flex-wrap items-center gap-3">
+							<h1 className="demo-metric">
+								{state.planName ?? state.statusLabel}
+							</h1>
+							{state.planName !== null && (
 								<Badge tone={STATUS_TONE[state.statusLabel] ?? "neutral"}>
 									{state.statusLabel}
 								</Badge>
-							</div>
+							)}
 						</div>
-						<div className="space-y-4">
-							{data.plans.map((plan) => (
-								<article
-									className="demo-card flex flex-wrap items-center justify-between gap-4"
-									key={plan.id}
-								>
-									<div className="space-y-1">
-										<p className="demo-metric-sm">{plan.name}</p>
-										<p className="demo-note">{plan.changeDescription}</p>
-									</div>
-									<Button
-										kind="action"
-										disabled={plan.changeDisabled}
-										onClick={() =>
-											act(
-												() => requestPlanChange({ data: { planId: plan.id } }),
-												ChangePlanResponse.unexpected,
-											)
-										}
-									>
-										{HOME_TEXT.changePlan}
-									</Button>
-								</article>
-							))}
-						</div>
+						{state.notice && <p className="demo-note">{state.notice}</p>}
+						{state.bookingText && (
+							<p className="demo-note">{state.bookingText}</p>
+						)}
 					</div>
-				</section>
-			)}
-			<section className="demo-panel space-y-6">
-				<div className="space-y-2">
-					<h2 className="demo-section-title">{HOME_TEXT.invoicesTitle}</h2>
-					<p className="demo-note">{HOME_TEXT.paymentSimulationDescription}</p>
-				</div>
-				<div className="space-y-4">
-					{data.invoices.map((invoice) => (
-						<article className="demo-card space-y-4" key={invoice.id}>
-							<div className="flex flex-wrap items-start justify-between gap-3">
+					{(state.trialEndsAt || state.periodEndsAt) && (
+						<div className="flex flex-wrap gap-x-10 gap-y-4">
+							{state.trialEndsAt && (
 								<div className="space-y-1">
-									<div className="flex flex-wrap items-center gap-2">
-										<p className="demo-metric-sm">
-											¥{invoice.amount.toLocaleString()}
-										</p>
-										<Badge
-											tone={
-												INVOICE_STATUS_TONE[invoice.statusLabel] ?? "neutral"
-											}
-										>
-											{invoice.statusLabel}
-										</Badge>
-									</div>
-									<p className="demo-note">
-										{invoice.purposeLabel}・{invoice.planName}
-									</p>
-									<p className="demo-note">{invoice.issuedAt}</p>
-								</div>
-								<Button
-									kind="link"
-									variant="secondary"
-									to="/subscription/invoice/$invoiceId"
-									params={{ invoiceId: invoice.id }}
-								>
-									{HOME_TEXT.invoiceDetailLink}
-								</Button>
-							</div>
-							{invoice.payable && (
-								<div className="flex flex-wrap gap-2">
-									<Button kind="action" onClick={() => pay(invoice.id)}>
-										{HOME_TEXT.payInvoice}
-									</Button>
+									<p className="demo-label">{HOME_TEXT.trialEndLabel}</p>
+									<p className="demo-value">{state.trialEndsAt}</p>
 								</div>
 							)}
-						</article>
-					))}
-					{data.invoices.length === 0 && (
-						<p className="demo-note">{NO_INVOICES_MESSAGE}</p>
+							{state.periodEndsAt && (
+								<div className="space-y-1">
+									<p className="demo-label">{HOME_TEXT.periodEndLabel}</p>
+									<p className="demo-value">{state.periodEndsAt}</p>
+								</div>
+							)}
+						</div>
 					)}
-				</div>
-			</section>
-			<section className="demo-panel space-y-4">
-				<h2 className="demo-section-title">{HOME_TEXT.simulationTitle}</h2>
-				<div className="flex flex-wrap gap-3">
-					<Button
-						kind="action"
-						variant="secondary"
-						disabled={!state.canEndTrial}
-						onClick={() => act(endTrial, EndTrialResponse.unexpected)}
-					>
-						{HOME_TEXT.endTrial}
-					</Button>
-					<Button
-						kind="action"
-						variant="secondary"
-						disabled={!state.canEndPeriod}
-						onClick={() => act(endPeriod, EndPeriodResponse.unexpected)}
-					>
-						{HOME_TEXT.endPeriod}
-					</Button>
-				</div>
-			</section>
-		</main>
-	);
+					{(state.showApplyLink ||
+						state.canCancelTrial ||
+						state.canReserveCancellation) && (
+						<div className="flex flex-wrap gap-3">
+							{state.showApplyLink && (
+								<Button kind="link" to="/subscription/apply">
+									{HOME_TEXT.applyLink}
+								</Button>
+							)}
+							{state.canCancelTrial && (
+								<Button
+									kind="action"
+									variant="danger"
+									onClick={() =>
+										act(cancelTrial, CancelTrialResponse.unexpected)
+									}
+								>
+									{HOME_TEXT.cancelTrial}
+								</Button>
+							)}
+							{state.canReserveCancellation && (
+								<Button
+									kind="action"
+									variant="danger"
+									onClick={() =>
+										act(
+											reserveCancellation,
+											ReserveCancellationResponse.unexpected,
+										)
+									}
+								>
+									{HOME_TEXT.reserveCancellation}
+								</Button>
+							)}
+						</div>
+					)}
+				</section>
+				{/*
+				 * プラン変更が実際にできる状態のときだけ出す。
+				 * 無料プランのときは「先に申し込んでください」と案内するだけで、
+				 * 行き先がヒーローの「サブスクを申し込む」と同じになり導線が重複するため。
+				 */}
+				{!state.showApplyLink && (
+					<section className="demo-panel space-y-6">
+						<h2 className="demo-section-title">{HOME_TEXT.changePlanTitle}</h2>
+						<div className="space-y-6">
+							<div className="space-y-1">
+								<p className="demo-label">{HOME_TEXT.currentPlanLabel}</p>
+								<div className="flex flex-wrap items-center gap-2">
+									<p className="demo-value">{state.planName}</p>
+									<Badge tone={STATUS_TONE[state.statusLabel] ?? "neutral"}>
+										{state.statusLabel}
+									</Badge>
+								</div>
+							</div>
+							<div className="space-y-4">
+								{plans.map((plan) => (
+									<article
+										className="demo-card flex flex-wrap items-center justify-between gap-4"
+										key={plan.id}
+									>
+										<div className="space-y-1">
+											<p className="demo-metric-sm">{plan.name}</p>
+											<p className="demo-note">{plan.changeDescription}</p>
+										</div>
+										<Button
+											kind="action"
+											disabled={plan.changeDisabled}
+											onClick={() =>
+												act(
+													() =>
+														requestPlanChange({ data: { planId: plan.id } }),
+													ChangePlanResponse.unexpected,
+												)
+											}
+										>
+											{HOME_TEXT.changePlan}
+										</Button>
+									</article>
+								))}
+							</div>
+						</div>
+					</section>
+				)}
+				<section className="demo-panel space-y-6">
+					<div className="space-y-2">
+						<h2 className="demo-section-title">{HOME_TEXT.invoicesTitle}</h2>
+						<p className="demo-note">
+							{HOME_TEXT.paymentSimulationDescription}
+						</p>
+					</div>
+					<div className="space-y-4">
+						{invoices.map((invoice) => (
+							<article className="demo-card space-y-4" key={invoice.id}>
+								<div className="flex flex-wrap items-start justify-between gap-3">
+									<div className="space-y-1">
+										<div className="flex flex-wrap items-center gap-2">
+											<p className="demo-metric-sm">
+												¥{invoice.amount.toLocaleString()}
+											</p>
+											<Badge
+												tone={
+													INVOICE_STATUS_TONE[invoice.statusLabel] ?? "neutral"
+												}
+											>
+												{invoice.statusLabel}
+											</Badge>
+										</div>
+										<p className="demo-note">
+											{invoice.purposeLabel}・{invoice.planName}
+										</p>
+										<p className="demo-note">{invoice.issuedAt}</p>
+									</div>
+									<Button
+										kind="link"
+										variant="secondary"
+										to="/subscription/invoice/$invoiceId"
+										params={{ invoiceId: invoice.id }}
+									>
+										{HOME_TEXT.invoiceDetailLink}
+									</Button>
+								</div>
+								{invoice.payable && (
+									<div className="flex flex-wrap gap-2">
+										<Button kind="action" onClick={() => pay(invoice.id)}>
+											{HOME_TEXT.payInvoice}
+										</Button>
+									</div>
+								)}
+							</article>
+						))}
+						{invoices.length === 0 && (
+							<p className="demo-note">{NO_INVOICES_MESSAGE}</p>
+						)}
+					</div>
+				</section>
+				<section className="demo-panel space-y-4">
+					<h2 className="demo-section-title">{HOME_TEXT.simulationTitle}</h2>
+					<div className="flex flex-wrap gap-3">
+						<Button
+							kind="action"
+							variant="secondary"
+							disabled={!state.canEndTrial}
+							onClick={() => act(endTrial, EndTrialResponse.unexpected)}
+						>
+							{HOME_TEXT.endTrial}
+						</Button>
+						<Button
+							kind="action"
+							variant="secondary"
+							disabled={!state.canEndPeriod}
+							onClick={() => act(endPeriod, EndPeriodResponse.unexpected)}
+						>
+							{HOME_TEXT.endPeriod}
+						</Button>
+					</div>
+				</section>
+			</main>
+		),
+	});
 }

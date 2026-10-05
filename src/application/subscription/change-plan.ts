@@ -1,7 +1,13 @@
 import type { Session } from "#/domain/auth/model/session.model";
-import { AsyncResult, matchChoice, ok, pipe } from "#/domain/building-blocks";
+import {
+	AsyncResult,
+	matchChoice,
+	pipe,
+	Result,
+} from "#/domain/building-blocks";
 import { toAccountId } from "#/domain/context-map/auth-to-subscription";
 import { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
+import type { StoreError } from "#/domain/subscription/model/store.model";
 import {
 	ChangePlanRequest,
 	ChangePlanResponse,
@@ -23,22 +29,29 @@ const changePlanWorkflow = createChangePlanWorkflow({ newInvoiceId, now });
 export const changePlan = async (
 	request: ChangePlanRequest,
 ): Promise<ChangePlanResponse> => {
-	const session = await currentSession();
-	return matchChoice<Session, Promise<ChangePlanResponse>>(session, {
-		AnonymousSession: async () => ChangePlanResponse.authenticationRequired,
-		AuthenticatedSession: async ({ userId }) =>
-			pipe(
-				loadSubscription(toAccountId(userId)),
-				AsyncResult.flatMap((subscription) =>
-					changePlanWorkflow(ChangePlanRequest.decode(request), subscription),
-				),
-				AsyncResult.flatMap<PlanChanged, PlanChanged, never>(
-					async (changed) => {
-						await savePlanChanged(changed);
-						return ok(changed);
-					},
-				),
-				async (result) => ChangePlanResponse.encode(await result),
-			),
+	return Result.match(await currentSession(), {
+		err: async () => ChangePlanResponse.unexpected,
+		ok: (session) =>
+			matchChoice<Session, Promise<ChangePlanResponse>>(session, {
+				AnonymousSession: async () => ChangePlanResponse.authenticationRequired,
+				AuthenticatedSession: async ({ userId }) =>
+					pipe(
+						loadSubscription(toAccountId(userId)),
+						AsyncResult.flatMap((subscription) =>
+							changePlanWorkflow(
+								ChangePlanRequest.decode(request),
+								subscription,
+							),
+						),
+						AsyncResult.flatMap<PlanChanged, PlanChanged, StoreError>(
+							(changed) =>
+								pipe(
+									savePlanChanged(changed),
+									AsyncResult.map(() => changed),
+								),
+						),
+						async (result) => ChangePlanResponse.encode(await result),
+					),
+			}),
 	});
 };

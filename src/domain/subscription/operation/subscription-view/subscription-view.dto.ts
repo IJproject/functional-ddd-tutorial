@@ -31,7 +31,7 @@ export const SubscriptionView = {
 	): SubscriptionView => {
 		const state = encodeState(subscription);
 		return {
-			loggedIn: true,
+			kind: "SubscriptionFound",
 			state,
 			plans: Plan.all().map((plan) => ({
 				id: PlanId.value(plan.id),
@@ -354,10 +354,13 @@ export type InvoiceView = {
 };
 
 export type SubscriptionView =
-	| { loggedIn: false }
-	| {
-			loggedIn: true;
-			state: SubscriptionStateView;
-			plans: SubscriptionPlanView[];
-			invoices: InvoiceView[];
-	  };
+	| Case<"AnonymousSubscription">
+	| Case<"SubscriptionUnavailable">
+	| Case<
+			"SubscriptionFound",
+			{
+				state: SubscriptionStateView;
+				plans: SubscriptionPlanView[];
+				invoices: InvoiceView[];
+			}
+	  >;

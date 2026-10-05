@@ -94,6 +94,9 @@ export function InvoicePage() {
 				</Button>
 			</div>
 		),
+		InvoiceDetailUnavailable: () => (
+			<Alert messages={[INVOICE_DETAIL_UNAVAILABLE_MESSAGE]} />
+		),
 		InvoiceFound: ({ invoice }) => (
 			<div className="space-y-6">
 				<article className="demo-card space-y-6">

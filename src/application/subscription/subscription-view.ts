@@ -10,24 +10,25 @@ import {
 
 /** 契約表示。読む → encode。 */
 export const subscriptionView = async (): Promise<SubscriptionView> => {
-	const session = await currentSession();
-	return matchChoice<Session, Promise<SubscriptionView>>(session, {
-		AnonymousSession: async () => ({ loggedIn: false }),
-		AuthenticatedSession: async ({ userId }) => {
-			const accountId = toAccountId(userId);
-			const [subscription, invoices] = await Promise.all([
-				loadSubscription(accountId),
-				loadInvoices(accountId),
-			]);
-			return Result.match(Result.combine([subscription, invoices]), {
-				err: () => {
-					// 読み取りの View は失敗の形を持たないため reject させ、クライアントの catch が SUBSCRIPTION_VIEW_UNAVAILABLE_MESSAGE を表示する。
-					// StoreError の reason は内部情報なので例外にも載せない。
-					throw new Error();
+	return Result.match(await currentSession(), {
+		err: async (): Promise<SubscriptionView> => ({
+			kind: "SubscriptionUnavailable",
+		}),
+		ok: (session) =>
+			matchChoice<Session, Promise<SubscriptionView>>(session, {
+				AnonymousSession: async () => ({ kind: "AnonymousSubscription" }),
+				AuthenticatedSession: async ({ userId }) => {
+					const accountId = toAccountId(userId);
+					const [subscription, invoices] = await Promise.all([
+						loadSubscription(accountId),
+						loadInvoices(accountId),
+					]);
+					return Result.match(Result.combine([subscription, invoices]), {
+						err: (): SubscriptionView => ({ kind: "SubscriptionUnavailable" }),
+						ok: ([domainSubscription, domainInvoices]) =>
+							SubscriptionView.encode(domainSubscription, domainInvoices),
+					});
 				},
-				ok: ([domainSubscription, domainInvoices]) =>
-					SubscriptionView.encode(domainSubscription, domainInvoices),
-			});
-		},
+			}),
 	});
 };

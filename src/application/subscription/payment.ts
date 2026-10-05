@@ -3,12 +3,12 @@ import {
 	AsyncResult,
 	err,
 	matchChoice,
-	ok,
 	pipe,
 	Result,
 } from "#/domain/building-blocks";
 import { toAccountId } from "#/domain/context-map/auth-to-subscription";
 import { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
+import type { StoreError } from "#/domain/subscription/model/store.model";
 import {
 	type PayInvoiceRequest,
 	PaymentResponse,
@@ -35,38 +35,42 @@ const now = () => new Date();
 export const payInvoice = async (
 	request: PayInvoiceRequest,
 ): Promise<PaymentResponse> => {
-	const session = await currentSession();
-	return matchChoice<Session, Promise<PaymentResponse>>(session, {
-		AnonymousSession: async () => PaymentResponse.authenticationRequired,
-		AuthenticatedSession: async ({ userId }) => {
-			const accountId = toAccountId(userId);
-			const [invoice, subscription] = await Promise.all([
-				findInvoice(accountId, InvoiceId.create(request.invoiceId)),
-				loadSubscription(accountId),
-			]);
-			return pipe(
-				Result.combine([invoice, subscription] as const),
-				AsyncResult.flatMap(
-					([domainInvoice, domainSubscription]): AsyncResult<
-						PaymentSettled,
-						PayInvoiceError | InvoiceNotFound
-					> =>
-						domainInvoice === null
-							? Promise.resolve(
-									err<InvoiceNotFound>({ kind: "InvoiceNotFound" }),
-								)
-							: payInvoiceWorkflow(domainInvoice, domainSubscription, {
-									now: now(),
-								}),
-				),
-				AsyncResult.flatMap<PaymentSettled, PaymentSettled, never>(
-					async (settled) => {
-						await savePaymentSettled(settled);
-						return ok(settled);
-					},
-				),
-				async (result) => PaymentResponse.encode(await result),
-			);
-		},
+	return Result.match(await currentSession(), {
+		err: async () => PaymentResponse.unexpected,
+		ok: (session) =>
+			matchChoice<Session, Promise<PaymentResponse>>(session, {
+				AnonymousSession: async () => PaymentResponse.authenticationRequired,
+				AuthenticatedSession: async ({ userId }) => {
+					const accountId = toAccountId(userId);
+					const [invoice, subscription] = await Promise.all([
+						findInvoice(accountId, InvoiceId.create(request.invoiceId)),
+						loadSubscription(accountId),
+					]);
+					return pipe(
+						Result.combine([invoice, subscription] as const),
+						AsyncResult.flatMap(
+							([domainInvoice, domainSubscription]): AsyncResult<
+								PaymentSettled,
+								PayInvoiceError | InvoiceNotFound
+							> =>
+								domainInvoice === null
+									? Promise.resolve(
+											err<InvoiceNotFound>({ kind: "InvoiceNotFound" }),
+										)
+									: payInvoiceWorkflow(domainInvoice, domainSubscription, {
+											now: now(),
+										}),
+						),
+						AsyncResult.flatMap<PaymentSettled, PaymentSettled, StoreError>(
+							(settled) =>
+								pipe(
+									savePaymentSettled(settled),
+									AsyncResult.map(() => settled),
+								),
+						),
+						async (result) => PaymentResponse.encode(await result),
+					);
+				},
+			}),
 	});
 };

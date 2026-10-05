@@ -67,9 +67,9 @@ import {
 	user as userTable,
 } from "#/external/db/schema";
 import {
-	toStoredAccount,
-	toStoredInvoice,
-	toStoredSubscription,
+	StoredAccount,
+	StoredInvoice,
+	StoredSubscription,
 } from "#/external/subscription-store/translate";
 
 const SEED_EMAIL_DOMAIN = "seed.local";
@@ -477,16 +477,16 @@ const main = async (): Promise<void> => {
 				updatedAt: now,
 			});
 			await tx.insert(subscriptionAccountTable).values({
-				...toStoredAccount(seedAccount.account),
+				...StoredAccount.encode(seedAccount.account),
 				createdAt: now,
 			});
 			await tx
 				.insert(subscriptionTable)
-				.values(toStoredSubscription(seedAccount.subscription));
+				.values(StoredSubscription.encode(seedAccount.subscription));
 			if (seedAccount.invoices.length > 0) {
 				await tx
 					.insert(subscriptionInvoiceTable)
-					.values(seedAccount.invoices.map(toStoredInvoice));
+					.values(seedAccount.invoices.map(StoredInvoice.encode));
 			}
 		}
 	});

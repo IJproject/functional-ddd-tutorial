@@ -34,11 +34,9 @@ import {
 	subscription as subscriptionTable,
 } from "#/external/db/schema";
 import {
-	toDomainAccount,
-	toDomainInvoice,
-	toDomainSubscription,
-	toStoredInvoice,
-	toStoredSubscription,
+	StoredAccount,
+	StoredInvoice,
+	StoredSubscription,
 } from "#/external/subscription-store/translate";
 
 // ===========================================================================
@@ -53,13 +51,13 @@ type WriteExecutor = Pick<typeof db, "insert" | "update">;
 
 /**
  * ドメインの Subscription を upsert する。
- * toStoredSubscription が未使用列にも null を入れるため、遷移前の値は残らない。
+ * StoredSubscription.encode が未使用列にも null を入れるため、遷移前の値は残らない。
  */
 const saveSubscription = async (
 	executor: WriteExecutor,
 	subscription: Subscription,
 ): Promise<void> => {
-	const values = toStoredSubscription(subscription);
+	const values = StoredSubscription.encode(subscription);
 	await executor
 		.insert(subscriptionTable)
 		.values(values)
@@ -81,7 +79,7 @@ const saveInvoice = async (
 	executor: WriteExecutor,
 	invoice: Invoice,
 ): Promise<void> => {
-	const values = toStoredInvoice(invoice);
+	const values = StoredInvoice.encode(invoice);
 	await executor
 		.insert(subscriptionInvoiceTable)
 		.values(values)
@@ -112,7 +110,7 @@ export const openAccount = async (accountId: AccountId): Promise<void> => {
 			.onConflictDoNothing();
 		await tx
 			.insert(subscriptionTable)
-			.values(toStoredSubscription(Subscription.free(accountId)))
+			.values(StoredSubscription.encode(Subscription.free(accountId)))
 			.onConflictDoNothing();
 	});
 };
@@ -145,9 +143,9 @@ export const loadApplyContext = async (
 		.where(eq(subscriptionTable.accountId, id))
 		.limit(1);
 	const subscriptionRow = subscriptionRows[0];
-	const account = toDomainAccount(accountRow);
+	const account = StoredAccount.decode(accountRow);
 	const subscription = subscriptionRow
-		? toDomainSubscription(subscriptionRow)
+		? StoredSubscription.decode(subscriptionRow)
 		: ok(Subscription.free(accountId));
 
 	return Result.match<
@@ -185,7 +183,9 @@ export const loadSubscription = async (
 		.where(eq(subscriptionTable.accountId, AccountId.value(accountId)))
 		.limit(1);
 	const row = rows[0];
-	return row ? toDomainSubscription(row) : ok(Subscription.free(accountId));
+	return row
+		? StoredSubscription.decode(row)
+		: ok(Subscription.free(accountId));
 };
 
 /** 請求の一覧。issued_at の新しい順に読み、壊れた行が1件でもあれば失敗する。 */
@@ -197,7 +197,7 @@ export const loadInvoices = async (
 		.from(subscriptionInvoiceTable)
 		.where(eq(subscriptionInvoiceTable.accountId, AccountId.value(accountId)))
 		.orderBy(desc(subscriptionInvoiceTable.issuedAt));
-	return Result.combine(rows.map(toDomainInvoice));
+	return Result.combine(rows.map(StoredInvoice.decode));
 };
 
 /** 指定 ID の請求。見つからない場合と壊れている場合を区別する。 */
@@ -212,7 +212,7 @@ export const findInvoice = async (
 		.limit(1);
 	const row = rows[0];
 	if (!row || row.accountId !== AccountId.value(accountId)) return ok(null);
-	return toDomainInvoice(row);
+	return StoredInvoice.decode(row);
 };
 
 /**

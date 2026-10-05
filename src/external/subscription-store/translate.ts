@@ -45,15 +45,9 @@ type StoredAccount = InferSelectModel<typeof subscriptionAccountTable>;
 type StoredSubscription = InferSelectModel<typeof subscriptionTable>;
 type StoredInvoice = InferSelectModel<typeof subscriptionInvoiceTable>;
 
-export type StoredAccountValues = InferInsertModel<
-	typeof subscriptionAccountTable
->;
-export type StoredSubscriptionValues = InferInsertModel<
-	typeof subscriptionTable
->;
-export type StoredInvoiceValues = InferInsertModel<
-	typeof subscriptionInvoiceTable
->;
+type StoredAccountValues = InferInsertModel<typeof subscriptionAccountTable>;
+type StoredSubscriptionValues = InferInsertModel<typeof subscriptionTable>;
+type StoredInvoiceValues = InferInsertModel<typeof subscriptionInvoiceTable>;
 
 type StoredAccountChoice =
 	| Case<"TrialUnused", { row: StoredAccount }>
@@ -92,7 +86,7 @@ const subscriptionError = (
 const invoiceError = (row: StoredInvoice, reason: string): StoreErrorType =>
 	StoreError.malformedInvoice(row.invoiceId, reason);
 
-const toDomainPlanId = (
+const decodePlanId = (
 	planId: string,
 	malformed: () => StoreErrorType,
 ): ResultType<PlanId, StoreErrorType> => {
@@ -101,7 +95,7 @@ const toDomainPlanId = (
 	return err(malformed());
 };
 
-const toStoredPlanId = (planId: PlanId): StoredInvoice["planId"] =>
+const encodePlanId = (planId: PlanId): StoredInvoice["planId"] =>
 	matchChoice<StoredPlanChoice, StoredInvoice["planId"]>(
 		{ kind: PlanId.value(planId) },
 		{
@@ -115,26 +109,39 @@ const toStoredPlanId = (planId: PlanId): StoredInvoice["planId"] =>
  * 現在は失敗経路がないが、読み取り変換の呼び出し規約を揃え、将来列が増えたときに
  * loadApplyContext の型を変えず検査を追加できるよう Result を返す。
  */
-export const toDomainAccount = (
-	row: StoredAccount,
-): ResultType<Account, StoreErrorType> => {
-	const choice: StoredAccountChoice =
-		row.trialUsedAt === null
-			? { kind: "TrialUnused", row }
-			: { kind: "TrialUsed", row, trialUsedAt: row.trialUsedAt };
-	return ok(
-		matchChoice<StoredAccountChoice, Account>(choice, {
-			TrialUnused: ({ row: value }) => ({
-				kind: "TrialUnusedAccount",
-				id: AccountId.create(value.accountId),
+export const StoredAccount = {
+	decode: (row: StoredAccount): ResultType<Account, StoreErrorType> => {
+		const choice: StoredAccountChoice =
+			row.trialUsedAt === null
+				? { kind: "TrialUnused", row }
+				: { kind: "TrialUsed", row, trialUsedAt: row.trialUsedAt };
+		return ok(
+			matchChoice<StoredAccountChoice, Account>(choice, {
+				TrialUnused: ({ row: value }) => ({
+					kind: "TrialUnusedAccount",
+					id: AccountId.create(value.accountId),
+				}),
+				TrialUsed: ({ row: value, trialUsedAt }) => ({
+					kind: "TrialUsedAccount",
+					id: AccountId.create(value.accountId),
+					trialUsedAt: TrialUsedAt.create(trialUsedAt),
+				}),
 			}),
-			TrialUsed: ({ row: value, trialUsedAt }) => ({
-				kind: "TrialUsedAccount",
-				id: AccountId.create(value.accountId),
-				trialUsedAt: TrialUsedAt.create(trialUsedAt),
+		);
+	},
+
+	/** ドメインの契約者 → upsert する値。判別子は trial_used_at の NULL 有無。 */
+	encode: (account: Account): StoredAccountValues =>
+		matchChoice<Account, StoredAccountValues>(account, {
+			TrialUnusedAccount: (value) => ({
+				accountId: AccountId.value(value.id),
+				trialUsedAt: null,
+			}),
+			TrialUsedAccount: (value) => ({
+				accountId: AccountId.value(value.id),
+				trialUsedAt: TrialUsedAt.value(value.trialUsedAt),
 			}),
 		}),
-	);
 };
 
 const classifySubscription = (
@@ -162,297 +169,368 @@ const classifySubscription = (
  * 各状態で使わない列に値があっても、必要な情報が揃っていれば読み取る。
  * 厳格にすると状態遷移で古い列を消し忘れただけで読めなくなるためである。
  */
-export const toDomainSubscription = (
-	row: StoredSubscription,
-): ResultType<Subscription, StoreErrorType> =>
-	Result.match(classifySubscription(row), {
-		err,
-		ok: (choice) =>
-			matchChoice<
-				StoredSubscriptionChoice,
-				ResultType<Subscription, StoreErrorType>
-			>(choice, {
-				FreeSubscription: ({ row: value }) =>
-					ok({
-						kind: "FreeSubscription",
-						accountId: AccountId.create(value.accountId),
-					}),
-				TrialSubscription: ({ row: value }) => {
-					const planIdValue = value.planId;
-					const trialEndsAt = value.trialEndsAt;
-					if (planIdValue === null)
-						return err(
-							subscriptionError(
-								value,
-								"status=TrialSubscription but plan_id is null",
-							),
-						);
-					if (trialEndsAt === null)
-						return err(
-							subscriptionError(
-								value,
-								"status=TrialSubscription but trial_ends_at is null",
-							),
-						);
-					return Result.match<
-						PlanId,
-						StoreErrorType,
-						ResultType<Subscription, StoreErrorType>
-					>(
-						toDomainPlanId(planIdValue, () =>
-							subscriptionError(
-								value,
-								`status=TrialSubscription has unknown plan_id=${planIdValue}`,
-							),
-						),
-						{
-							err,
-							ok: (planId) =>
-								ok({
-									kind: "TrialSubscription",
-									accountId: AccountId.create(value.accountId),
-									planId,
-									trialEndsAt: TrialEndsAt.create(trialEndsAt),
-								}),
-						},
-					);
-				},
-				PendingPaymentSubscription: ({ row: value }) => {
-					const planIdValue = value.planId;
-					const pendingInvoiceId = value.pendingInvoiceId;
-					if (planIdValue === null)
-						return err(
-							subscriptionError(
-								value,
-								"status=PendingPaymentSubscription but plan_id is null",
-							),
-						);
-					if (pendingInvoiceId === null)
-						return err(
-							subscriptionError(
-								value,
-								"status=PendingPaymentSubscription but pending_invoice_id is null",
-							),
-						);
-					return Result.match<
-						PlanId,
-						StoreErrorType,
-						ResultType<Subscription, StoreErrorType>
-					>(
-						toDomainPlanId(planIdValue, () =>
-							subscriptionError(
-								value,
-								`status=PendingPaymentSubscription has unknown plan_id=${planIdValue}`,
-							),
-						),
-						{
-							err,
-							ok: (planId) =>
-								ok({
-									kind: "PendingPaymentSubscription",
-									accountId: AccountId.create(value.accountId),
-									planId,
-									pendingInvoiceId: InvoiceId.create(pendingInvoiceId),
-								}),
-						},
-					);
-				},
-				PaidSubscription: ({ row: value }) => {
-					const planIdValue = value.planId;
-					const periodEndsAt = value.periodEndsAt;
-					if (planIdValue === null)
-						return err(
-							subscriptionError(
-								value,
-								"status=PaidSubscription but plan_id is null",
-							),
-						);
-					if (periodEndsAt === null)
-						return err(
-							subscriptionError(
-								value,
-								"status=PaidSubscription but period_ends_at is null",
-							),
-						);
-					return Result.match<
-						PlanId,
-						StoreErrorType,
-						ResultType<Subscription, StoreErrorType>
-					>(
-						toDomainPlanId(planIdValue, () =>
-							subscriptionError(
-								value,
-								`status=PaidSubscription has unknown plan_id=${planIdValue}`,
-							),
-						),
-						{
-							err,
-							ok: (planId) =>
-								ok({
-									kind: "PaidSubscription",
-									accountId: AccountId.create(value.accountId),
-									planId,
-									periodEndsAt: PeriodEndsAt.create(periodEndsAt),
-								}),
-						},
-					);
-				},
-				UpgradePendingSubscription: ({ row: value }) => {
-					const planIdValue = value.planId;
-					const periodEndsAt = value.periodEndsAt;
-					const pendingInvoiceId = value.pendingInvoiceId;
-					if (planIdValue === null)
-						return err(
-							subscriptionError(
-								value,
-								"status=UpgradePendingSubscription but plan_id is null",
-							),
-						);
-					if (periodEndsAt === null)
-						return err(
-							subscriptionError(
-								value,
-								"status=UpgradePendingSubscription but period_ends_at is null",
-							),
-						);
-					if (pendingInvoiceId === null)
-						return err(
-							subscriptionError(
-								value,
-								"status=UpgradePendingSubscription but pending_invoice_id is null",
-							),
-						);
-					return Result.match<
-						PlanId,
-						StoreErrorType,
-						ResultType<Subscription, StoreErrorType>
-					>(
-						toDomainPlanId(planIdValue, () =>
-							subscriptionError(
-								value,
-								`status=UpgradePendingSubscription has unknown plan_id=${planIdValue}`,
-							),
-						),
-						{
-							err,
-							ok: (planId) =>
-								ok({
-									kind: "UpgradePendingSubscription",
-									accountId: AccountId.create(value.accountId),
-									planId,
-									periodEndsAt: PeriodEndsAt.create(periodEndsAt),
-									pendingInvoiceId: InvoiceId.create(pendingInvoiceId),
-								}),
-						},
-					);
-				},
-				CancelReservedSubscription: ({ row: value }) => {
-					const planIdValue = value.planId;
-					const periodEndsAt = value.periodEndsAt;
-					if (planIdValue === null)
-						return err(
-							subscriptionError(
-								value,
-								"status=CancelReservedSubscription but plan_id is null",
-							),
-						);
-					if (periodEndsAt === null)
-						return err(
-							subscriptionError(
-								value,
-								"status=CancelReservedSubscription but period_ends_at is null",
-							),
-						);
-					return Result.match<
-						PlanId,
-						StoreErrorType,
-						ResultType<Subscription, StoreErrorType>
-					>(
-						toDomainPlanId(planIdValue, () =>
-							subscriptionError(
-								value,
-								`status=CancelReservedSubscription has unknown plan_id=${planIdValue}`,
-							),
-						),
-						{
-							err,
-							ok: (planId) =>
-								ok({
-									kind: "CancelReservedSubscription",
-									accountId: AccountId.create(value.accountId),
-									planId,
-									periodEndsAt: PeriodEndsAt.create(periodEndsAt),
-								}),
-						},
-					);
-				},
-				PlanChangeReservedSubscription: ({ row: value }) => {
-					const planIdValue = value.planId;
-					const periodEndsAt = value.periodEndsAt;
-					const nextPlanIdValue = value.nextPlanId;
-					if (planIdValue === null)
-						return err(
-							subscriptionError(
-								value,
-								"status=PlanChangeReservedSubscription but plan_id is null",
-							),
-						);
-					if (periodEndsAt === null)
-						return err(
-							subscriptionError(
-								value,
-								"status=PlanChangeReservedSubscription but period_ends_at is null",
-							),
-						);
-					if (nextPlanIdValue === null)
-						return err(
-							subscriptionError(
-								value,
-								"status=PlanChangeReservedSubscription but next_plan_id is null",
-							),
-						);
-					return Result.match<
-						PlanId,
-						StoreErrorType,
-						ResultType<Subscription, StoreErrorType>
-					>(
-						toDomainPlanId(planIdValue, () =>
-							subscriptionError(
-								value,
-								`status=PlanChangeReservedSubscription has unknown plan_id=${planIdValue}`,
-							),
-						),
-						{
-							err,
-							ok: (planId) =>
-								Result.match<
-									PlanId,
-									StoreErrorType,
-									ResultType<Subscription, StoreErrorType>
-								>(
-									toDomainPlanId(nextPlanIdValue, () =>
-										subscriptionError(
-											value,
-											`status=PlanChangeReservedSubscription has unknown next_plan_id=${nextPlanIdValue}`,
-										),
-									),
-									{
-										err,
-										ok: (nextPlanId) =>
-											ok({
-												kind: "PlanChangeReservedSubscription",
-												accountId: AccountId.create(value.accountId),
-												planId,
-												periodEndsAt: PeriodEndsAt.create(periodEndsAt),
-												nextPlanId,
-											}),
-									},
+export const StoredSubscription = {
+	decode: (row: StoredSubscription): ResultType<Subscription, StoreErrorType> =>
+		Result.match(classifySubscription(row), {
+			err,
+			ok: (choice) =>
+				matchChoice<
+					StoredSubscriptionChoice,
+					ResultType<Subscription, StoreErrorType>
+				>(choice, {
+					FreeSubscription: ({ row: value }) =>
+						ok({
+							kind: "FreeSubscription",
+							accountId: AccountId.create(value.accountId),
+						}),
+					TrialSubscription: ({ row: value }) => {
+						const planIdValue = value.planId;
+						const trialEndsAt = value.trialEndsAt;
+						if (planIdValue === null)
+							return err(
+								subscriptionError(
+									value,
+									"status=TrialSubscription but plan_id is null",
 								),
-						},
-					);
-				},
+							);
+						if (trialEndsAt === null)
+							return err(
+								subscriptionError(
+									value,
+									"status=TrialSubscription but trial_ends_at is null",
+								),
+							);
+						return Result.match<
+							PlanId,
+							StoreErrorType,
+							ResultType<Subscription, StoreErrorType>
+						>(
+							decodePlanId(planIdValue, () =>
+								subscriptionError(
+									value,
+									`status=TrialSubscription has unknown plan_id=${planIdValue}`,
+								),
+							),
+							{
+								err,
+								ok: (planId) =>
+									ok({
+										kind: "TrialSubscription",
+										accountId: AccountId.create(value.accountId),
+										planId,
+										trialEndsAt: TrialEndsAt.create(trialEndsAt),
+									}),
+							},
+						);
+					},
+					PendingPaymentSubscription: ({ row: value }) => {
+						const planIdValue = value.planId;
+						const pendingInvoiceId = value.pendingInvoiceId;
+						if (planIdValue === null)
+							return err(
+								subscriptionError(
+									value,
+									"status=PendingPaymentSubscription but plan_id is null",
+								),
+							);
+						if (pendingInvoiceId === null)
+							return err(
+								subscriptionError(
+									value,
+									"status=PendingPaymentSubscription but pending_invoice_id is null",
+								),
+							);
+						return Result.match<
+							PlanId,
+							StoreErrorType,
+							ResultType<Subscription, StoreErrorType>
+						>(
+							decodePlanId(planIdValue, () =>
+								subscriptionError(
+									value,
+									`status=PendingPaymentSubscription has unknown plan_id=${planIdValue}`,
+								),
+							),
+							{
+								err,
+								ok: (planId) =>
+									ok({
+										kind: "PendingPaymentSubscription",
+										accountId: AccountId.create(value.accountId),
+										planId,
+										pendingInvoiceId: InvoiceId.create(pendingInvoiceId),
+									}),
+							},
+						);
+					},
+					PaidSubscription: ({ row: value }) => {
+						const planIdValue = value.planId;
+						const periodEndsAt = value.periodEndsAt;
+						if (planIdValue === null)
+							return err(
+								subscriptionError(
+									value,
+									"status=PaidSubscription but plan_id is null",
+								),
+							);
+						if (periodEndsAt === null)
+							return err(
+								subscriptionError(
+									value,
+									"status=PaidSubscription but period_ends_at is null",
+								),
+							);
+						return Result.match<
+							PlanId,
+							StoreErrorType,
+							ResultType<Subscription, StoreErrorType>
+						>(
+							decodePlanId(planIdValue, () =>
+								subscriptionError(
+									value,
+									`status=PaidSubscription has unknown plan_id=${planIdValue}`,
+								),
+							),
+							{
+								err,
+								ok: (planId) =>
+									ok({
+										kind: "PaidSubscription",
+										accountId: AccountId.create(value.accountId),
+										planId,
+										periodEndsAt: PeriodEndsAt.create(periodEndsAt),
+									}),
+							},
+						);
+					},
+					UpgradePendingSubscription: ({ row: value }) => {
+						const planIdValue = value.planId;
+						const periodEndsAt = value.periodEndsAt;
+						const pendingInvoiceId = value.pendingInvoiceId;
+						if (planIdValue === null)
+							return err(
+								subscriptionError(
+									value,
+									"status=UpgradePendingSubscription but plan_id is null",
+								),
+							);
+						if (periodEndsAt === null)
+							return err(
+								subscriptionError(
+									value,
+									"status=UpgradePendingSubscription but period_ends_at is null",
+								),
+							);
+						if (pendingInvoiceId === null)
+							return err(
+								subscriptionError(
+									value,
+									"status=UpgradePendingSubscription but pending_invoice_id is null",
+								),
+							);
+						return Result.match<
+							PlanId,
+							StoreErrorType,
+							ResultType<Subscription, StoreErrorType>
+						>(
+							decodePlanId(planIdValue, () =>
+								subscriptionError(
+									value,
+									`status=UpgradePendingSubscription has unknown plan_id=${planIdValue}`,
+								),
+							),
+							{
+								err,
+								ok: (planId) =>
+									ok({
+										kind: "UpgradePendingSubscription",
+										accountId: AccountId.create(value.accountId),
+										planId,
+										periodEndsAt: PeriodEndsAt.create(periodEndsAt),
+										pendingInvoiceId: InvoiceId.create(pendingInvoiceId),
+									}),
+							},
+						);
+					},
+					CancelReservedSubscription: ({ row: value }) => {
+						const planIdValue = value.planId;
+						const periodEndsAt = value.periodEndsAt;
+						if (planIdValue === null)
+							return err(
+								subscriptionError(
+									value,
+									"status=CancelReservedSubscription but plan_id is null",
+								),
+							);
+						if (periodEndsAt === null)
+							return err(
+								subscriptionError(
+									value,
+									"status=CancelReservedSubscription but period_ends_at is null",
+								),
+							);
+						return Result.match<
+							PlanId,
+							StoreErrorType,
+							ResultType<Subscription, StoreErrorType>
+						>(
+							decodePlanId(planIdValue, () =>
+								subscriptionError(
+									value,
+									`status=CancelReservedSubscription has unknown plan_id=${planIdValue}`,
+								),
+							),
+							{
+								err,
+								ok: (planId) =>
+									ok({
+										kind: "CancelReservedSubscription",
+										accountId: AccountId.create(value.accountId),
+										planId,
+										periodEndsAt: PeriodEndsAt.create(periodEndsAt),
+									}),
+							},
+						);
+					},
+					PlanChangeReservedSubscription: ({ row: value }) => {
+						const planIdValue = value.planId;
+						const periodEndsAt = value.periodEndsAt;
+						const nextPlanIdValue = value.nextPlanId;
+						if (planIdValue === null)
+							return err(
+								subscriptionError(
+									value,
+									"status=PlanChangeReservedSubscription but plan_id is null",
+								),
+							);
+						if (periodEndsAt === null)
+							return err(
+								subscriptionError(
+									value,
+									"status=PlanChangeReservedSubscription but period_ends_at is null",
+								),
+							);
+						if (nextPlanIdValue === null)
+							return err(
+								subscriptionError(
+									value,
+									"status=PlanChangeReservedSubscription but next_plan_id is null",
+								),
+							);
+						return Result.match<
+							PlanId,
+							StoreErrorType,
+							ResultType<Subscription, StoreErrorType>
+						>(
+							decodePlanId(planIdValue, () =>
+								subscriptionError(
+									value,
+									`status=PlanChangeReservedSubscription has unknown plan_id=${planIdValue}`,
+								),
+							),
+							{
+								err,
+								ok: (planId) =>
+									Result.match<
+										PlanId,
+										StoreErrorType,
+										ResultType<Subscription, StoreErrorType>
+									>(
+										decodePlanId(nextPlanIdValue, () =>
+											subscriptionError(
+												value,
+												`status=PlanChangeReservedSubscription has unknown next_plan_id=${nextPlanIdValue}`,
+											),
+										),
+										{
+											err,
+											ok: (nextPlanId) =>
+												ok({
+													kind: "PlanChangeReservedSubscription",
+													accountId: AccountId.create(value.accountId),
+													planId,
+													periodEndsAt: PeriodEndsAt.create(periodEndsAt),
+													nextPlanId,
+												}),
+										},
+									),
+							},
+						);
+					},
+				}),
+		}),
+
+	/**
+	 * ドメインの契約 → upsert する値。
+	 * 未使用列にも null を明示し、状態遷移前の値を DB に残さない。
+	 */
+	encode: (subscription: Subscription): StoredSubscriptionValues =>
+		matchChoice<Subscription, StoredSubscriptionValues>(subscription, {
+			FreeSubscription: (value) => ({
+				accountId: AccountId.value(value.accountId),
+				status: "FreeSubscription",
+				planId: null,
+				trialEndsAt: null,
+				periodEndsAt: null,
+				pendingInvoiceId: null,
+				nextPlanId: null,
 			}),
-	});
+			TrialSubscription: (value) => ({
+				accountId: AccountId.value(value.accountId),
+				status: "TrialSubscription",
+				planId: encodePlanId(value.planId),
+				trialEndsAt: TrialEndsAt.value(value.trialEndsAt),
+				periodEndsAt: null,
+				pendingInvoiceId: null,
+				nextPlanId: null,
+			}),
+			PendingPaymentSubscription: (value) => ({
+				accountId: AccountId.value(value.accountId),
+				status: "PendingPaymentSubscription",
+				planId: encodePlanId(value.planId),
+				trialEndsAt: null,
+				periodEndsAt: null,
+				pendingInvoiceId: InvoiceId.value(value.pendingInvoiceId),
+				nextPlanId: null,
+			}),
+			PaidSubscription: (value) => ({
+				accountId: AccountId.value(value.accountId),
+				status: "PaidSubscription",
+				planId: encodePlanId(value.planId),
+				trialEndsAt: null,
+				periodEndsAt: PeriodEndsAt.value(value.periodEndsAt),
+				pendingInvoiceId: null,
+				nextPlanId: null,
+			}),
+			UpgradePendingSubscription: (value) => ({
+				accountId: AccountId.value(value.accountId),
+				status: "UpgradePendingSubscription",
+				planId: encodePlanId(value.planId),
+				trialEndsAt: null,
+				periodEndsAt: PeriodEndsAt.value(value.periodEndsAt),
+				pendingInvoiceId: InvoiceId.value(value.pendingInvoiceId),
+				nextPlanId: null,
+			}),
+			CancelReservedSubscription: (value) => ({
+				accountId: AccountId.value(value.accountId),
+				status: "CancelReservedSubscription",
+				planId: encodePlanId(value.planId),
+				trialEndsAt: null,
+				periodEndsAt: PeriodEndsAt.value(value.periodEndsAt),
+				pendingInvoiceId: null,
+				nextPlanId: null,
+			}),
+			PlanChangeReservedSubscription: (value) => ({
+				accountId: AccountId.value(value.accountId),
+				status: "PlanChangeReservedSubscription",
+				planId: encodePlanId(value.planId),
+				trialEndsAt: null,
+				periodEndsAt: PeriodEndsAt.value(value.periodEndsAt),
+				pendingInvoiceId: null,
+				nextPlanId: encodePlanId(value.nextPlanId),
+			}),
+		}),
+};
 
 const classifyInvoicePurpose = (
 	row: StoredInvoice,
@@ -474,73 +552,84 @@ const classifyInvoiceStatus = (
 };
 
 /** 永続化の請求レコード → ドメインの Invoice。 */
-export const toDomainInvoice = (
-	row: StoredInvoice,
-): ResultType<Invoice, StoreErrorType> =>
-	Result.match(classifyInvoicePurpose(row), {
-		err,
-		ok: (purposeChoice) => {
-			const purpose = matchChoice<StoredInvoicePurposeChoice, InvoicePurpose>(
-				purposeChoice,
-				{
-					New: () => ({ kind: "New" }),
-					Renewal: () => ({ kind: "Renewal" }),
-					UpgradeDifference: () => ({ kind: "UpgradeDifference" }),
-				},
-			);
-			return Result.match<
-				PlanId,
-				StoreErrorType,
-				ResultType<Invoice, StoreErrorType>
-			>(
-				toDomainPlanId(row.planId, () =>
-					invoiceError(row, `unknown plan_id=${row.planId}`),
-				),
-				{
-					err,
-					ok: (planId) =>
-						Result.match<
-							StoredInvoiceStatusChoice,
-							StoreErrorType,
-							ResultType<Invoice, StoreErrorType>
-						>(classifyInvoiceStatus(row), {
-							err,
-							ok: (statusChoice) => {
-								const fields = {
-									id: InvoiceId.create(row.invoiceId),
-									accountId: AccountId.create(row.accountId),
-									planId,
-									amount: Amount.create(row.amount),
-									purpose,
-									issuedAt: IssuedAt.create(row.issuedAt),
-								};
-								return ok(
-									matchChoice<StoredInvoiceStatusChoice, Invoice>(
-										statusChoice,
-										{
-											UnpaidInvoice: () => ({
-												kind: "UnpaidInvoice",
-												...fields,
-											}),
-											PaidInvoice: () => ({
-												kind: "PaidInvoice",
-												...fields,
-											}),
-											FailedInvoice: () => ({
-												kind: "FailedInvoice",
-												...fields,
-											}),
-										},
-									),
-								);
-							},
-						}),
-				},
-			);
-		},
-	});
+export const StoredInvoice = {
+	decode: (row: StoredInvoice): ResultType<Invoice, StoreErrorType> =>
+		Result.match(classifyInvoicePurpose(row), {
+			err,
+			ok: (purposeChoice) => {
+				const purpose = matchChoice<StoredInvoicePurposeChoice, InvoicePurpose>(
+					purposeChoice,
+					{
+						New: () => ({ kind: "New" }),
+						Renewal: () => ({ kind: "Renewal" }),
+						UpgradeDifference: () => ({ kind: "UpgradeDifference" }),
+					},
+				);
+				return Result.match<
+					PlanId,
+					StoreErrorType,
+					ResultType<Invoice, StoreErrorType>
+				>(
+					decodePlanId(row.planId, () =>
+						invoiceError(row, `unknown plan_id=${row.planId}`),
+					),
+					{
+						err,
+						ok: (planId) =>
+							Result.match<
+								StoredInvoiceStatusChoice,
+								StoreErrorType,
+								ResultType<Invoice, StoreErrorType>
+							>(classifyInvoiceStatus(row), {
+								err,
+								ok: (statusChoice) => {
+									const fields = {
+										id: InvoiceId.create(row.invoiceId),
+										accountId: AccountId.create(row.accountId),
+										planId,
+										amount: Amount.create(row.amount),
+										purpose,
+										issuedAt: IssuedAt.create(row.issuedAt),
+									};
+									return ok(
+										matchChoice<StoredInvoiceStatusChoice, Invoice>(
+											statusChoice,
+											{
+												UnpaidInvoice: () => ({
+													kind: "UnpaidInvoice",
+													...fields,
+												}),
+												PaidInvoice: () => ({
+													kind: "PaidInvoice",
+													...fields,
+												}),
+												FailedInvoice: () => ({
+													kind: "FailedInvoice",
+													...fields,
+												}),
+											},
+										),
+									);
+								},
+							}),
+					},
+				);
+			},
+		}),
 
-const toStoredInvoicePurpose = (
+	/** ドメインの請求 → upsert する値。 */
+	encode: (invoice: Invoice): StoredInvoiceValues => ({
+		invoiceId: InvoiceId.value(invoice.id),
+		accountId: AccountId.value(invoice.accountId),
+		planId: encodePlanId(invoice.planId),
+		amount: Amount.value(invoice.amount),
+		purpose: encodeInvoicePurpose(invoice.purpose),
+		status: encodeInvoiceStatus(invoice),
+		issuedAt: IssuedAt.value(invoice.issuedAt),
+	}),
+};
+
+const encodeInvoicePurpose = (
 	purpose: InvoicePurpose,
 ): StoredInvoiceValues["purpose"] =>
 	matchChoice<InvoicePurpose, StoredInvoiceValues["purpose"]>(purpose, {
@@ -549,108 +638,9 @@ const toStoredInvoicePurpose = (
 		UpgradeDifference: () => "UpgradeDifference",
 	});
 
-const toStoredInvoiceStatus = (
-	invoice: Invoice,
-): StoredInvoiceValues["status"] =>
+const encodeInvoiceStatus = (invoice: Invoice): StoredInvoiceValues["status"] =>
 	matchChoice<Invoice, StoredInvoiceValues["status"]>(invoice, {
 		UnpaidInvoice: () => "UnpaidInvoice",
 		PaidInvoice: () => "PaidInvoice",
 		FailedInvoice: () => "FailedInvoice",
 	});
-
-/** ドメインの契約者 → upsert する値。判別子は trial_used_at の NULL 有無。 */
-export const toStoredAccount = (account: Account): StoredAccountValues =>
-	matchChoice<Account, StoredAccountValues>(account, {
-		TrialUnusedAccount: (value) => ({
-			accountId: AccountId.value(value.id),
-			trialUsedAt: null,
-		}),
-		TrialUsedAccount: (value) => ({
-			accountId: AccountId.value(value.id),
-			trialUsedAt: TrialUsedAt.value(value.trialUsedAt),
-		}),
-	});
-
-/**
- * ドメインの契約 → upsert する値。
- * 未使用列にも null を明示し、状態遷移前の値を DB に残さない。
- */
-export const toStoredSubscription = (
-	subscription: Subscription,
-): StoredSubscriptionValues =>
-	matchChoice<Subscription, StoredSubscriptionValues>(subscription, {
-		FreeSubscription: (value) => ({
-			accountId: AccountId.value(value.accountId),
-			status: "FreeSubscription",
-			planId: null,
-			trialEndsAt: null,
-			periodEndsAt: null,
-			pendingInvoiceId: null,
-			nextPlanId: null,
-		}),
-		TrialSubscription: (value) => ({
-			accountId: AccountId.value(value.accountId),
-			status: "TrialSubscription",
-			planId: toStoredPlanId(value.planId),
-			trialEndsAt: TrialEndsAt.value(value.trialEndsAt),
-			periodEndsAt: null,
-			pendingInvoiceId: null,
-			nextPlanId: null,
-		}),
-		PendingPaymentSubscription: (value) => ({
-			accountId: AccountId.value(value.accountId),
-			status: "PendingPaymentSubscription",
-			planId: toStoredPlanId(value.planId),
-			trialEndsAt: null,
-			periodEndsAt: null,
-			pendingInvoiceId: InvoiceId.value(value.pendingInvoiceId),
-			nextPlanId: null,
-		}),
-		PaidSubscription: (value) => ({
-			accountId: AccountId.value(value.accountId),
-			status: "PaidSubscription",
-			planId: toStoredPlanId(value.planId),
-			trialEndsAt: null,
-			periodEndsAt: PeriodEndsAt.value(value.periodEndsAt),
-			pendingInvoiceId: null,
-			nextPlanId: null,
-		}),
-		UpgradePendingSubscription: (value) => ({
-			accountId: AccountId.value(value.accountId),
-			status: "UpgradePendingSubscription",
-			planId: toStoredPlanId(value.planId),
-			trialEndsAt: null,
-			periodEndsAt: PeriodEndsAt.value(value.periodEndsAt),
-			pendingInvoiceId: InvoiceId.value(value.pendingInvoiceId),
-			nextPlanId: null,
-		}),
-		CancelReservedSubscription: (value) => ({
-			accountId: AccountId.value(value.accountId),
-			status: "CancelReservedSubscription",
-			planId: toStoredPlanId(value.planId),
-			trialEndsAt: null,
-			periodEndsAt: PeriodEndsAt.value(value.periodEndsAt),
-			pendingInvoiceId: null,
-			nextPlanId: null,
-		}),
-		PlanChangeReservedSubscription: (value) => ({
-			accountId: AccountId.value(value.accountId),
-			status: "PlanChangeReservedSubscription",
-			planId: toStoredPlanId(value.planId),
-			trialEndsAt: null,
-			periodEndsAt: PeriodEndsAt.value(value.periodEndsAt),
-			pendingInvoiceId: null,
-			nextPlanId: toStoredPlanId(value.nextPlanId),
-		}),
-	});
-
-/** ドメインの請求 → upsert する値。 */
-export const toStoredInvoice = (invoice: Invoice): StoredInvoiceValues => ({
-	invoiceId: InvoiceId.value(invoice.id),
-	accountId: AccountId.value(invoice.accountId),
-	planId: toStoredPlanId(invoice.planId),
-	amount: Amount.value(invoice.amount),
-	purpose: toStoredInvoicePurpose(invoice.purpose),
-	status: toStoredInvoiceStatus(invoice),
-	issuedAt: IssuedAt.value(invoice.issuedAt),
-});

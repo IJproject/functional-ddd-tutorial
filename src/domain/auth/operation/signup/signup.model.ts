@@ -16,13 +16,13 @@ import type { Case, NonEmptyArray } from "#/domain/building-blocks";
 // 入力
 // ===========================================================================
 
-export type UnvalidatedSignupRequest = {
+export type UnvalidatedSignupCommand = {
 	name: string;
 	email: string;
 	password: string;
 };
 
-export type ValidatedSignupRequest = {
+export type ValidatedSignupCommand = {
 	name: UserName;
 	email: EmailAddress;
 	password: Password;

@@ -5,32 +5,30 @@ import { Button } from "#/components/control/button";
 import { Alert } from "#/components/feedback/alert";
 import { TextField } from "#/components/form/text-field";
 import {
-	decodeLoginCommand,
-	encodeLoginResponse,
 	type LoginFieldError,
-	loginCommandSchema,
-	UNEXPECTED_LOGIN_RESPONSE,
+	LoginRequest,
+	LoginResponse,
 } from "#/domain/auth/operation/login/login.dto";
 import { LoggedInAt } from "#/domain/auth/operation/login/login.primitive";
 import {
 	createLoggedInEvent,
 	createLoginWorkflow,
-	validateLoginRequest,
+	validateLoginCommand,
 } from "#/domain/auth/operation/login/login.workflow";
 import { verifyCredentials } from "#/external/better-auth/verify-credentials";
 
 // composition root: ドメインのポートに具体的な実装を差し込むのはここだけ。
 const loginWorkflow = createLoginWorkflow({
-	validateLoginRequest,
+	validateLoginCommand,
 	verifyCredentials,
 	createLoggedInEvent,
 	now: () => LoggedInAt.create(new Date()),
 });
 
 const login = createServerFn({ method: "POST" })
-	.validator(loginCommandSchema)
+	.validator(LoginRequest.schema)
 	.handler(async ({ data }) =>
-		encodeLoginResponse(await loginWorkflow(decodeLoginCommand(data))),
+		LoginResponse.encode(await loginWorkflow(LoginRequest.decode(data))),
 	);
 
 export function LoginPage() {
@@ -63,7 +61,7 @@ export function LoginPage() {
 			await navigate({ to: "/" });
 		} catch {
 			// ここに来るのは通信断や、アダプタが投げ直したインフラ障害だけ。
-			setErrors(UNEXPECTED_LOGIN_RESPONSE.errors);
+			setErrors(LoginResponse.unexpected.errors);
 		}
 	}
 	return (

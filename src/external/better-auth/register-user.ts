@@ -13,24 +13,24 @@ import { auth } from "#/external/better-auth/auth";
  * ドメインの型は「登録」だけを表しているが、better-auth ではこの2つを分離できないため、
  * このアダプタはセッション確立という副作用も併せ持つ。
  */
-export const registerUser: RegisterUser = async (request) => {
+export const registerUser: RegisterUser = async (command) => {
 	try {
 		const result = await auth.api.signUpEmail({
 			body: {
-				name: UserName.value(request.name),
-				email: request.email,
-				password: request.password,
+				name: UserName.value(command.name),
+				email: command.email,
+				password: command.password,
 			},
 			headers: getRequestHeaders(),
 		});
-		return ok({ id: UserId.create(result.user.id), email: request.email });
+		return ok({ id: UserId.create(result.user.id), email: command.email });
 	} catch (error) {
 		if (
 			error instanceof APIError &&
 			(error.body?.code === "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL" ||
 				error.body?.code === "USER_ALREADY_EXISTS")
 		)
-			return err({ kind: "EmailAlreadyTaken", attemptedEmail: request.email });
+			return err({ kind: "EmailAlreadyTaken", attemptedEmail: command.email });
 		throw error;
 	}
 };

@@ -12,10 +12,10 @@ import type {
 // ===========================================================================
 
 /** 信頼境界を越えてきた、まだドメインの型へ変換していないプラン変更入力。 */
-export type UnvalidatedChangePlanRequest = { planId: string };
+export type UnvalidatedChangePlanCommand = { planId: string };
 
 /** ドメインの primitive へ変換済みのプラン変更入力。 */
-export type ChangePlanRequest = { planId: PlanId };
+export type ValidatedChangePlanCommand = { planId: PlanId };
 
 // ===========================================================================
 // イベント

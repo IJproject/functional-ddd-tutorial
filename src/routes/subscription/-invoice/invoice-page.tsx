@@ -7,13 +7,12 @@ import { Alert } from "#/components/feedback/alert";
 import { matchChoice, Result } from "#/domain/building-blocks";
 import { toAccountId } from "#/domain/context-map/auth-to-subscription";
 import {
-	decodeInvoiceParams,
-	encodeInvoiceDetailView,
 	INVOICE_DETAIL_UNAVAILABLE_MESSAGE,
 	INVOICE_LOGIN_REQUIRED_MESSAGE,
 	INVOICE_NOT_FOUND_DESCRIPTION,
+	InvoiceDetailItemView,
+	InvoiceDetailRequest,
 	type InvoiceDetailView,
-	invoiceParamsSchema,
 } from "#/domain/subscription/operation/invoice-detail/invoice-detail.dto";
 import { currentSession } from "#/external/better-auth/current-session";
 import { findInvoice } from "#/external/subscription-store/subscription-store";
@@ -48,13 +47,13 @@ const INVOICE_STATUS_TONE: Record<string, BadgeTone> = {
 };
 
 const getInvoiceDetail = createServerFn({ method: "GET" })
-	.validator(invoiceParamsSchema)
+	.validator(InvoiceDetailRequest.schema)
 	.handler(async ({ data }) => {
 		const session = await currentSession();
 		return matchChoice<typeof session, Promise<InvoiceDetailView>>(session, {
 			AnonymousSession: async () => ({ kind: "AnonymousInvoiceDetail" }),
 			AuthenticatedSession: async ({ userId }) =>
-				Result.match(decodeInvoiceParams(data), {
+				Result.match(InvoiceDetailRequest.decode(data), {
 					/**
 					 * 形式不正・存在しない・他アカウント所有を区別すると、URL の総当たりから
 					 * 他人の請求 ID の存在を推測できるため、すべて InvoiceNotFound に落とす。
@@ -75,7 +74,7 @@ const getInvoiceDetail = createServerFn({ method: "GET" })
 									? { kind: "InvoiceNotFound" }
 									: {
 											kind: "InvoiceFound",
-											invoice: encodeInvoiceDetailView(invoice),
+											invoice: InvoiceDetailItemView.encode(invoice),
 										},
 						});
 					},

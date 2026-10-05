@@ -15,24 +15,19 @@ import { AccountId } from "#/domain/subscription/model/account.primitive";
 import { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
 import {
 	type ApplyFieldError,
-	type ApplyResponse,
-	AUTHENTICATION_REQUIRED_APPLY_RESPONSE,
-	applyCommandSchema,
-	decodeApplyCommand,
-	encodeApplyResponse,
-	UNEXPECTED_APPLY_RESPONSE,
+	ApplyRequest,
+	ApplyResponse,
 } from "#/domain/subscription/operation/apply/apply.dto";
 import type { Applied } from "#/domain/subscription/operation/apply/apply.model";
 import {
 	applyToSubscription,
 	createApplyWorkflow,
-	validateApplyRequest,
+	validateApplyCommand,
 } from "#/domain/subscription/operation/apply/apply.workflow";
 import {
 	ALREADY_SUBSCRIBED_APPLY_MESSAGE,
 	APPLY_CONTEXT_UNAVAILABLE_MESSAGE,
-	type ApplyContextView,
-	encodeApplyContextView,
+	ApplyContextView,
 } from "#/domain/subscription/operation/apply/apply-context.dto";
 import { currentSession } from "#/external/better-auth/current-session";
 import {
@@ -44,7 +39,7 @@ import { PlanList } from "./plan-list/plan-list";
 
 // composition root: ドメインのポートに具体的な実装を差し込むのはここだけ。
 const applyWorkflow = createApplyWorkflow({
-	validateApplyRequest,
+	validateApplyCommand,
 	applyToSubscription,
 	newInvoiceId: () => InvoiceId.create(crypto.randomUUID()),
 	now: () => new Date(),
@@ -63,25 +58,25 @@ const getApplyContext = createServerFn({ method: "GET" }).handler(async () => {
 					throw new Error();
 				},
 				ok: (context) =>
-					encodeApplyContextView(context.account, context.subscription),
+					ApplyContextView.encode(context.account, context.subscription),
 			});
 		},
 	});
 });
 
 const applySubscription = createServerFn({ method: "POST" })
-	.validator(applyCommandSchema)
+	.validator(ApplyRequest.schema)
 	.handler(async ({ data }) => {
 		const session = await currentSession();
 		return matchChoice<typeof session, Promise<ApplyResponse>>(session, {
-			AnonymousSession: async () => AUTHENTICATION_REQUIRED_APPLY_RESPONSE,
+			AnonymousSession: async () => ApplyResponse.authenticationRequired,
 			AuthenticatedSession: async ({ userId }) => {
 				const accountId = toAccountId(userId);
 				return pipe(
 					loadApplyContext(accountId),
 					AsyncResult.flatMap((context) =>
 						applyWorkflow(
-							decodeApplyCommand(data, AccountId.value(accountId)),
+							ApplyRequest.decode(data, AccountId.value(accountId)),
 							context,
 						),
 					),
@@ -89,7 +84,7 @@ const applySubscription = createServerFn({ method: "POST" })
 						await saveApplied(applied);
 						return ok(applied);
 					}),
-					async (result) => encodeApplyResponse(await result),
+					async (result) => ApplyResponse.encode(await result),
 				);
 			},
 		});
@@ -127,7 +122,7 @@ export function ApplyPage() {
 			setErrors([]);
 			await navigate({ to: "/" });
 		} catch {
-			setErrors(UNEXPECTED_APPLY_RESPONSE.errors);
+			setErrors(ApplyResponse.unexpected.errors);
 		}
 	}
 	if (!data)

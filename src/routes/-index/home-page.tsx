@@ -15,11 +15,8 @@ import {
 import { toAccountId } from "#/domain/context-map/auth-to-subscription";
 import { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
 import {
-	AUTHENTICATION_REQUIRED_CANCEL_RESPONSE,
-	type CancelResponse,
-	encodeCancelTrialResponse,
-	encodeReserveCancellationResponse,
-	UNEXPECTED_CANCEL_RESPONSE,
+	CancelTrialResponse,
+	ReserveCancellationResponse,
 } from "#/domain/subscription/operation/cancel/cancel.dto";
 import type {
 	CancellationReserved,
@@ -32,25 +29,18 @@ import {
 	reserveCancellation as reserveCancellationForSubscription,
 } from "#/domain/subscription/operation/cancel/cancel.workflow";
 import {
-	AUTHENTICATION_REQUIRED_CHANGE_PLAN_RESPONSE,
-	type ChangePlanResponse,
-	changePlanCommandSchema,
-	decodeChangePlanCommand,
-	encodeChangePlanResponse,
-	UNEXPECTED_CHANGE_PLAN_RESPONSE,
+	ChangePlanRequest,
+	ChangePlanResponse,
 } from "#/domain/subscription/operation/change-plan/change-plan.dto";
 import type { PlanChanged } from "#/domain/subscription/operation/change-plan/change-plan.model";
 import {
 	changePlanForSubscription,
 	createChangePlanWorkflow,
-	validateChangePlanRequest,
+	validateChangePlanCommand,
 } from "#/domain/subscription/operation/change-plan/change-plan.workflow";
 import {
-	AUTHENTICATION_REQUIRED_PAYMENT_RESPONSE,
-	encodePaymentResponse,
-	type PaymentResponse,
-	payInvoiceCommandSchema,
-	UNEXPECTED_PAYMENT_RESPONSE,
+	PayInvoiceRequest,
+	PaymentResponse,
 } from "#/domain/subscription/operation/payment/payment.dto";
 import type {
 	InvoiceNotFound,
@@ -70,24 +60,18 @@ import {
 	endTrial as endTrialForSubscription,
 } from "#/domain/subscription/operation/schedule/end-trial.workflow";
 import {
-	AUTHENTICATION_REQUIRED_END_PERIOD_RESPONSE,
-	AUTHENTICATION_REQUIRED_END_TRIAL_RESPONSE,
-	encodeEndPeriodResponse,
-	encodeEndTrialResponse,
-	type ScheduleResponse,
-	UNEXPECTED_END_PERIOD_RESPONSE,
-	UNEXPECTED_END_TRIAL_RESPONSE,
+	EndPeriodResponse,
+	EndTrialResponse,
 } from "#/domain/subscription/operation/schedule/schedule.dto";
 import type {
 	PeriodEnded,
 	TrialEnded,
 } from "#/domain/subscription/operation/schedule/schedule.model";
 import {
-	encodeSubscriptionView,
 	NO_INVOICES_MESSAGE,
 	SUBSCRIPTION_LOGIN_REQUIRED_MESSAGE,
 	SUBSCRIPTION_VIEW_UNAVAILABLE_MESSAGE,
-	type SubscriptionView,
+	SubscriptionView,
 } from "#/domain/subscription/operation/subscription-view/subscription-view.dto";
 import { currentSession } from "#/external/better-auth/current-session";
 import { chargeInvoice } from "#/external/payment-gateway/charge-invoice";
@@ -163,7 +147,7 @@ export const fetchHomeSession = createServerFn({ method: "GET" }).handler(
 const newInvoiceId = () => InvoiceId.create(crypto.randomUUID());
 const now = () => new Date();
 const changePlanWorkflow = createChangePlanWorkflow({
-	validateChangePlanRequest,
+	validateChangePlanCommand,
 	changePlanForSubscription,
 	newInvoiceId,
 	now,
@@ -207,7 +191,7 @@ const getSubscriptionView = createServerFn({ method: "GET" }).handler(
 						throw new Error();
 					},
 					ok: ([domainSubscription, domainInvoices]) =>
-						encodeSubscriptionView(domainSubscription, domainInvoices),
+						SubscriptionView.encode(domainSubscription, domainInvoices),
 				});
 			},
 		});
@@ -215,17 +199,16 @@ const getSubscriptionView = createServerFn({ method: "GET" }).handler(
 );
 
 const requestPlanChange = createServerFn({ method: "POST" })
-	.validator(changePlanCommandSchema)
+	.validator(ChangePlanRequest.schema)
 	.handler(async ({ data }) => {
 		const session = await currentSession();
 		return matchChoice<typeof session, Promise<ChangePlanResponse>>(session, {
-			AnonymousSession: async () =>
-				AUTHENTICATION_REQUIRED_CHANGE_PLAN_RESPONSE,
+			AnonymousSession: async () => ChangePlanResponse.authenticationRequired,
 			AuthenticatedSession: async ({ userId }) =>
 				pipe(
 					loadSubscription(toAccountId(userId)),
 					AsyncResult.flatMap((subscription) =>
-						changePlanWorkflow(decodeChangePlanCommand(data), subscription),
+						changePlanWorkflow(ChangePlanRequest.decode(data), subscription),
 					),
 					AsyncResult.flatMap<PlanChanged, PlanChanged, never>(
 						async (changed) => {
@@ -233,15 +216,15 @@ const requestPlanChange = createServerFn({ method: "POST" })
 							return ok(changed);
 						},
 					),
-					async (result) => encodeChangePlanResponse(await result),
+					async (result) => ChangePlanResponse.encode(await result),
 				),
 		});
 	});
 
 const cancelTrial = createServerFn({ method: "POST" }).handler(async () => {
 	const session = await currentSession();
-	return matchChoice<typeof session, Promise<CancelResponse>>(session, {
-		AnonymousSession: async () => AUTHENTICATION_REQUIRED_CANCEL_RESPONSE,
+	return matchChoice<typeof session, Promise<CancelTrialResponse>>(session, {
+		AnonymousSession: async () => CancelTrialResponse.authenticationRequired,
 		AuthenticatedSession: async ({ userId }) =>
 			pipe(
 				loadSubscription(toAccountId(userId)),
@@ -252,7 +235,7 @@ const cancelTrial = createServerFn({ method: "POST" }).handler(async () => {
 						return ok(cancelled);
 					},
 				),
-				async (result) => encodeCancelTrialResponse(await result),
+				async (result) => CancelTrialResponse.encode(await result),
 			),
 	});
 });
@@ -260,32 +243,36 @@ const cancelTrial = createServerFn({ method: "POST" }).handler(async () => {
 const reserveCancellation = createServerFn({ method: "POST" }).handler(
 	async () => {
 		const session = await currentSession();
-		return matchChoice<typeof session, Promise<CancelResponse>>(session, {
-			AnonymousSession: async () => AUTHENTICATION_REQUIRED_CANCEL_RESPONSE,
-			AuthenticatedSession: async ({ userId }) =>
-				pipe(
-					loadSubscription(toAccountId(userId)),
-					AsyncResult.flatMap(reserveCancellationWorkflow),
-					AsyncResult.flatMap<
-						CancellationReserved,
-						CancellationReserved,
-						never
-					>(async (reserved) => {
-						await saveCancellationReserved(reserved);
-						return ok(reserved);
-					}),
-					async (result) => encodeReserveCancellationResponse(await result),
-				),
-		});
+		return matchChoice<typeof session, Promise<ReserveCancellationResponse>>(
+			session,
+			{
+				AnonymousSession: async () =>
+					ReserveCancellationResponse.authenticationRequired,
+				AuthenticatedSession: async ({ userId }) =>
+					pipe(
+						loadSubscription(toAccountId(userId)),
+						AsyncResult.flatMap(reserveCancellationWorkflow),
+						AsyncResult.flatMap<
+							CancellationReserved,
+							CancellationReserved,
+							never
+						>(async (reserved) => {
+							await saveCancellationReserved(reserved);
+							return ok(reserved);
+						}),
+						async (result) => ReserveCancellationResponse.encode(await result),
+					),
+			},
+		);
 	},
 );
 
 const payInvoice = createServerFn({ method: "POST" })
-	.validator(payInvoiceCommandSchema)
+	.validator(PayInvoiceRequest.schema)
 	.handler(async ({ data }) => {
 		const session = await currentSession();
 		return matchChoice<typeof session, Promise<PaymentResponse>>(session, {
-			AnonymousSession: async () => AUTHENTICATION_REQUIRED_PAYMENT_RESPONSE,
+			AnonymousSession: async () => PaymentResponse.authenticationRequired,
 			AuthenticatedSession: async ({ userId }) => {
 				const accountId = toAccountId(userId);
 				const [invoice, subscription] = await Promise.all([
@@ -313,7 +300,7 @@ const payInvoice = createServerFn({ method: "POST" })
 							return ok(settled);
 						},
 					),
-					async (result) => encodePaymentResponse(await result),
+					async (result) => PaymentResponse.encode(await result),
 				);
 			},
 		});
@@ -321,8 +308,8 @@ const payInvoice = createServerFn({ method: "POST" })
 
 const endTrial = createServerFn({ method: "POST" }).handler(async () => {
 	const session = await currentSession();
-	return matchChoice<typeof session, Promise<ScheduleResponse>>(session, {
-		AnonymousSession: async () => AUTHENTICATION_REQUIRED_END_TRIAL_RESPONSE,
+	return matchChoice<typeof session, Promise<EndTrialResponse>>(session, {
+		AnonymousSession: async () => EndTrialResponse.authenticationRequired,
 		AuthenticatedSession: async ({ userId }) =>
 			pipe(
 				loadSubscription(toAccountId(userId)),
@@ -331,15 +318,15 @@ const endTrial = createServerFn({ method: "POST" }).handler(async () => {
 					await saveTrialEnded(ended);
 					return ok(ended);
 				}),
-				async (result) => encodeEndTrialResponse(await result),
+				async (result) => EndTrialResponse.encode(await result),
 			),
 	});
 });
 
 const endPeriod = createServerFn({ method: "POST" }).handler(async () => {
 	const session = await currentSession();
-	return matchChoice<typeof session, Promise<ScheduleResponse>>(session, {
-		AnonymousSession: async () => AUTHENTICATION_REQUIRED_END_PERIOD_RESPONSE,
+	return matchChoice<typeof session, Promise<EndPeriodResponse>>(session, {
+		AnonymousSession: async () => EndPeriodResponse.authenticationRequired,
 		AuthenticatedSession: async ({ userId }) =>
 			pipe(
 				loadSubscription(toAccountId(userId)),
@@ -348,16 +335,18 @@ const endPeriod = createServerFn({ method: "POST" }).handler(async () => {
 					await savePeriodEnded(ended);
 					return ok(ended);
 				}),
-				async (result) => encodeEndPeriodResponse(await result),
+				async (result) => EndPeriodResponse.encode(await result),
 			),
 	});
 });
 
 type ActionResponse =
 	| ChangePlanResponse
-	| CancelResponse
+	| CancelTrialResponse
+	| ReserveCancellationResponse
 	| PaymentResponse
-	| ScheduleResponse;
+	| EndTrialResponse
+	| EndPeriodResponse;
 type FailedActionResponse = Exclude<ActionResponse, { ok: true }>;
 
 export function HomePage() {
@@ -399,7 +388,7 @@ export function HomePage() {
 		}
 	}
 	const pay = (invoiceId: string) =>
-		act(() => payInvoice({ data: { invoiceId } }), UNEXPECTED_PAYMENT_RESPONSE);
+		act(() => payInvoice({ data: { invoiceId } }), PaymentResponse.unexpected);
 
 	const errorAlert = <Alert messages={errors} />;
 	if (!data)
@@ -477,7 +466,7 @@ export function HomePage() {
 							<Button
 								kind="action"
 								variant="danger"
-								onClick={() => act(cancelTrial, UNEXPECTED_CANCEL_RESPONSE)}
+								onClick={() => act(cancelTrial, CancelTrialResponse.unexpected)}
 							>
 								{HOME_TEXT.cancelTrial}
 							</Button>
@@ -487,7 +476,10 @@ export function HomePage() {
 								kind="action"
 								variant="danger"
 								onClick={() =>
-									act(reserveCancellation, UNEXPECTED_CANCEL_RESPONSE)
+									act(
+										reserveCancellation,
+										ReserveCancellationResponse.unexpected,
+									)
 								}
 							>
 								{HOME_TEXT.reserveCancellation}
@@ -530,7 +522,7 @@ export function HomePage() {
 										onClick={() =>
 											act(
 												() => requestPlanChange({ data: { planId: plan.id } }),
-												UNEXPECTED_CHANGE_PLAN_RESPONSE,
+												ChangePlanResponse.unexpected,
 											)
 										}
 									>
@@ -599,7 +591,7 @@ export function HomePage() {
 						kind="action"
 						variant="secondary"
 						disabled={!state.canEndTrial}
-						onClick={() => act(endTrial, UNEXPECTED_END_TRIAL_RESPONSE)}
+						onClick={() => act(endTrial, EndTrialResponse.unexpected)}
 					>
 						{HOME_TEXT.endTrial}
 					</Button>
@@ -607,7 +599,7 @@ export function HomePage() {
 						kind="action"
 						variant="secondary"
 						disabled={!state.canEndPeriod}
-						onClick={() => act(endPeriod, UNEXPECTED_END_PERIOD_RESPONSE)}
+						onClick={() => act(endPeriod, EndPeriodResponse.unexpected)}
 					>
 						{HOME_TEXT.endPeriod}
 					</Button>

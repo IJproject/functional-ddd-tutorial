@@ -5,17 +5,15 @@ import { Button } from "#/components/control/button";
 import { Alert } from "#/components/feedback/alert";
 import { TextField } from "#/components/form/text-field";
 import {
-	decodeSignupCommand,
-	encodeSignupResponse,
 	type SignupFieldError,
-	signupCommandSchema,
-	UNEXPECTED_SIGNUP_RESPONSE,
+	SignupRequest,
+	SignupResponse,
 } from "#/domain/auth/operation/signup/signup.dto";
 import { RegisteredAt } from "#/domain/auth/operation/signup/signup.primitive";
 import {
 	createRegisteredEvent,
 	createSignupWorkflow,
-	validateSignupRequest,
+	validateSignupCommand,
 } from "#/domain/auth/operation/signup/signup.workflow";
 import { AccountId } from "#/domain/subscription/model/account.primitive";
 import { registerUser } from "#/external/better-auth/register-user";
@@ -23,17 +21,17 @@ import { openAccount } from "#/external/subscription-store/subscription-store";
 
 // composition root: ドメインのポートに具体的な実装を差し込むのはここだけ。
 const signupWorkflow = createSignupWorkflow({
-	validateSignupRequest,
+	validateSignupCommand,
 	registerUser,
 	createRegisteredEvent,
 	now: () => RegisteredAt.create(new Date()),
 });
 
 const signup = createServerFn({ method: "POST" })
-	.validator(signupCommandSchema)
+	.validator(SignupRequest.schema)
 	.handler(async ({ data }) => {
-		const response = encodeSignupResponse(
-			await signupWorkflow(decodeSignupCommand(data)),
+		const response = SignupResponse.encode(
+			await signupWorkflow(SignupRequest.decode(data)),
 		);
 		// subscription BC の口座開設。BC を跨ぐ型の翻訳は境界層で行う。
 		if (response.ok) await openAccount(AccountId.create(response.userId));
@@ -71,7 +69,7 @@ export function SignupPage() {
 			await navigate({ to: "/" });
 		} catch {
 			// ここに来るのは通信断や、アダプタが投げ直したインフラ障害だけ。
-			setErrors(UNEXPECTED_SIGNUP_RESPONSE.errors);
+			setErrors(SignupResponse.unexpected.errors);
 		}
 	}
 	return (

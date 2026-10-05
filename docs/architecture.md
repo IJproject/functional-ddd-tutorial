@@ -107,17 +107,17 @@ flowchart LR
         JSONout[JSON]
     end
     subgraph dto[dto/]
-        Cmd[XxxCommand]
+        Req[XxxRequest]
         Res[XxxResponse]
     end
     subgraph domain[model/ workflow/]
         Unv[UnvalidatedXxx]
         Result["Result&lt;Event, Error&gt;"]
     end
-    JSONin -- "schema.parse（デシリアライズ）" --> Cmd
-    Cmd -- "decodeXxxCommand" --> Unv
+    JSONin -- "XxxRequest.schema.parse（デシリアライズ）" --> Req
+    Req -- "XxxRequest.decode" --> Unv
     Unv -- "workflow" --> Result
-    Result -- "encodeXxxResponse" --> Res
+    Result -- "XxxResponse.encode" --> Res
     Res -- "シリアライズ" --> JSONout
 ```
 
@@ -128,9 +128,9 @@ flowchart LR
 どちらも「外の形をドメインの形に直す」仕事だが、置き場所を分けるのは依存の向きが違うからである。
 `dto/` は `domain/` の内側にあり、`external/` を import してはならない。
 
-### 4.2 DTO 型の定義（Command / Response / View と schema）
+### 4.2 DTO 型の定義（Request / Response / View と schema）
 
-- **Command**: UI からの入力。zod の schema から `z.infer` で導出する。schema は「JSON がこの形をしているか」を確かめる構造の検査であり、「メールとして妥当か」のような業務ルールの検証はしない。それは `model/` の値オブジェクトの仕事である。
+- **Request**: UI からの入力。zod の schema から `z.infer` で導出する。schema は「JSON がこの形をしているか」を確かめる構造の検査であり、「メールとして妥当か」のような業務ルールの検証はしない。それは `model/` の値オブジェクトの仕事である。
 - **Response**: ワークフローの結果を UI に返す形。`{ ok: true; ... } | { ok: false; ... }` の直和で表し、失敗は文言まで含めて確定させる。
 - **View**: 読み取り専用の表示用データ。ワークフローを経ずにドメインの状態を UI 向けに写したもの。
 
@@ -138,13 +138,13 @@ DTO 型はシリアライズ可能な値（string / number / boolean / null と�
 
 ### 4.3 decode（DTO → ドメイン）
 
-`decodeXxxCommand` は Command をドメインの未検証入力（`UnvalidatedXxx`）へ写す。
+`XxxRequest.decode` は Request をドメインの未検証入力（`UnvalidatedXxxCommand`）へ写す。
 値の検証はしない。未検証入力を渡された先のワークフローが値オブジェクトを構築し、そこで初めて業務ルールが適用される。
 URL パラメータのように、構造として正しくてもドメインの ID として解釈できない入力があるときだけ、decode は `Result` を返してよい。
 
 ### 4.4 encode（ドメイン → DTO）
 
-`encodeXxxResponse` はワークフローの `Result<Event, Error>` を Response へ写す。
+`XxxResponse.encode` はワークフローの `Result<Event, Error>` を Response へ写す。
 成功側はイベントから UI が必要とする値だけを取り出し、失敗側はエラーの種類ごとに文言と表示位置（どのフォーム項目か）を決める。
 エラーの直和には `matchChoice` で網羅的に対応し、ドメインにエラーの種類が増えたとき翻訳漏れがコンパイルエラーになるようにする。
 
@@ -155,36 +155,38 @@ URL パラメータのように、構造として正しくてもドメインの 
 
 1. **ドメインのエラー**: ワークフローが `Err` で返す。`encode` の中で翻訳する。
 2. **境界の失敗**: ワークフローに渡す前の読み取りで起きる（ストアの行をドメイン型として解釈できない、など）。Wlaschin の RemoteServiceError にならい、これらは `model/` に型として定義し、`encode` が受けるエラー型の一員（`XxxError | StoreError`）として同じ場所で翻訳する。純粋なワークフロー自身のエラー型には混ぜない。ワークフローは読み取りをしないからである。サーバー関数は「読み取り → ワークフロー → 保存 → encode」を1本の `AsyncResult` のパイプラインとしてつなぐ。
-3. **ワークフロー外の失敗**: 通信断や想定外の例外。サーバー側の `encode` を通れないため、`dto/` が Response 型の定数（`UNEXPECTED_XXX_RESPONSE`）として文言を確定させ、ページは `catch` でそれを表示するだけにする。
+3. **ワークフロー外の失敗**: 通信断や想定外の例外。サーバー側の `encode` を通れないため、`dto/` が Response オブジェクトの `unexpected` として文言を確定させ、ページは `catch` でそれを表示するだけにする。
 
 `dto/` に置く文言は、ドメインや境界の結果を利用者に伝える言葉までとする。
 画面の見出し・ラベル・「読み込み中」のような画面固有の文言はページの責務であり、`dto/` には置かない。
 
 ### 4.6 ファイル分割の単位（1 ファイル = 利用者から見た 1 つの操作）
 
-ファイルは利用者から見た操作の単位で切る。1 つの操作が状態によって複数のワークフローに分かれることがあり（トライアル中の解約と有料中の解約予約など）、その場合は同じ Response 型を共有してよい。
-共有はファイル内に限る。複数のファイルで Response の形が偶然一致しても、共通型に昇格させない。DTO は操作の語彙で名付けられているべきで、汎用の封筒になると読み手が操作を追えなくなる。
+ファイルは利用者から見た操作の単位で切る。1 つの操作が状態によって複数のワークフローに分かれることがある（トライアル中の解約と有料中の解約予約など）。ワークフローが異なれば、同じファイルの中でも Response 型を分ける。形が一致するのは偶然であり、片方の失敗理由が増えたときに他方を巻き込むためである。
+複数のファイルで Response の形が偶然一致しても、共通型に昇格させない。DTO は操作の語彙で名付けられているべきで、汎用の封筒になると読み手が操作を追えなくなる。
 「現在の状態を見る」のような読み取りは、それを利用する操作とは別のファイルにする。
 
 ### 4.7 ファイル内の並び順（デシリアライズ → decode → encode → シリアライズ）
 
 §1.4 の並び順を、この層ではデータが境界を通る順に当てはめる。冒頭の図の左から右がそのままファイルの上から下になる。
 
-1. **型定義（デシリアライズ: JSON → DTO）**: schema と Command。UI から入ってくる形
+1. **型定義（デシリアライズ: JSON → DTO）**: schema と Request。UI から入ってくる形
 2. **decode（DTO → ドメイン）**
-3. **encode（ドメイン → DTO）**: 公開する encode 関数と、ワークフロー外の失敗を表す Response 定数。その下に encode だけが使う翻訳関数・文言定数を置く
+3. **encode（ドメイン → DTO）**: 公開する Response / View オブジェクト。その下に encode だけが使う翻訳関数・文言定数を置く
 4. **型定義（シリアライズ: DTO → JSON）**: FieldError、Response、View。UI へ返す形
 
+schema の private const と Request 型は 1 に置き、同名の Request オブジェクトは 2 に置く。
+Response / View オブジェクトは 3 に置き、`encode` と失敗時の定数をプロパティとして公開する。
 Response の型が encode より下に来るが、型宣言は巻き上げられるので参照の問題は起きない。
 読み手にとっては「何を受け取り、どう変換し、何を返すか」が処理順に並ぶ方が追いやすい。
 
 ### 4.8 命名規約（`*.dto.ts`）
 
 - ファイル名: `<操作>.dto.ts`（`login.dto.ts`、`session.dto.ts`）
-- 型: `XxxCommand` / `XxxResponse` / `XxxView` / `XxxFieldError`
-- schema: `xxxCommandSchema`
-- 関数: `decodeXxxCommand` / `encodeXxxResponse` / `encodeXxxView`
-- ワークフロー外の失敗: `UNEXPECTED_XXX_RESPONSE`
+- 型: `XxxRequest` / `XxxResponse` / `XxxView` / `XxxFieldError`
+- 変換: 型と同名の `const` に集約する。`XxxRequest.schema` / `XxxRequest.decode` / `XxxResponse.encode` / `XxxView.encode`
+- ワークフロー外の失敗: `XxxResponse.unexpected`
+- 認証が必要な操作への未認証アクセス: `XxxResponse.authenticationRequired`
 
 ## 5. ドメインモデル — `src/domain/<bc>/model/` と `operation/<操作>/*.model.ts`
 
@@ -197,7 +199,7 @@ Response の型が encode より下に来るが、型宣言は巻き上げられ
 |---|---|---|
 | `*.primitive.ts` | 単一の値を包む値オブジェクト | `EmailAddress`、`PlanId` |
 | `*.entity.ts` | Id を持ち、ライフサイクルを持つもの。集約ルート | `Subscription`、`Invoice` |
-| `*.model.ts` | Id を持たない複合型。ワークフローの入力・イベント・エラー、複合値オブジェクト | `ValidatedLoginRequest`、`Registered`、`Session` |
+| `*.model.ts` | Id を持たない複合型。ワークフローの入力・イベント・エラー、複合値オブジェクト | `ValidatedLoginCommand`、`Registered`、`Session` |
 
 ### 5.1 値オブジェクト（`*.primitive.ts`）
 
@@ -219,7 +221,7 @@ Id を持ち、時間とともに状態が変わるものを置く。状態は `
 
 ワークフローの入力・出力・失敗を、操作の単位で 1 ファイルにまとめる。Id を持たないので、すべて値オブジェクトである。イベントとエラーは操作の外では意味を持たないので、`*.event.ts` のように種類でファイルを分けず、操作ごとにまとめて見出しで区切る。
 
-1. **入力**: 未検証入力（`UnvalidatedXxxRequest`。フィールドは string などの生の型）、検証済み入力（`ValidatedXxxRequest`）、ワークフローが読む現在の状態（`XxxContext`）、外部から与えられる判定材料
+1. **入力**: 未検証入力（`UnvalidatedXxxCommand`。フィールドは string などの生の型）、検証済み入力（`ValidatedXxxCommand`）、ワークフローが読む現在の状態（`XxxContext`）、外部から与えられる判定材料
 2. **イベント**: ワークフローの出力。到達する状態が複数あるなら `Case` のユニオンにする
 3. **エラー**: `XxxError` のユニオンを先頭に置き、その構成要素を下に並べる。文言は持たない
 
@@ -231,7 +233,7 @@ Id を持ち、時間とともに状態が変わるものを置く。状態は `
 - ファイル名: `<概念>.primitive.ts` / `<概念>.entity.ts` / `<操作>.model.ts`（複合値オブジェクトは `<概念>.model.ts`）
 - 値オブジェクト: `Xxx`、構築子 `Xxx.create` / `Xxx.value`、失敗理由 `XxxError`
 - エンティティ: 概念名のユニオン `Subscription` と、状態を前置した各 Case `TrialSubscription`
-- 入力: `UnvalidatedXxxRequest` → `ValidatedXxxRequest`、`XxxContext`
+- 入力: `UnvalidatedXxxCommand` → `ValidatedXxxCommand`、`XxxContext`
 - イベント: 過去形（`Registered`、`TrialStarted`）
 - エラー: `XxxError` と、状態を表す名詞の構成要素（`NotInTrial`、`EmailAlreadyTaken`）
 

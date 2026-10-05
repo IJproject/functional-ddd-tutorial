@@ -17,13 +17,13 @@ import type {
 // ===========================================================================
 
 /** 信頼境界を越えてきた、まだドメインの型へ変換していない申し込み入力。 */
-export type UnvalidatedApplyRequest = {
+export type UnvalidatedApplyCommand = {
 	accountId: string;
 	planId: string;
 };
 
 /** ドメインの primitive へ変換済みの申し込み入力。 */
-export type ApplyRequest = {
+export type ValidatedApplyCommand = {
 	accountId: AccountId;
 	planId: PlanId;
 };
@@ -58,14 +58,14 @@ export type PaymentRequested = Case<
 // エラー
 // ===========================================================================
 
-export type ApplyError = InvalidApplyRequest | AlreadySubscribed;
+export type ApplyError = InvalidApplyCommand | AlreadySubscribed;
 
 /** 入力値の形式が不正。 */
-export type InvalidApplyRequest = Case<
-	"InvalidApplyRequest",
-	{ reason: ApplyRequestError }
+export type InvalidApplyCommand = Case<
+	"InvalidApplyCommand",
+	{ reason: ApplyCommandError }
 >;
-export type ApplyRequestError = Case<"UnknownPlan">;
+export type ApplyCommandError = Case<"UnknownPlan">;
 
 /** 契約中のアカウントは申し込めない。FreeSubscription 以外はすべてこれ。 */
 export type AlreadySubscribed = Case<"AlreadySubscribed">;

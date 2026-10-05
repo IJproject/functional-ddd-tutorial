@@ -12,30 +12,29 @@ import type { Subscription } from "#/domain/subscription/model/subscription.enti
 // ===========================================================================
 
 /** Account と Subscription → 申し込み画面専用の表示モデル。 */
-export const encodeApplyContextView = (
-	account: Account,
-	subscription: Subscription,
-): ApplyContextView => ({
-	loggedIn: true,
-	applicable: matchChoice<Subscription, boolean>(subscription, {
-		FreeSubscription: () => true,
-		TrialSubscription: () => false,
-		PendingPaymentSubscription: () => false,
-		PaidSubscription: () => false,
-		UpgradePendingSubscription: () => false,
-		CancelReservedSubscription: () => false,
-		PlanChangeReservedSubscription: () => false,
+export const ApplyContextView = {
+	encode: (account: Account, subscription: Subscription): ApplyContextView => ({
+		loggedIn: true,
+		applicable: matchChoice<Subscription, boolean>(subscription, {
+			FreeSubscription: () => true,
+			TrialSubscription: () => false,
+			PendingPaymentSubscription: () => false,
+			PaidSubscription: () => false,
+			UpgradePendingSubscription: () => false,
+			CancelReservedSubscription: () => false,
+			PlanChangeReservedSubscription: () => false,
+		}),
+		trialUsed: matchChoice<Account, boolean>(account, {
+			TrialUnusedAccount: () => false,
+			TrialUsedAccount: () => true,
+		}),
+		plans: Plan.all().map((plan) => ({
+			id: PlanId.value(plan.id),
+			name: planName(plan.id),
+			monthlyPrice: MonthlyPrice.value(plan.monthlyPrice),
+		})),
 	}),
-	trialUsed: matchChoice<Account, boolean>(account, {
-		TrialUnusedAccount: () => false,
-		TrialUsedAccount: () => true,
-	}),
-	plans: Plan.all().map((plan) => ({
-		id: PlanId.value(plan.id),
-		name: planName(plan.id),
-		monthlyPrice: MonthlyPrice.value(plan.monthlyPrice),
-	})),
-});
+};
 
 /** トライアル利用状況に応じた画面表示。日数を UI に重複させない。 */
 export const TRIAL_AVAILABLE_MESSAGE = "14日間の無料トライアルが始まります";

@@ -24,23 +24,25 @@ import {
 // ===========================================================================
 
 /** Subscription と Invoice の一覧 → 編集画面専用の表示モデル。 */
-export const encodeSubscriptionView = (
-	subscription: Subscription,
-	invoices: Invoice[],
-): SubscriptionView => {
-	const state = encodeState(subscription);
-	return {
-		loggedIn: true,
-		state,
-		plans: Plan.all().map((plan) => ({
-			id: PlanId.value(plan.id),
-			name: planName(plan.id),
-			monthlyPrice: MonthlyPrice.value(plan.monthlyPrice),
-			changeDescription: changeDescription(subscription, plan.id),
-			changeDisabled: !state.canChangePlan || samePlan(subscription, plan.id),
-		})),
-		invoices: invoices.map(encodeInvoice),
-	};
+export const SubscriptionView = {
+	encode: (
+		subscription: Subscription,
+		invoices: Invoice[],
+	): SubscriptionView => {
+		const state = encodeState(subscription);
+		return {
+			loggedIn: true,
+			state,
+			plans: Plan.all().map((plan) => ({
+				id: PlanId.value(plan.id),
+				name: planName(plan.id),
+				monthlyPrice: MonthlyPrice.value(plan.monthlyPrice),
+				changeDescription: changeDescription(subscription, plan.id),
+				changeDisabled: !state.canChangePlan || samePlan(subscription, plan.id),
+			})),
+			invoices: invoices.map(encodeInvoice),
+		};
+	},
 };
 
 /**

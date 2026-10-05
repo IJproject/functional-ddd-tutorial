@@ -15,57 +15,57 @@ import type {
 // 型定義（デシリアライズ: JSON → DTO）
 // ===========================================================================
 
-export const payInvoiceCommandSchema = z.object({
+const payInvoiceRequestSchema = z.object({
 	invoiceId: z.string(),
 });
-export type PayInvoiceCommand = z.infer<typeof payInvoiceCommandSchema>;
+export type PayInvoiceRequest = z.infer<typeof payInvoiceRequestSchema>;
+
+// ===========================================================================
+// decode（DTO → ドメイン）
+// ===========================================================================
+
+export const PayInvoiceRequest = { schema: payInvoiceRequestSchema };
 
 // ===========================================================================
 // encode（ドメイン → DTO）
 // ===========================================================================
 
 /** ドメインの結果 → PaymentResponse。 */
-export const encodePaymentResponse = (
-	result: ResultType<
-		PaymentSettled,
-		PayInvoiceError | InvoiceNotFound | StoreError
-	>,
-): PaymentResponse =>
-	Result.match<
-		PaymentSettled,
-		PayInvoiceError | InvoiceNotFound | StoreError,
-		PaymentResponse
-	>(result, {
-		ok: () => ({ ok: true }),
-		err: (error) => ({
-			ok: false,
-			message: matchChoice<
-				PayInvoiceError | InvoiceNotFound | StoreError,
-				string
-			>(error, {
-				InvoiceAlreadyProcessed: () => "この請求はすでに処理済みです",
-				NoPendingPayment: () => "支払い待ちの請求がありません",
-				InvoiceNotFound: () => INVOICE_NOT_FOUND_MESSAGE,
-				MalformedSubscription: () => MALFORMED_STORED_DATA_MESSAGE,
-				MalformedInvoice: () => MALFORMED_STORED_DATA_MESSAGE,
+export const PaymentResponse = {
+	encode: (
+		result: ResultType<
+			PaymentSettled,
+			PayInvoiceError | InvoiceNotFound | StoreError
+		>,
+	): PaymentResponse =>
+		Result.match<
+			PaymentSettled,
+			PayInvoiceError | InvoiceNotFound | StoreError,
+			PaymentResponse
+		>(result, {
+			ok: () => ({ ok: true }),
+			err: (error) => ({
+				ok: false,
+				message: matchChoice<
+					PayInvoiceError | InvoiceNotFound | StoreError,
+					string
+				>(error, {
+					InvoiceAlreadyProcessed: () => "この請求はすでに処理済みです",
+					NoPendingPayment: () => "支払い待ちの請求がありません",
+					InvoiceNotFound: () => INVOICE_NOT_FOUND_MESSAGE,
+					MalformedSubscription: () => MALFORMED_STORED_DATA_MESSAGE,
+					MalformedInvoice: () => MALFORMED_STORED_DATA_MESSAGE,
+				}),
 			}),
 		}),
-	});
-
-export const UNEXPECTED_PAYMENT_RESPONSE: Extract<
-	PaymentResponse,
-	{ ok: false }
-> = {
-	ok: false,
-	message: "操作に失敗しました",
-};
-
-export const AUTHENTICATION_REQUIRED_PAYMENT_RESPONSE: Extract<
-	PaymentResponse,
-	{ ok: false }
-> = {
-	ok: false,
-	message: "ログインしてください",
+	unexpected: {
+		ok: false,
+		message: "操作に失敗しました",
+	} satisfies Extract<PaymentResponse, { ok: false }>,
+	authenticationRequired: {
+		ok: false,
+		message: "ログインしてください",
+	} satisfies Extract<PaymentResponse, { ok: false }>,
 };
 
 /** ポートが請求を見つけられなかったときの境界層の文言。 */

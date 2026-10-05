@@ -8,7 +8,7 @@ import type { StoreError } from "#/domain/subscription/model/store.model";
 import type {
 	Applied,
 	ApplyError,
-	UnvalidatedApplyRequest,
+	UnvalidatedApplyCommand,
 } from "#/domain/subscription/operation/apply/apply.model";
 
 // ===========================================================================
@@ -16,56 +16,55 @@ import type {
 // ===========================================================================
 
 /** 境界（JSON）での parse。プランとして妥当かはドメインの仕事。 */
-export const applyCommandSchema = z.object({ planId: z.string() });
+const applyRequestSchema = z.object({ planId: z.string() });
 
-export type ApplyCommand = z.infer<typeof applyCommandSchema>;
+export type ApplyRequest = z.infer<typeof applyRequestSchema>;
 
 // ===========================================================================
 // decode（DTO → ドメイン）
 // ===========================================================================
 
-/** ApplyCommand と認証済みアカウント ID → ドメインの未検証入力。 */
-export const decodeApplyCommand = (
-	command: ApplyCommand,
-	accountId: string,
-): UnvalidatedApplyRequest => ({
-	accountId,
-	planId: command.planId,
-});
+/** ApplyRequest と認証済みアカウント ID → ドメインの未検証入力。 */
+export const ApplyRequest = {
+	schema: applyRequestSchema,
+	decode: (
+		request: ApplyRequest,
+		accountId: string,
+	): UnvalidatedApplyCommand => ({
+		accountId,
+		planId: request.planId,
+	}),
+};
 
 // ===========================================================================
 // encode（ドメイン → DTO）
 // ===========================================================================
 
 /** ドメインの結果 → ApplyResponse。 */
-export const encodeApplyResponse = (
-	result: ResultType<Applied, ApplyError | StoreError>,
-): ApplyResponse =>
-	Result.match<Applied, ApplyError | StoreError, ApplyResponse>(result, {
-		ok: () => ({ ok: true }),
-		err: (error) => ({ ok: false, errors: [toFieldError(error)] }),
-	});
-
-/** ワークフロー外の失敗（通信断・想定外の例外）。 */
-export const UNEXPECTED_APPLY_RESPONSE: Extract<ApplyResponse, { ok: false }> =
-	{
+export const ApplyResponse = {
+	encode: (
+		result: ResultType<Applied, ApplyError | StoreError>,
+	): ApplyResponse =>
+		Result.match<Applied, ApplyError | StoreError, ApplyResponse>(result, {
+			ok: () => ({ ok: true }),
+			err: (error) => ({ ok: false, errors: [toFieldError(error)] }),
+		}),
+	/** ワークフロー外の失敗（通信断・想定外の例外）。 */
+	unexpected: {
 		ok: false,
 		errors: [{ field: null, message: "申し込みに失敗しました" }],
-	};
-
-/** 認証済みセッションが必要な操作へ匿名で到達した。 */
-export const AUTHENTICATION_REQUIRED_APPLY_RESPONSE: Extract<
-	ApplyResponse,
-	{ ok: false }
-> = {
-	ok: false,
-	errors: [{ field: null, message: "ログインしてください" }],
+	} satisfies Extract<ApplyResponse, { ok: false }>,
+	/** 認証済みセッションが必要な操作へ匿名で到達した。 */
+	authenticationRequired: {
+		ok: false,
+		errors: [{ field: null, message: "ログインしてください" }],
+	} satisfies Extract<ApplyResponse, { ok: false }>,
 };
 
 /** ドメインのエラーを、表示対象の項目と文言へ網羅的に翻訳する。 */
 const toFieldError = (error: ApplyError | StoreError): ApplyFieldError =>
 	matchChoice(error, {
-		InvalidApplyRequest: ({ reason }) =>
+		InvalidApplyCommand: ({ reason }) =>
 			matchChoice(reason, {
 				UnknownPlan: () => ({
 					field: "planId" as const,

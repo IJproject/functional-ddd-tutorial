@@ -5,8 +5,8 @@ import type {
 	LoggedIn,
 	LoginError,
 	LoginValidationError,
-	UnvalidatedLoginRequest,
-	ValidatedLoginRequest,
+	UnvalidatedLoginCommand,
+	ValidatedLoginCommand,
 	ValidationFailed,
 } from "#/domain/auth/operation/login/login.model";
 import type { LoggedInAt } from "#/domain/auth/operation/login/login.primitive";
@@ -17,12 +17,12 @@ import { AsyncResult, pipe, Result } from "#/domain/building-blocks";
 // ===========================================================================
 
 export type LoginWorkflow = (
-	request: UnvalidatedLoginRequest,
+	command: UnvalidatedLoginCommand,
 ) => AsyncResult<LoggedIn, LoginError>;
 
 /** パイプラインを組み立てるための依存。各ステップと現在時刻の取得を注入する。 */
 export type LoginWorkflowDeps = {
-	validateLoginRequest: ValidateLoginRequest;
+	validateLoginCommand: ValidateLoginCommand;
 	verifyCredentials: VerifyCredentials;
 	createLoggedInEvent: CreateLoggedInEvent;
 	now: () => LoggedInAt;
@@ -30,13 +30,13 @@ export type LoginWorkflowDeps = {
 export type CreateLoginWorkflow = (deps: LoginWorkflowDeps) => LoginWorkflow;
 
 /** 未検証 → 形式検証済み。Result を返す純粋関数。 */
-export type ValidateLoginRequest = (
-	request: UnvalidatedLoginRequest,
-) => Result<ValidatedLoginRequest, ValidationFailed>;
+export type ValidateLoginCommand = (
+	command: UnvalidatedLoginCommand,
+) => Result<ValidatedLoginCommand, ValidationFailed>;
 
 /** 形式検証済み → 認証済み。I/O を伴うためドメインは型だけを定め、実装は外から注入する。 */
 export type VerifyCredentials = (
-	request: ValidatedLoginRequest,
+	command: ValidatedLoginCommand,
 ) => AsyncResult<AuthenticatedUser, AuthenticationFailed>;
 
 /** 認証済み → 出力イベント。純粋関数。 */
@@ -49,15 +49,15 @@ export type CreateLoggedInEvent = (
 // 実装
 // ===========================================================================
 
-export const validateLoginRequest: ValidateLoginRequest = (request) => {
+export const validateLoginCommand: ValidateLoginCommand = (command) => {
 	const email = pipe(
-		EmailAddress.create(request.email),
+		EmailAddress.create(command.email),
 		Result.mapErr(
 			(reason): LoginValidationError => ({ kind: "InvalidEmail", reason }),
 		),
 	);
 	const password = pipe(
-		Password.create(request.password),
+		Password.create(command.password),
 		Result.mapErr(
 			(reason): LoginValidationError => ({ kind: "InvalidPassword", reason }),
 		),
@@ -78,9 +78,9 @@ export const createLoggedInEvent: CreateLoggedInEvent = (user, loggedInAt) => ({
 	loggedInAt,
 });
 
-export const createLoginWorkflow: CreateLoginWorkflow = (deps) => (request) =>
+export const createLoginWorkflow: CreateLoginWorkflow = (deps) => (command) =>
 	pipe(
-		deps.validateLoginRequest(request),
+		deps.validateLoginCommand(command),
 		AsyncResult.flatMap(deps.verifyCredentials),
 		AsyncResult.map((user) => deps.createLoggedInEvent(user, deps.now())),
 	);

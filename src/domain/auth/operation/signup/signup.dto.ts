@@ -3,7 +3,7 @@ import type {
 	Registered,
 	SignupError,
 	SignupValidationError,
-	UnvalidatedSignupRequest,
+	UnvalidatedSignupCommand,
 } from "#/domain/auth/operation/signup/signup.model";
 import { matchChoice, Result } from "#/domain/building-blocks";
 
@@ -12,57 +12,54 @@ import { matchChoice, Result } from "#/domain/building-blocks";
 // ===========================================================================
 
 /** 境界（JSON）での parse。値として妥当かはドメインの仕事。 */
-export const signupCommandSchema = z.object({
+const signupRequestSchema = z.object({
 	name: z.string(),
 	email: z.string(),
 	password: z.string(),
 });
 
-export type SignupCommand = z.infer<typeof signupCommandSchema>;
+export type SignupRequest = z.infer<typeof signupRequestSchema>;
 
 // ===========================================================================
 // decode（DTO → ドメイン）
 // ===========================================================================
 
-/** SignupCommand → ドメインの未検証入力。 */
-export const decodeSignupCommand = (
-	command: SignupCommand,
-): UnvalidatedSignupRequest => ({
-	name: command.name,
-	email: command.email,
-	password: command.password,
-});
+/** SignupRequest → ドメインの未検証入力。 */
+export const SignupRequest = {
+	schema: signupRequestSchema,
+	decode: (request: SignupRequest): UnvalidatedSignupCommand => ({
+		name: request.name,
+		email: request.email,
+		password: request.password,
+	}),
+};
 
 // ===========================================================================
 // encode（ドメイン → DTO）
 // ===========================================================================
 
 /** ドメインの結果 → SignupResponse。 */
-export const encodeSignupResponse = (
-	result: Result<Registered, SignupError>,
-): SignupResponse =>
-	Result.match<Registered, SignupError, SignupResponse>(result, {
-		ok: (registered) => ({ ok: true, userId: registered.userId }),
-		err: (error) =>
-			matchChoice<SignupError, SignupResponse>(error, {
-				ValidationFailed: (validationFailed) => ({
-					ok: false,
-					errors: validationFailed.errors.map(toFieldError),
+export const SignupResponse = {
+	encode: (result: Result<Registered, SignupError>): SignupResponse =>
+		Result.match<Registered, SignupError, SignupResponse>(result, {
+			ok: (registered) => ({ ok: true, userId: registered.userId }),
+			err: (error) =>
+				matchChoice<SignupError, SignupResponse>(error, {
+					ValidationFailed: (validationFailed) => ({
+						ok: false,
+						errors: validationFailed.errors.map(toFieldError),
+					}),
+					EmailAlreadyTaken: () => ({
+						ok: false,
+						errors: [{ field: null, message: EMAIL_ALREADY_TAKEN_MESSAGE }],
+					}),
 				}),
-				EmailAlreadyTaken: () => ({
-					ok: false,
-					errors: [{ field: null, message: EMAIL_ALREADY_TAKEN_MESSAGE }],
-				}),
-			}),
-	});
-
-/** ワークフロー外の失敗（通信断・想定外の例外）。例外の中身は出さず一律の文言に落とす。 */
-export const UNEXPECTED_SIGNUP_RESPONSE: Extract<
-	SignupResponse,
-	{ ok: false }
-> = {
-	ok: false,
-	errors: [{ field: null, message: "登録に失敗しました" }],
+		}),
+	/** ワークフロー外の失敗（通信断・想定外の例外）。例外の中身は出さず一律の文言に落とす。 */
+	unexpected: {
+		ok: false,
+		errors: [{ field: null, message: "登録に失敗しました" }],
+	} satisfies Extract<SignupResponse, { ok: false }>,
 };
 
 /**

@@ -12,12 +12,12 @@ import type { Case, NonEmptyArray } from "#/domain/building-blocks";
 // 入力
 // ===========================================================================
 
-export type UnvalidatedLoginRequest = {
+export type UnvalidatedLoginCommand = {
 	email: string;
 	password: string;
 };
 
-export type ValidatedLoginRequest = {
+export type ValidatedLoginCommand = {
 	email: EmailAddress;
 	password: Password;
 };

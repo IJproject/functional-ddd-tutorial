@@ -5,8 +5,8 @@ import type {
 	Registered,
 	SignupError,
 	SignupValidationError,
-	UnvalidatedSignupRequest,
-	ValidatedSignupRequest,
+	UnvalidatedSignupCommand,
+	ValidatedSignupCommand,
 	ValidationFailed,
 } from "#/domain/auth/operation/signup/signup.model";
 import {
@@ -20,12 +20,12 @@ import { AsyncResult, pipe, Result } from "#/domain/building-blocks";
 // ===========================================================================
 
 export type SignupWorkflow = (
-	request: UnvalidatedSignupRequest,
+	command: UnvalidatedSignupCommand,
 ) => AsyncResult<Registered, SignupError>;
 
 /** パイプラインを組み立てるための依存。各ステップと現在時刻の取得を注入する。 */
 export type SignupWorkflowDeps = {
-	validateSignupRequest: ValidateSignupRequest;
+	validateSignupCommand: ValidateSignupCommand;
 	registerUser: RegisterUser;
 	createRegisteredEvent: CreateRegisteredEvent;
 	now: () => RegisteredAt;
@@ -33,13 +33,13 @@ export type SignupWorkflowDeps = {
 export type CreateSignupWorkflow = (deps: SignupWorkflowDeps) => SignupWorkflow;
 
 /** 未検証 → 形式検証済み。Result を返す純粋関数。 */
-export type ValidateSignupRequest = (
-	request: UnvalidatedSignupRequest,
-) => Result<ValidatedSignupRequest, ValidationFailed>;
+export type ValidateSignupCommand = (
+	command: UnvalidatedSignupCommand,
+) => Result<ValidatedSignupCommand, ValidationFailed>;
 
 /** 形式検証済み → 登録済み。I/O を伴うためドメインは型だけを定め、実装は外から注入する。 */
 export type RegisterUser = (
-	request: ValidatedSignupRequest,
+	command: ValidatedSignupCommand,
 ) => AsyncResult<AuthenticatedUser, EmailAlreadyTaken>;
 
 /** 登録済み → 出力イベント。純粋関数。 */
@@ -52,21 +52,21 @@ export type CreateRegisteredEvent = (
 // 実装
 // ===========================================================================
 
-export const validateSignupRequest: ValidateSignupRequest = (request) => {
+export const validateSignupCommand: ValidateSignupCommand = (command) => {
 	const name = pipe(
-		UserName.create(request.name),
+		UserName.create(command.name),
 		Result.mapErr(
 			(reason): SignupValidationError => ({ kind: "InvalidName", reason }),
 		),
 	);
 	const email = pipe(
-		EmailAddress.create(request.email),
+		EmailAddress.create(command.email),
 		Result.mapErr(
 			(reason): SignupValidationError => ({ kind: "InvalidEmail", reason }),
 		),
 	);
 	const password = pipe(
-		Password.create(request.password),
+		Password.create(command.password),
 		Result.mapErr(
 			(reason): SignupValidationError => ({ kind: "InvalidPassword", reason }),
 		),
@@ -90,9 +90,9 @@ export const createRegisteredEvent: CreateRegisteredEvent = (
 	registeredAt,
 });
 
-export const createSignupWorkflow: CreateSignupWorkflow = (deps) => (request) =>
+export const createSignupWorkflow: CreateSignupWorkflow = (deps) => (command) =>
 	pipe(
-		deps.validateSignupRequest(request),
+		deps.validateSignupCommand(command),
 		AsyncResult.flatMap(deps.registerUser),
 		AsyncResult.map((user) => deps.createRegisteredEvent(user, deps.now())),
 	);

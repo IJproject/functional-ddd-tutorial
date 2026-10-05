@@ -15,76 +15,65 @@ import type {
 // encode（ドメイン → DTO）
 // ===========================================================================
 
-/** トライアル終了のドメイン結果 → ScheduleResponse。 */
-export const encodeEndTrialResponse = (
-	result: ResultType<TrialEnded, EndTrialError | StoreError>,
-): ScheduleResponse =>
-	Result.match<TrialEnded, EndTrialError | StoreError, ScheduleResponse>(
-		result,
-		{
-			ok: () => ({ ok: true }),
-			err: (error) => ({
-				ok: false,
-				message: matchChoice<EndTrialError | StoreError, string>(error, {
-					NotInTrial: () => "トライアル中ではありません",
-					MalformedSubscription: () => MALFORMED_STORED_DATA_MESSAGE,
-					MalformedInvoice: () => MALFORMED_STORED_DATA_MESSAGE,
+/** トライアル終了のドメイン結果 → EndTrialResponse。 */
+export const EndTrialResponse = {
+	encode: (
+		result: ResultType<TrialEnded, EndTrialError | StoreError>,
+	): EndTrialResponse =>
+		Result.match<TrialEnded, EndTrialError | StoreError, EndTrialResponse>(
+			result,
+			{
+				ok: () => ({ ok: true }),
+				err: (error) => ({
+					ok: false,
+					message: matchChoice<EndTrialError | StoreError, string>(error, {
+						NotInTrial: () => "トライアル中ではありません",
+						MalformedSubscription: () => MALFORMED_STORED_DATA_MESSAGE,
+						MalformedInvoice: () => MALFORMED_STORED_DATA_MESSAGE,
+					}),
 				}),
-			}),
-		},
-	);
+			},
+		),
+	unexpected: {
+		ok: false,
+		message: "操作に失敗しました",
+	} satisfies Extract<EndTrialResponse, { ok: false }>,
+	authenticationRequired: {
+		ok: false,
+		message: "ログインしてください",
+	} satisfies Extract<EndTrialResponse, { ok: false }>,
+};
 
-/** 期間満了のドメイン結果 → ScheduleResponse。 */
-export const encodeEndPeriodResponse = (
-	result: ResultType<PeriodEnded, EndPeriodError | StoreError>,
-): ScheduleResponse =>
-	Result.match<PeriodEnded, EndPeriodError | StoreError, ScheduleResponse>(
-		result,
-		{
-			ok: () => ({ ok: true }),
-			err: (error) => ({
-				ok: false,
-				message: matchChoice<EndPeriodError | StoreError, string>(error, {
-					NotPaid: () => "有料契約中ではありません",
-					PaymentPending: () =>
-						"支払い待ちの請求があります。先に支払ってください",
-					MalformedSubscription: () => MALFORMED_STORED_DATA_MESSAGE,
-					MalformedInvoice: () => MALFORMED_STORED_DATA_MESSAGE,
+/** 期間満了のドメイン結果 → EndPeriodResponse。 */
+
+export const EndPeriodResponse = {
+	encode: (
+		result: ResultType<PeriodEnded, EndPeriodError | StoreError>,
+	): EndPeriodResponse =>
+		Result.match<PeriodEnded, EndPeriodError | StoreError, EndPeriodResponse>(
+			result,
+			{
+				ok: () => ({ ok: true }),
+				err: (error) => ({
+					ok: false,
+					message: matchChoice<EndPeriodError | StoreError, string>(error, {
+						NotPaid: () => "有料契約中ではありません",
+						PaymentPending: () =>
+							"支払い待ちの請求があります。先に支払ってください",
+						MalformedSubscription: () => MALFORMED_STORED_DATA_MESSAGE,
+						MalformedInvoice: () => MALFORMED_STORED_DATA_MESSAGE,
+					}),
 				}),
-			}),
-		},
-	);
-
-export const UNEXPECTED_END_TRIAL_RESPONSE: Extract<
-	ScheduleResponse,
-	{ ok: false }
-> = {
-	ok: false,
-	message: "操作に失敗しました",
-};
-
-export const AUTHENTICATION_REQUIRED_END_TRIAL_RESPONSE: Extract<
-	ScheduleResponse,
-	{ ok: false }
-> = {
-	ok: false,
-	message: "ログインしてください",
-};
-
-export const UNEXPECTED_END_PERIOD_RESPONSE: Extract<
-	ScheduleResponse,
-	{ ok: false }
-> = {
-	ok: false,
-	message: "操作に失敗しました",
-};
-
-export const AUTHENTICATION_REQUIRED_END_PERIOD_RESPONSE: Extract<
-	ScheduleResponse,
-	{ ok: false }
-> = {
-	ok: false,
-	message: "ログインしてください",
+			},
+		),
+	unexpected: {
+		ok: false,
+		message: "操作に失敗しました",
+	} satisfies Extract<EndPeriodResponse, { ok: false }>,
+	authenticationRequired: {
+		ok: false,
+		message: "ログインしてください",
+	} satisfies Extract<EndPeriodResponse, { ok: false }>,
 };
 
 const MALFORMED_STORED_DATA_MESSAGE = "契約情報を読み込めませんでした";
@@ -93,4 +82,6 @@ const MALFORMED_STORED_DATA_MESSAGE = "契約情報を読み込めませんで�
 // 型定義（シリアライズ: DTO → JSON）
 // ===========================================================================
 
-export type ScheduleResponse = { ok: true } | { ok: false; message: string };
+export type EndTrialResponse = { ok: true } | { ok: false; message: string };
+
+export type EndPeriodResponse = { ok: true } | { ok: false; message: string };

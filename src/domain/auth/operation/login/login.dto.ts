@@ -3,7 +3,7 @@ import type {
 	LoggedIn,
 	LoginError,
 	LoginValidationError,
-	UnvalidatedLoginRequest,
+	UnvalidatedLoginCommand,
 } from "#/domain/auth/operation/login/login.model";
 import { matchChoice, Result } from "#/domain/building-blocks";
 
@@ -12,54 +12,53 @@ import { matchChoice, Result } from "#/domain/building-blocks";
 // ===========================================================================
 
 /** 境界（JSON）での parse。「メールとして妥当か」はドメインの仕事。 */
-export const loginCommandSchema = z.object({
+const loginRequestSchema = z.object({
 	email: z.string(),
 	password: z.string(),
 });
 
-export type LoginCommand = z.infer<typeof loginCommandSchema>;
+export type LoginRequest = z.infer<typeof loginRequestSchema>;
 
 // ===========================================================================
 // decode（DTO → ドメイン）
 // ===========================================================================
 
-/** LoginCommand → ドメインの未検証入力。 */
-export const decodeLoginCommand = (
-	command: LoginCommand,
-): UnvalidatedLoginRequest => ({
-	email: command.email,
-	password: command.password,
-});
+/** LoginRequest → ドメインの未検証入力。 */
+export const LoginRequest = {
+	schema: loginRequestSchema,
+	decode: (request: LoginRequest): UnvalidatedLoginCommand => ({
+		email: request.email,
+		password: request.password,
+	}),
+};
 
 // ===========================================================================
 // encode（ドメイン → DTO）
 // ===========================================================================
 
 /** ドメインの結果 → LoginResponse。 */
-export const encodeLoginResponse = (
-	result: Result<LoggedIn, LoginError>,
-): LoginResponse =>
-	Result.match<LoggedIn, LoginError, LoginResponse>(result, {
-		ok: (loggedIn) => ({ ok: true, userId: loggedIn.userId }),
-		err: (error) =>
-			matchChoice<LoginError, LoginResponse>(error, {
-				ValidationFailed: (validationFailed) => ({
-					ok: false,
-					errors: validationFailed.errors.map(toFieldError),
+export const LoginResponse = {
+	encode: (result: Result<LoggedIn, LoginError>): LoginResponse =>
+		Result.match<LoggedIn, LoginError, LoginResponse>(result, {
+			ok: (loggedIn) => ({ ok: true, userId: loggedIn.userId }),
+			err: (error) =>
+				matchChoice<LoginError, LoginResponse>(error, {
+					ValidationFailed: (validationFailed) => ({
+						ok: false,
+						errors: validationFailed.errors.map(toFieldError),
+					}),
+					AuthenticationFailed: () => ({
+						ok: false,
+						errors: [{ field: null, message: AUTHENTICATION_FAILED_MESSAGE }],
+					}),
 				}),
-				AuthenticationFailed: () => ({
-					ok: false,
-					errors: [{ field: null, message: AUTHENTICATION_FAILED_MESSAGE }],
-				}),
-			}),
-	});
-
-/** ワークフロー外の失敗（通信断・想定外の例外）。例外の中身は出さず一律の文言に落とす。 */
-export const UNEXPECTED_LOGIN_RESPONSE: Extract<LoginResponse, { ok: false }> =
-	{
+		}),
+	/** ワークフロー外の失敗（通信断・想定外の例外）。例外の中身は出さず一律の文言に落とす。 */
+	unexpected: {
 		ok: false,
 		errors: [{ field: null, message: "ログインに失敗しました" }],
-	};
+	} satisfies Extract<LoginResponse, { ok: false }>,
+};
 
 /**
  * 認証失敗時の文言は境界層が決める。

@@ -28,9 +28,9 @@ import type {
 	Applied,
 	ApplyContext,
 	ApplyError,
-	ApplyRequest,
-	InvalidApplyRequest,
-	UnvalidatedApplyRequest,
+	InvalidApplyCommand,
+	UnvalidatedApplyCommand,
+	ValidatedApplyCommand,
 } from "#/domain/subscription/operation/apply/apply.model";
 
 // ===========================================================================
@@ -38,12 +38,12 @@ import type {
 // ===========================================================================
 
 export type ApplyWorkflow = (
-	request: UnvalidatedApplyRequest,
+	command: UnvalidatedApplyCommand,
 	context: ApplyContext,
 ) => ResultType<Applied, ApplyError>;
 
 export type ApplyWorkflowDeps = {
-	validateApplyRequest: ValidateApplyRequest;
+	validateApplyCommand: ValidateApplyCommand;
 	applyToSubscription: ApplyToSubscription;
 	newInvoiceId: () => InvoiceId;
 	now: () => Date;
@@ -51,13 +51,13 @@ export type ApplyWorkflowDeps = {
 export type CreateApplyWorkflow = (deps: ApplyWorkflowDeps) => ApplyWorkflow;
 
 /** ① 未検証 → ② 検証済み。純粋関数。 */
-export type ValidateApplyRequest = (
-	request: UnvalidatedApplyRequest,
-) => ResultType<ApplyRequest, InvalidApplyRequest>;
+export type ValidateApplyCommand = (
+	command: UnvalidatedApplyCommand,
+) => ResultType<ValidatedApplyCommand, InvalidApplyCommand>;
 
 /** ② 検証済み + 現在の状態 → ③ 申し込み結果。純粋関数（I/O を含まない）。 */
 export type ApplyToSubscription = (
-	request: ApplyRequest,
+	command: ValidatedApplyCommand,
 	context: ApplyContext,
 	issued: { invoiceId: InvoiceId; now: Date },
 ) => ResultType<Applied, AlreadySubscribed>;
@@ -78,12 +78,12 @@ const PLAN_IDS: Readonly<Record<string, PlanId | undefined>> = {
  * accountId は境界層が認証済みセッションから渡す信頼済みの値なので、
  * 形式検証はせず AccountId.create を通すだけにする。
  */
-export const validateApplyRequest: ValidateApplyRequest = (request) => {
-	const planId = PLAN_IDS[request.planId];
+export const validateApplyCommand: ValidateApplyCommand = (command) => {
+	const planId = PLAN_IDS[command.planId];
 	return planId
-		? ok({ accountId: AccountId.create(request.accountId), planId })
+		? ok({ accountId: AccountId.create(command.accountId), planId })
 		: err({
-				kind: "InvalidApplyRequest",
+				kind: "InvalidApplyCommand",
 				reason: { kind: "UnknownPlan" },
 			});
 };
@@ -92,7 +92,7 @@ const alreadySubscribed = (): ResultType<Applied, AlreadySubscribed> =>
 	err({ kind: "AlreadySubscribed" });
 
 export const applyToSubscription: ApplyToSubscription = (
-	request,
+	command,
 	context,
 	issued,
 ) =>
@@ -113,8 +113,8 @@ export const applyToSubscription: ApplyToSubscription = (
 								},
 								subscription: {
 									kind: "TrialSubscription",
-									accountId: request.accountId,
-									planId: request.planId,
+									accountId: command.accountId,
+									planId: command.planId,
 									trialEndsAt: TrialEndsAt.create(
 										new Date(
 											issued.now.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000,
@@ -123,20 +123,20 @@ export const applyToSubscription: ApplyToSubscription = (
 								},
 							}),
 						TrialUsedAccount: () => {
-							const plan = Plan.of(request.planId);
+							const plan = Plan.of(command.planId);
 							return ok({
 								kind: "PaymentRequested",
 								subscription: {
 									kind: "PendingPaymentSubscription",
-									accountId: request.accountId,
-									planId: request.planId,
+									accountId: command.accountId,
+									planId: command.planId,
 									pendingInvoiceId: issued.invoiceId,
 								},
 								invoice: {
 									kind: "UnpaidInvoice",
 									id: issued.invoiceId,
-									accountId: request.accountId,
-									planId: request.planId,
+									accountId: command.accountId,
+									planId: command.planId,
 									amount: Amount.create(MonthlyPrice.value(plan.monthlyPrice)),
 									purpose: { kind: "New" },
 									issuedAt: IssuedAt.create(issued.now),
@@ -159,9 +159,9 @@ export const applyToSubscription: ApplyToSubscription = (
  * 検証が成功したときだけ状態遷移へ進むよう、pipe と Result.flatMap で連結する。
  */
 export const createApplyWorkflow: CreateApplyWorkflow =
-	(deps) => (request, context) =>
+	(deps) => (command, context) =>
 		pipe(
-			deps.validateApplyRequest(request),
+			deps.validateApplyCommand(command),
 			Result.flatMap((validated) =>
 				deps.applyToSubscription(validated, context, {
 					invoiceId: deps.newInvoiceId(),

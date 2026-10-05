@@ -3,7 +3,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { Button } from "#/components/control/button";
 import ThemeToggle from "#/components/theme/theme-toggle";
 import type { Session } from "#/domain/auth/model/session.model";
-import { encodeLogoutResponse } from "#/domain/auth/operation/logout/logout.dto";
+import { LogoutResponse } from "#/domain/auth/operation/logout/logout.dto";
 import { LoggedOutAt } from "#/domain/auth/operation/logout/logout.primitive";
 import {
 	createLoggedOutEvent,
@@ -38,7 +38,7 @@ const logoutWorkflow = createLogoutWorkflow({
 });
 
 const logout = createServerFn({ method: "POST" }).handler(async () =>
-	encodeLogoutResponse(await logoutWorkflow(await currentSession())),
+	LogoutResponse.encode(await logoutWorkflow(await currentSession())),
 );
 
 export default function Header({ session }: { session: HeaderSession }) {

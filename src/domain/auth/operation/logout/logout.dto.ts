@@ -8,13 +8,13 @@ import { Result } from "#/domain/building-blocks";
 // encode（ドメイン → DTO）
 // ===========================================================================
 
-export const encodeLogoutResponse = (
-	result: Result<LoggedOut, LogoutError>,
-): LogoutResponse =>
-	Result.match<LoggedOut, LogoutError, LogoutResponse>(result, {
-		ok: (loggedOut) => ({ ok: true, userId: loggedOut.userId }),
-		err: () => ({ ok: false, message: NOT_AUTHENTICATED_MESSAGE }),
-	});
+export const LogoutResponse = {
+	encode: (result: Result<LoggedOut, LogoutError>): LogoutResponse =>
+		Result.match<LoggedOut, LogoutError, LogoutResponse>(result, {
+			ok: (loggedOut) => ({ ok: true, userId: loggedOut.userId }),
+			err: () => ({ ok: false, message: NOT_AUTHENTICATED_MESSAGE }),
+		}),
+};
 
 /** 未認証状態でのログアウト要求に対する文言は境界層が決める。 */
 const NOT_AUTHENTICATED_MESSAGE = "すでにログアウトしています";

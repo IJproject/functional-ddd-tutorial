@@ -25,8 +25,8 @@ import { PlanId } from "#/domain/subscription/model/plan.primitive";
  * URL のパスパラメータ。ルータが渡してくるのは常に string なので、
  * ここでは形を受けるだけにして、UUID かどうかの判定は decode 側で行う。
  */
-export const invoiceParamsSchema = z.object({ invoiceId: z.string() });
-export type InvoiceParams = z.infer<typeof invoiceParamsSchema>;
+const invoiceDetailRequestSchema = z.object({ invoiceId: z.string() });
+export type InvoiceDetailRequest = z.infer<typeof invoiceDetailRequestSchema>;
 
 /** 境界で受け取った請求 ID が UUID の形式ではない。 */
 export type MalformedInvoiceId = Case<"MalformedInvoiceId">;
@@ -39,51 +39,54 @@ export type MalformedInvoiceId = Case<"MalformedInvoiceId">;
  * InvoiceId.create は crypto.randomUUID() の結果を受ける信頼境界の内側の入口であり、
  * 検証の責務は境界 DTO 側にある。規則 A に従い、検証するこちらは Result を返す。
  */
-export const decodeInvoiceParams = (
-	params: InvoiceParams,
-): ResultType<InvoiceId, MalformedInvoiceId> => {
-	const parsed = z.uuid().safeParse(params.invoiceId);
-	return parsed.success
-		? ok(InvoiceId.create(parsed.data))
-		: err({ kind: "MalformedInvoiceId" });
+export const InvoiceDetailRequest = {
+	schema: invoiceDetailRequestSchema,
+	decode: (
+		request: InvoiceDetailRequest,
+	): ResultType<InvoiceId, MalformedInvoiceId> => {
+		const parsed = z.uuid().safeParse(request.invoiceId);
+		return parsed.success
+			? ok(InvoiceId.create(parsed.data))
+			: err({ kind: "MalformedInvoiceId" });
+	},
 };
 
 // ===========================================================================
 // encode（ドメイン → DTO）
 // ===========================================================================
 
-export const encodeInvoiceDetailView = (
-	invoice: Invoice,
-): InvoiceDetailItemView =>
-	matchChoice<Invoice, InvoiceDetailItemView>(invoice, {
-		UnpaidInvoice: (current) => ({
-			id: InvoiceId.value(current.id),
-			purposeLabel: purposeLabel(current.purpose),
-			planName: planName(current.planId),
-			amount: Amount.value(current.amount),
-			statusLabel: "未払い",
-			statusDescription: "契約画面から支払いを実行できます。",
-			issuedAt: IssuedAt.value(current.issuedAt).toLocaleString("ja-JP"),
+export const InvoiceDetailItemView = {
+	encode: (invoice: Invoice): InvoiceDetailItemView =>
+		matchChoice<Invoice, InvoiceDetailItemView>(invoice, {
+			UnpaidInvoice: (current) => ({
+				id: InvoiceId.value(current.id),
+				purposeLabel: purposeLabel(current.purpose),
+				planName: planName(current.planId),
+				amount: Amount.value(current.amount),
+				statusLabel: "未払い",
+				statusDescription: "契約画面から支払いを実行できます。",
+				issuedAt: IssuedAt.value(current.issuedAt).toLocaleString("ja-JP"),
+			}),
+			PaidInvoice: (current) => ({
+				id: InvoiceId.value(current.id),
+				purposeLabel: purposeLabel(current.purpose),
+				planName: planName(current.planId),
+				amount: Amount.value(current.amount),
+				statusLabel: "支払い済み",
+				statusDescription: "この請求は決済済みです。",
+				issuedAt: IssuedAt.value(current.issuedAt).toLocaleString("ja-JP"),
+			}),
+			FailedInvoice: (current) => ({
+				id: InvoiceId.value(current.id),
+				purposeLabel: purposeLabel(current.purpose),
+				planName: planName(current.planId),
+				amount: Amount.value(current.amount),
+				statusLabel: "失敗",
+				statusDescription: "決済に失敗しています。契約画面から再実行できます。",
+				issuedAt: IssuedAt.value(current.issuedAt).toLocaleString("ja-JP"),
+			}),
 		}),
-		PaidInvoice: (current) => ({
-			id: InvoiceId.value(current.id),
-			purposeLabel: purposeLabel(current.purpose),
-			planName: planName(current.planId),
-			amount: Amount.value(current.amount),
-			statusLabel: "支払い済み",
-			statusDescription: "この請求は決済済みです。",
-			issuedAt: IssuedAt.value(current.issuedAt).toLocaleString("ja-JP"),
-		}),
-		FailedInvoice: (current) => ({
-			id: InvoiceId.value(current.id),
-			purposeLabel: purposeLabel(current.purpose),
-			planName: planName(current.planId),
-			amount: Amount.value(current.amount),
-			statusLabel: "失敗",
-			statusDescription: "決済に失敗しています。契約画面から再実行できます。",
-			issuedAt: IssuedAt.value(current.issuedAt).toLocaleString("ja-JP"),
-		}),
-	});
+};
 
 export const INVOICE_DETAIL_UNAVAILABLE_MESSAGE =
 	"契約情報を読み込めませんでした";

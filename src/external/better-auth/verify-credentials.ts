@@ -16,17 +16,17 @@ import { auth } from "#/external/better-auth/auth";
  * 失敗理由（ユーザー不在 / パスワード不一致）は意図的に区別せず、
  * すべて AuthenticationFailed に潰す（アカウント列挙を防ぐため）。
  */
-export const verifyCredentials: VerifyCredentials = async (request) => {
+export const verifyCredentials: VerifyCredentials = async (command) => {
 	const failed: AuthenticationFailed = {
 		kind: "AuthenticationFailed",
-		attemptedEmail: request.email,
+		attemptedEmail: command.email,
 	};
 	try {
 		const result = await auth.api.signInEmail({
-			body: { email: request.email, password: request.password },
+			body: { email: command.email, password: command.password },
 			headers: getRequestHeaders(),
 		});
-		return ok({ id: UserId.create(result.user.id), email: request.email });
+		return ok({ id: UserId.create(result.user.id), email: command.email });
 	} catch (error) {
 		if (error instanceof APIError) return err(failed);
 		throw error;

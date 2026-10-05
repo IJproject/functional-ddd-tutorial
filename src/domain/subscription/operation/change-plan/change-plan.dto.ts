@@ -8,7 +8,7 @@ import type { StoreError } from "#/domain/subscription/model/store.model";
 import type {
 	ChangePlanError,
 	PlanChanged,
-	UnvalidatedChangePlanRequest,
+	UnvalidatedChangePlanCommand,
 } from "#/domain/subscription/operation/change-plan/change-plan.model";
 
 // ===========================================================================
@@ -16,48 +16,45 @@ import type {
 // ===========================================================================
 
 /** 境界（JSON）での parse。プランとして妥当かはドメインの仕事。 */
-export const changePlanCommandSchema = z.object({ planId: z.string() });
-export type ChangePlanCommand = z.infer<typeof changePlanCommandSchema>;
+const changePlanRequestSchema = z.object({ planId: z.string() });
+export type ChangePlanRequest = z.infer<typeof changePlanRequestSchema>;
 
 // ===========================================================================
 // decode（DTO → ドメイン）
 // ===========================================================================
 
-/** ChangePlanCommand → ドメインの未検証入力。 */
-export const decodeChangePlanCommand = (
-	command: ChangePlanCommand,
-): UnvalidatedChangePlanRequest => ({ planId: command.planId });
+/** ChangePlanRequest → ドメインの未検証入力。 */
+export const ChangePlanRequest = {
+	schema: changePlanRequestSchema,
+	decode: (request: ChangePlanRequest): UnvalidatedChangePlanCommand => ({
+		planId: request.planId,
+	}),
+};
 
 // ===========================================================================
 // encode（ドメイン → DTO）
 // ===========================================================================
 
 /** ドメインの結果 → ChangePlanResponse。 */
-export const encodeChangePlanResponse = (
-	result: ResultType<PlanChanged, ChangePlanError | StoreError>,
-): ChangePlanResponse =>
-	Result.match<PlanChanged, ChangePlanError | StoreError, ChangePlanResponse>(
-		result,
-		{
-			ok: () => ({ ok: true }),
-			err: (error) => ({ ok: false, errors: [toFieldError(error)] }),
-		},
-	);
-
-export const UNEXPECTED_CHANGE_PLAN_RESPONSE: Extract<
-	ChangePlanResponse,
-	{ ok: false }
-> = {
-	ok: false,
-	errors: [{ field: null, message: "操作に失敗しました" }],
-};
-
-export const AUTHENTICATION_REQUIRED_CHANGE_PLAN_RESPONSE: Extract<
-	ChangePlanResponse,
-	{ ok: false }
-> = {
-	ok: false,
-	errors: [{ field: null, message: "ログインしてください" }],
+export const ChangePlanResponse = {
+	encode: (
+		result: ResultType<PlanChanged, ChangePlanError | StoreError>,
+	): ChangePlanResponse =>
+		Result.match<PlanChanged, ChangePlanError | StoreError, ChangePlanResponse>(
+			result,
+			{
+				ok: () => ({ ok: true }),
+				err: (error) => ({ ok: false, errors: [toFieldError(error)] }),
+			},
+		),
+	unexpected: {
+		ok: false,
+		errors: [{ field: null, message: "操作に失敗しました" }],
+	} satisfies Extract<ChangePlanResponse, { ok: false }>,
+	authenticationRequired: {
+		ok: false,
+		errors: [{ field: null, message: "ログインしてください" }],
+	} satisfies Extract<ChangePlanResponse, { ok: false }>,
 };
 
 const toFieldError = (

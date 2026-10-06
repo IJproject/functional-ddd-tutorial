@@ -1,4 +1,5 @@
 import * as z from "zod";
+import type { AuthProviderError } from "#/domain/auth/model/auth-provider.model";
 import type {
 	LoggedIn,
 	LoginError,
@@ -38,21 +39,32 @@ export const LoginRequest = {
 
 /** ドメインの結果 → LoginResponse。 */
 export const LoginResponse = {
-	encode: (result: Result<LoggedIn, LoginError>): LoginResponse =>
-		Result.match<LoggedIn, LoginError, LoginResponse>(result, {
-			ok: (loggedIn) => ({ ok: true, userId: loggedIn.userId }),
-			err: (error) =>
-				matchChoice<LoginError, LoginResponse>(error, {
-					ValidationFailed: (validationFailed) => ({
-						ok: false,
-						errors: validationFailed.errors.map(toFieldError),
+	encode: (
+		result: Result<LoggedIn, LoginError | AuthProviderError>,
+	): LoginResponse =>
+		Result.match<LoggedIn, LoginError | AuthProviderError, LoginResponse>(
+			result,
+			{
+				ok: (loggedIn) => ({ ok: true, userId: loggedIn.userId }),
+				err: (error) =>
+					matchChoice<LoginError | AuthProviderError, LoginResponse>(error, {
+						ValidationFailed: (validationFailed) => ({
+							ok: false,
+							errors: validationFailed.errors.map(toFieldError),
+						}),
+						AuthenticationFailed: () => ({
+							ok: false,
+							errors: [{ field: null, message: AUTHENTICATION_FAILED_MESSAGE }],
+						}),
+						AuthProviderUnavailable: () => ({
+							ok: false,
+							errors: [
+								{ field: null, message: AUTH_PROVIDER_UNAVAILABLE_MESSAGE },
+							],
+						}),
 					}),
-					AuthenticationFailed: () => ({
-						ok: false,
-						errors: [{ field: null, message: AUTHENTICATION_FAILED_MESSAGE }],
-					}),
-				}),
-		}),
+			},
+		),
 	/** ワークフロー外の失敗（通信断・想定外の例外）。例外の中身は出さず一律の文言に落とす。 */
 	unexpected: {
 		ok: false,
@@ -66,6 +78,7 @@ export const LoginResponse = {
  */
 const AUTHENTICATION_FAILED_MESSAGE =
 	"メールアドレスまたはパスワードが違います";
+const AUTH_PROVIDER_UNAVAILABLE_MESSAGE = "時間をおいてもう一度お試しください";
 
 /**
  * ドメインのエラーを、フォームのどの項目にどの文言で出すかへ翻訳する。

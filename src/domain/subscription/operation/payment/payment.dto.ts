@@ -8,6 +8,7 @@ import type { StoreError } from "#/domain/subscription/model/store.model";
 import type {
 	InvoiceNotFound,
 	PayInvoiceError,
+	PaymentGatewayError,
 	PaymentSettled,
 } from "#/domain/subscription/operation/payment/payment.model";
 
@@ -35,19 +36,19 @@ export const PaymentResponse = {
 	encode: (
 		result: ResultType<
 			PaymentSettled,
-			PayInvoiceError | InvoiceNotFound | StoreError
+			PayInvoiceError | PaymentGatewayError | InvoiceNotFound | StoreError
 		>,
 	): PaymentResponse =>
 		Result.match<
 			PaymentSettled,
-			PayInvoiceError | InvoiceNotFound | StoreError,
+			PayInvoiceError | PaymentGatewayError | InvoiceNotFound | StoreError,
 			PaymentResponse
 		>(result, {
 			ok: () => ({ ok: true }),
 			err: (error) => ({
 				ok: false,
 				message: matchChoice<
-					PayInvoiceError | InvoiceNotFound | StoreError,
+					PayInvoiceError | PaymentGatewayError | InvoiceNotFound | StoreError,
 					string
 				>(error, {
 					InvoiceAlreadyProcessed: () => "この請求はすでに処理済みです",
@@ -56,6 +57,7 @@ export const PaymentResponse = {
 					MalformedSubscription: () => MALFORMED_STORED_DATA_MESSAGE,
 					MalformedInvoice: () => MALFORMED_STORED_DATA_MESSAGE,
 					StoreUnavailable: () => STORE_UNAVAILABLE_MESSAGE,
+					PaymentGatewayUnavailable: () => PAYMENT_GATEWAY_UNAVAILABLE_MESSAGE,
 				}),
 			}),
 		}),
@@ -73,6 +75,8 @@ export const PaymentResponse = {
 const INVOICE_NOT_FOUND_MESSAGE = "請求が見つかりません";
 const MALFORMED_STORED_DATA_MESSAGE = "契約情報を読み込めませんでした";
 const STORE_UNAVAILABLE_MESSAGE = "時間をおいてもう一度お試しください";
+const PAYMENT_GATEWAY_UNAVAILABLE_MESSAGE =
+	"時間をおいてもう一度お試しください";
 
 // ===========================================================================
 // 型定義（シリアライズ: DTO → JSON）

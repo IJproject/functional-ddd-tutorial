@@ -1,4 +1,5 @@
 import * as z from "zod";
+import type { AuthProviderError } from "#/domain/auth/model/auth-provider.model";
 import type {
 	Registered,
 	SignupError,
@@ -40,21 +41,32 @@ export const SignupRequest = {
 
 /** ドメインの結果 → SignupResponse。 */
 export const SignupResponse = {
-	encode: (result: Result<Registered, SignupError>): SignupResponse =>
-		Result.match<Registered, SignupError, SignupResponse>(result, {
-			ok: (registered) => ({ ok: true, userId: registered.userId }),
-			err: (error) =>
-				matchChoice<SignupError, SignupResponse>(error, {
-					ValidationFailed: (validationFailed) => ({
-						ok: false,
-						errors: validationFailed.errors.map(toFieldError),
+	encode: (
+		result: Result<Registered, SignupError | AuthProviderError>,
+	): SignupResponse =>
+		Result.match<Registered, SignupError | AuthProviderError, SignupResponse>(
+			result,
+			{
+				ok: (registered) => ({ ok: true, userId: registered.userId }),
+				err: (error) =>
+					matchChoice<SignupError | AuthProviderError, SignupResponse>(error, {
+						ValidationFailed: (validationFailed) => ({
+							ok: false,
+							errors: validationFailed.errors.map(toFieldError),
+						}),
+						EmailAlreadyTaken: () => ({
+							ok: false,
+							errors: [{ field: null, message: EMAIL_ALREADY_TAKEN_MESSAGE }],
+						}),
+						AuthProviderUnavailable: () => ({
+							ok: false,
+							errors: [
+								{ field: null, message: AUTH_PROVIDER_UNAVAILABLE_MESSAGE },
+							],
+						}),
 					}),
-					EmailAlreadyTaken: () => ({
-						ok: false,
-						errors: [{ field: null, message: EMAIL_ALREADY_TAKEN_MESSAGE }],
-					}),
-				}),
-		}),
+			},
+		),
 	/** ワークフロー外の失敗（通信断・想定外の例外）。例外の中身は出さず一律の文言に落とす。 */
 	unexpected: {
 		ok: false,
@@ -67,6 +79,7 @@ export const SignupResponse = {
  * ドメインの EmailAlreadyTaken は種類だけを表し、ユーザー向けの言葉を持たない。
  */
 const EMAIL_ALREADY_TAKEN_MESSAGE = "そのメールアドレスは登録済みです";
+const AUTH_PROVIDER_UNAVAILABLE_MESSAGE = "時間をおいてもう一度お試しください";
 
 /**
  * ドメインのエラーを、フォームのどの項目にどの文言で出すかへ翻訳する。

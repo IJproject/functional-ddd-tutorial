@@ -27,6 +27,22 @@ export type PaymentSettled = Case<
 
 export type PayInvoiceError = InvoiceAlreadyProcessed | NoPendingPayment;
 
+/**
+ * 決済ゲートウェイに到達できなかった、業務上の結果ではない境界の失敗。
+ * 決済が拒否されたこと（PaymentOutcome の Failed）とは別で、請求を失敗として確定させない。
+ */
+export type PaymentGatewayError = Case<
+	"PaymentGatewayUnavailable",
+	{ reason: string }
+>;
+
+export const PaymentGatewayError = {
+	paymentGatewayUnavailable: (reason: string): PaymentGatewayError => ({
+		kind: "PaymentGatewayUnavailable",
+		reason,
+	}),
+};
+
 /** 支払い対象の請求が存在しない。 */
 export type InvoiceNotFound = Case<"InvoiceNotFound">;
 

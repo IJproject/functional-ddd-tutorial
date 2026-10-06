@@ -1,5 +1,6 @@
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { APIError } from "better-auth/api";
+import { AuthProviderError } from "#/domain/auth/model/auth-provider.model";
 import { UserId } from "#/domain/auth/model/user.primitive";
 import { UserName } from "#/domain/auth/operation/signup/signup.primitive";
 import type { RegisterUser } from "#/domain/auth/operation/signup/signup.workflow";
@@ -31,6 +32,6 @@ export const registerUser: RegisterUser = async (command) => {
 				error.body?.code === "USER_ALREADY_EXISTS")
 		)
 			return err({ kind: "EmailAlreadyTaken", attemptedEmail: command.email });
-		throw error;
+		return err(AuthProviderError.authProviderUnavailable(String(error)));
 	}
 };

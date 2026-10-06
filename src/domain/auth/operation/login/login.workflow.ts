@@ -1,3 +1,4 @@
+import type { AuthProviderError } from "#/domain/auth/model/auth-provider.model";
 import type { AuthenticatedUser } from "#/domain/auth/model/user.entity";
 import { EmailAddress, Password } from "#/domain/auth/model/user.primitive";
 import type {
@@ -18,7 +19,7 @@ import { AsyncResult, pipe, Result } from "#/domain/building-blocks";
 
 export type LoginWorkflow = (
 	command: UnvalidatedLoginCommand,
-) => AsyncResult<LoggedIn, LoginError>;
+) => AsyncResult<LoggedIn, LoginError | AuthProviderError>;
 
 /** パイプラインを組み立てるための依存。各ステップと現在時刻の取得を注入する。 */
 export type LoginWorkflowDeps = {
@@ -35,7 +36,7 @@ export type ValidateLoginCommand = (
 /** 形式検証済み → 認証済み。I/O を伴うためドメインは型だけを定め、実装は外から注入する。 */
 export type VerifyCredentials = (
 	command: ValidatedLoginCommand,
-) => AsyncResult<AuthenticatedUser, AuthenticationFailed>;
+) => AsyncResult<AuthenticatedUser, AuthenticationFailed | AuthProviderError>;
 
 /** 認証済み → 出力イベント。純粋関数。 */
 export type CreateLoggedInEvent = (

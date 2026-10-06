@@ -1,5 +1,6 @@
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { APIError } from "better-auth/api";
+import { AuthProviderError } from "#/domain/auth/model/auth-provider.model";
 import { UserId } from "#/domain/auth/model/user.primitive";
 import type { AuthenticationFailed } from "#/domain/auth/operation/login/login.model";
 import type { VerifyCredentials } from "#/domain/auth/operation/login/login.workflow";
@@ -29,6 +30,6 @@ export const verifyCredentials: VerifyCredentials = async (command) => {
 		return ok({ id: UserId.create(result.user.id), email: command.email });
 	} catch (error) {
 		if (error instanceof APIError) return err(failed);
-		throw error;
+		return err(AuthProviderError.authProviderUnavailable(String(error)));
 	}
 };

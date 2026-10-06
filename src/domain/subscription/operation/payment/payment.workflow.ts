@@ -1,8 +1,9 @@
 import {
-	type AsyncResult,
+	AsyncResult,
 	err,
 	matchChoice,
 	ok,
+	pipe,
 	type Result as ResultType,
 } from "#/domain/building-blocks";
 import type {
@@ -18,6 +19,7 @@ import type {
 	InvoiceAlreadyProcessed,
 	NoPendingPayment,
 	PayInvoiceError,
+	PaymentGatewayError,
 	PaymentOutcome,
 	PaymentSettled,
 } from "#/domain/subscription/operation/payment/payment.model";
@@ -30,7 +32,7 @@ export type PayInvoiceWorkflow = (
 	invoice: Invoice,
 	subscription: Subscription,
 	settled: { paidAt: PaidAt },
-) => AsyncResult<PaymentSettled, PayInvoiceError>;
+) => AsyncResult<PaymentSettled, PayInvoiceError | PaymentGatewayError>;
 
 export type PayInvoiceWorkflowDeps = {
 	chargeInvoice: ChargeInvoice;
@@ -44,7 +46,9 @@ export type CreatePayInvoiceWorkflow = (
  * 決済サービスの失敗も正常な応答として扱うため、Failed は Result の err ではなく
  * PaymentOutcome の一方の枝として返す。
  */
-export type ChargeInvoice = (invoice: UnpaidInvoice) => Promise<PaymentOutcome>;
+export type ChargeInvoice = (
+	invoice: UnpaidInvoice,
+) => AsyncResult<PaymentOutcome, PaymentGatewayError>;
 
 /** 請求 + 現在の状態 + 決済結果 → 支払い反映結果。純粋関数（I/O を含まない）。 */
 export type PayInvoice = (
@@ -171,16 +175,19 @@ export const payInvoice: PayInvoice = (
 /** 課金 I/O の後に、純粋な状態遷移へ決済結果を渡す。処理済みの請求には課金しない。 */
 export const createPayInvoiceWorkflow: CreatePayInvoiceWorkflow =
 	(deps) => (invoice, subscription, settled) =>
-		matchChoice<Invoice, AsyncResult<PaymentSettled, PayInvoiceError>>(
-			invoice,
-			{
-				UnpaidInvoice: async (unpaid) => {
-					const outcome = await deps.chargeInvoice(unpaid);
-					return payInvoice(unpaid, subscription, outcome, settled);
-				},
-				PaidInvoice: async () =>
-					err<InvoiceAlreadyProcessed>({ kind: "InvoiceAlreadyProcessed" }),
-				FailedInvoice: async () =>
-					err<InvoiceAlreadyProcessed>({ kind: "InvoiceAlreadyProcessed" }),
-			},
-		);
+		matchChoice<
+			Invoice,
+			AsyncResult<PaymentSettled, PayInvoiceError | PaymentGatewayError>
+		>(invoice, {
+			UnpaidInvoice: (unpaid) =>
+				pipe(
+					deps.chargeInvoice(unpaid),
+					AsyncResult.flatMap<PaymentOutcome, PaymentSettled, PayInvoiceError>(
+						(outcome) => payInvoice(unpaid, subscription, outcome, settled),
+					),
+				),
+			PaidInvoice: async () =>
+				err<InvoiceAlreadyProcessed>({ kind: "InvoiceAlreadyProcessed" }),
+			FailedInvoice: async () =>
+				err<InvoiceAlreadyProcessed>({ kind: "InvoiceAlreadyProcessed" }),
+		});

@@ -20,6 +20,7 @@ import {
 import type {
 	InvoiceNotFound,
 	PayInvoiceError,
+	PaymentGatewayError,
 	PaymentSettled,
 } from "#/domain/subscription/operation/payment/payment.model";
 import { createPayInvoiceWorkflow } from "#/domain/subscription/operation/payment/payment.workflow";
@@ -58,7 +59,7 @@ export const payInvoice = async (
 						AsyncResult.flatMap(
 							([domainInvoice, domainSubscription]): AsyncResult<
 								PaymentSettled,
-								PayInvoiceError | InvoiceNotFound
+								PayInvoiceError | PaymentGatewayError | InvoiceNotFound
 							> =>
 								domainInvoice === null
 									? Promise.resolve(

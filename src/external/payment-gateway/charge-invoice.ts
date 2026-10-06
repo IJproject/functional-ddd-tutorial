@@ -1,4 +1,6 @@
+import { ok } from "#/domain/building-blocks";
 import { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
+import type { PaymentOutcome } from "#/domain/subscription/operation/payment/payment.model";
 import type { ChargeInvoice } from "#/domain/subscription/operation/payment/payment.workflow";
 
 /**
@@ -16,9 +18,11 @@ import type { ChargeInvoice } from "#/domain/subscription/operation/payment/paym
  * 実サービスへ差し替えるときは、このファイルだけを置き換える。
  */
 export const chargeInvoice: ChargeInvoice = async (invoice) =>
-	InvoiceId.value(invoice.id).includes(FAILING_INVOICE_MARKER)
-		? { kind: "Failed" }
-		: { kind: "Succeeded" };
+	ok<PaymentOutcome>(
+		InvoiceId.value(invoice.id).includes(FAILING_INVOICE_MARKER)
+			? { kind: "Failed" }
+			: { kind: "Succeeded" },
+	);
 
 /** この文字列を請求 ID に含めると決済が失敗する。seed がこの印を使う。 */
 const FAILING_INVOICE_MARKER = "-fail";

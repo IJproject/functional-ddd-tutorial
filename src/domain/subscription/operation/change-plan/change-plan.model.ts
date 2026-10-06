@@ -1,6 +1,9 @@
 import type { Case } from "#/domain/building-blocks";
 import type { UnpaidInvoice } from "#/domain/subscription/model/invoice.entity";
-import type { PlanId } from "#/domain/subscription/model/plan.primitive";
+import type {
+	PlanId,
+	PlanIdError,
+} from "#/domain/subscription/model/plan.model";
 import type {
 	PendingPaymentSubscription,
 	PlanChangeReservedSubscription,
@@ -54,7 +57,7 @@ export type ChangePlanError =
 	| ReservationExists;
 
 /** 指定されたプランが料金表に存在しない。 */
-export type UnknownPlan = Case<"UnknownPlan">;
+export type UnknownPlan = PlanIdError;
 
 /** 無料状態では変更元のプランが存在しない。 */
 export type NotSubscribed = Case<"NotSubscribed">;

@@ -15,7 +15,8 @@ import {
 	InvoiceId,
 	IssuedAt,
 } from "#/domain/subscription/model/invoice.primitive";
-import { PlanId } from "#/domain/subscription/model/plan.primitive";
+import { Plan } from "#/domain/subscription/model/plan.entity";
+import { PlanName } from "#/domain/subscription/model/plan.primitive";
 
 // ===========================================================================
 // 型定義（デシリアライズ: JSON → DTO）
@@ -61,7 +62,7 @@ export const InvoiceDetailItemView = {
 			UnpaidInvoice: (current) => ({
 				id: InvoiceId.value(current.id),
 				purposeLabel: purposeLabel(current.purpose),
-				planName: planName(current.planId),
+				planName: PlanName.value(Plan.of(current.planId).name),
 				amount: Amount.value(current.amount),
 				statusLabel: "未払い",
 				statusDescription: "契約画面から支払いを実行できます。",
@@ -70,7 +71,7 @@ export const InvoiceDetailItemView = {
 			PaidInvoice: (current) => ({
 				id: InvoiceId.value(current.id),
 				purposeLabel: purposeLabel(current.purpose),
-				planName: planName(current.planId),
+				planName: PlanName.value(Plan.of(current.planId).name),
 				amount: Amount.value(current.amount),
 				statusLabel: "支払い済み",
 				statusDescription: "この請求は決済済みです。",
@@ -79,7 +80,7 @@ export const InvoiceDetailItemView = {
 			FailedInvoice: (current) => ({
 				id: InvoiceId.value(current.id),
 				purposeLabel: purposeLabel(current.purpose),
-				planName: planName(current.planId),
+				planName: PlanName.value(Plan.of(current.planId).name),
 				amount: Amount.value(current.amount),
 				statusLabel: "失敗",
 				statusDescription: "決済に失敗しています。契約画面から再実行できます。",
@@ -93,15 +94,6 @@ export const INVOICE_DETAIL_UNAVAILABLE_MESSAGE =
 export const INVOICE_LOGIN_REQUIRED_MESSAGE = "ログインしてください。";
 export const INVOICE_NOT_FOUND_DESCRIPTION =
 	"指定された請求を確認できませんでした。";
-
-const planName = (planId: PlanId): string =>
-	matchChoice<{ kind: "Basic" } | { kind: "Pro" }, string>(
-		{ kind: PlanId.value(planId) },
-		{
-			Basic: () => "ベーシック",
-			Pro: () => "プロ",
-		},
-	);
 
 const purposeLabel = (purpose: InvoicePurpose): string =>
 	matchChoice<InvoicePurpose, string>(purpose, {

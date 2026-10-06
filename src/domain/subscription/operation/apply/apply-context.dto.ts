@@ -1,9 +1,10 @@
 import { type Case, matchChoice } from "#/domain/building-blocks";
 import type { Account } from "#/domain/subscription/model/account.entity";
 import { Plan } from "#/domain/subscription/model/plan.entity";
+import type { PlanId } from "#/domain/subscription/model/plan.model";
 import {
 	MonthlyPrice,
-	PlanId,
+	PlanName,
 } from "#/domain/subscription/model/plan.primitive";
 import type { Subscription } from "#/domain/subscription/model/subscription.entity";
 
@@ -29,8 +30,8 @@ export const ApplyContextView = {
 			TrialUsedAccount: () => true,
 		}),
 		plans: Plan.all().map((plan) => ({
-			id: PlanId.value(plan.id),
-			name: planName(plan.id),
+			id: planIdValue(plan.id),
+			name: PlanName.value(plan.name),
 			monthlyPrice: MonthlyPrice.value(plan.monthlyPrice),
 		})),
 	}),
@@ -45,14 +46,12 @@ export const APPLY_LOGIN_REQUIRED_MESSAGE = "ログインしてください。";
 export const ALREADY_SUBSCRIBED_APPLY_MESSAGE =
 	"すでに契約中のため申し込みできません。";
 
-const planName = (planId: PlanId): string =>
-	matchChoice<{ kind: "Basic" } | { kind: "Pro" }, string>(
-		{ kind: PlanId.value(planId) },
-		{
-			Basic: () => "ベーシック",
-			Pro: () => "プロ",
-		},
-	);
+/** DTO に出す識別子。画面がプラン変更の要求に使うため、ドメインの判別子と同じ文字列にする。 */
+const planIdValue = (planId: PlanId): string =>
+	matchChoice<PlanId, string>(planId, {
+		Basic: () => "Basic",
+		Pro: () => "Pro",
+	});
 
 // ===========================================================================
 // 型定義（シリアライズ: DTO → JSON）

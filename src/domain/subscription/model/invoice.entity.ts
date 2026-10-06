@@ -13,7 +13,7 @@ import {
 	type IssuedAt,
 } from "#/domain/subscription/model/invoice.primitive";
 import { Plan } from "#/domain/subscription/model/plan.entity";
-import type { PlanId } from "#/domain/subscription/model/plan.primitive";
+import type { PlanId } from "#/domain/subscription/model/plan.model";
 import { MonthlyPrice } from "#/domain/subscription/model/plan.primitive";
 
 // ===========================================================================

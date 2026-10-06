@@ -8,10 +8,11 @@ import {
 	InvoiceId,
 	IssuedAt,
 } from "#/domain/subscription/model/invoice.primitive";
-import { Plan } from "#/domain/subscription/model/plan.entity";
+import { Plan, type PlanChange } from "#/domain/subscription/model/plan.entity";
+import type { PlanId } from "#/domain/subscription/model/plan.model";
 import {
 	MonthlyPrice,
-	PlanId,
+	PlanName,
 } from "#/domain/subscription/model/plan.primitive";
 import type { Subscription } from "#/domain/subscription/model/subscription.entity";
 import {
@@ -34,8 +35,8 @@ export const SubscriptionView = {
 			kind: "SubscriptionFound",
 			state,
 			plans: Plan.all().map((plan) => ({
-				id: PlanId.value(plan.id),
-				name: planName(plan.id),
+				id: planIdValue(plan.id),
+				name: PlanName.value(plan.name),
 				monthlyPrice: MonthlyPrice.value(plan.monthlyPrice),
 				changeDescription: changeDescription(subscription, plan.id),
 				changeDisabled: !state.canChangePlan || samePlan(subscription, plan.id),
@@ -57,14 +58,12 @@ export const APPLY_BEFORE_PLAN_CHANGE_MESSAGE =
 	"先にサブスクを申し込んでください。";
 export const NO_INVOICES_MESSAGE = "請求はありません。";
 
-const planName = (planId: PlanId): string =>
-	matchChoice<{ kind: "Basic" } | { kind: "Pro" }, string>(
-		{ kind: PlanId.value(planId) },
-		{
-			Basic: () => "ベーシック",
-			Pro: () => "プロ",
-		},
-	);
+/** DTO に出す識別子。画面がプラン変更の要求に使うため、ドメインの判別子と同じ文字列にする。 */
+const planIdValue = (planId: PlanId): string =>
+	matchChoice<PlanId, string>(planId, {
+		Basic: () => "Basic",
+		Pro: () => "Pro",
+	});
 
 const purposeLabel = (purpose: InvoicePurpose): string =>
 	matchChoice<InvoicePurpose, string>(purpose, {
@@ -99,7 +98,7 @@ const encodeState = (subscription: Subscription): SubscriptionStateView =>
 		}),
 		TrialSubscription: (current) => ({
 			statusLabel: "トライアル中",
-			planName: planName(current.planId),
+			planName: PlanName.value(Plan.of(current.planId).name),
 			trialEndsAt: TrialEndsAt.value(current.trialEndsAt).toLocaleString(
 				"ja-JP",
 			),
@@ -116,7 +115,7 @@ const encodeState = (subscription: Subscription): SubscriptionStateView =>
 		}),
 		PendingPaymentSubscription: (current) => ({
 			statusLabel: "支払い待ち",
-			planName: planName(current.planId),
+			planName: PlanName.value(Plan.of(current.planId).name),
 			trialEndsAt: null,
 			periodEndsAt: null,
 			reservation: { kind: "None" },
@@ -133,7 +132,7 @@ const encodeState = (subscription: Subscription): SubscriptionStateView =>
 			const reservation: ReservationView = { kind: "None" };
 			return {
 				statusLabel: "有料契約中",
-				planName: planName(current.planId),
+				planName: PlanName.value(Plan.of(current.planId).name),
 				trialEndsAt: null,
 				periodEndsAt: PeriodEndsAt.value(current.periodEndsAt).toLocaleString(
 					"ja-JP",
@@ -151,7 +150,7 @@ const encodeState = (subscription: Subscription): SubscriptionStateView =>
 		},
 		UpgradePendingSubscription: (current) => ({
 			statusLabel: "有料契約中",
-			planName: planName(current.planId),
+			planName: PlanName.value(Plan.of(current.planId).name),
 			trialEndsAt: null,
 			periodEndsAt: PeriodEndsAt.value(current.periodEndsAt).toLocaleString(
 				"ja-JP",
@@ -170,7 +169,7 @@ const encodeState = (subscription: Subscription): SubscriptionStateView =>
 			const reservation: ReservationView = { kind: "Cancel" };
 			return {
 				statusLabel: "有料契約中",
-				planName: planName(current.planId),
+				planName: PlanName.value(Plan.of(current.planId).name),
 				trialEndsAt: null,
 				periodEndsAt: PeriodEndsAt.value(current.periodEndsAt).toLocaleString(
 					"ja-JP",
@@ -189,11 +188,11 @@ const encodeState = (subscription: Subscription): SubscriptionStateView =>
 		PlanChangeReservedSubscription: (current) => {
 			const reservation: ReservationView = {
 				kind: "PlanChange",
-				nextPlanName: planName(current.nextPlanId),
+				nextPlanName: PlanName.value(Plan.of(current.nextPlanId).name),
 			};
 			return {
 				statusLabel: "有料契約中",
-				planName: planName(current.planId),
+				planName: PlanName.value(Plan.of(current.planId).name),
 				trialEndsAt: null,
 				periodEndsAt: PeriodEndsAt.value(current.periodEndsAt).toLocaleString(
 					"ja-JP",
@@ -218,53 +217,41 @@ const changeDescription = (
 	matchChoice<Subscription, string>(subscription, {
 		FreeSubscription: () => "ダウングレード（期間満了時に切替）",
 		TrialSubscription: () => "トライアル終了→請求",
-		PendingPaymentSubscription: (current) => {
-			const difference = Plan.priceDifference(current.planId, nextPlanId);
-			return difference > 0
-				? `アップグレード（差額 ¥${difference.toLocaleString()} の請求）`
-				: "ダウングレード（期間満了時に切替）";
-		},
-		PaidSubscription: (current) => {
-			const difference = Plan.priceDifference(current.planId, nextPlanId);
-			return difference > 0
-				? `アップグレード（差額 ¥${difference.toLocaleString()} の請求）`
-				: "ダウングレード（期間満了時に切替）";
-		},
-		UpgradePendingSubscription: (current) => {
-			const difference = Plan.priceDifference(current.planId, nextPlanId);
-			return difference > 0
-				? `アップグレード（差額 ¥${difference.toLocaleString()} の請求）`
-				: "ダウングレード（期間満了時に切替）";
-		},
-		CancelReservedSubscription: (current) => {
-			const difference = Plan.priceDifference(current.planId, nextPlanId);
-			return difference > 0
-				? `アップグレード（差額 ¥${difference.toLocaleString()} の請求）`
-				: "ダウングレード（期間満了時に切替）";
-		},
-		PlanChangeReservedSubscription: (current) => {
-			const difference = Plan.priceDifference(current.planId, nextPlanId);
-			return difference > 0
-				? `アップグレード（差額 ¥${difference.toLocaleString()} の請求）`
-				: "ダウングレード（期間満了時に切替）";
-		},
+		PendingPaymentSubscription: (current) =>
+			paidPlanChangeDescription(current.planId, nextPlanId),
+		PaidSubscription: (current) =>
+			paidPlanChangeDescription(current.planId, nextPlanId),
+		UpgradePendingSubscription: (current) =>
+			paidPlanChangeDescription(current.planId, nextPlanId),
+		CancelReservedSubscription: (current) =>
+			paidPlanChangeDescription(current.planId, nextPlanId),
+		PlanChangeReservedSubscription: (current) =>
+			paidPlanChangeDescription(current.planId, nextPlanId),
+	});
+
+const paidPlanChangeDescription = (
+	currentPlanId: PlanId,
+	nextPlanId: PlanId,
+): string =>
+	matchChoice<PlanChange, string>(Plan.change(currentPlanId, nextPlanId), {
+		Upgrade: ({ difference }) =>
+			`アップグレード（差額 ¥${Amount.value(difference).toLocaleString()} の請求）`,
+		Downgrade: () => "ダウングレード（期間満了時に切替）",
 	});
 
 const samePlan = (subscription: Subscription, planId: PlanId): boolean =>
 	matchChoice<Subscription, boolean>(subscription, {
 		FreeSubscription: () => false,
-		TrialSubscription: (current) =>
-			PlanId.value(current.planId) === PlanId.value(planId),
+		TrialSubscription: (current) => current.planId.kind === planId.kind,
 		PendingPaymentSubscription: (current) =>
-			PlanId.value(current.planId) === PlanId.value(planId),
-		PaidSubscription: (current) =>
-			PlanId.value(current.planId) === PlanId.value(planId),
+			current.planId.kind === planId.kind,
+		PaidSubscription: (current) => current.planId.kind === planId.kind,
 		UpgradePendingSubscription: (current) =>
-			PlanId.value(current.planId) === PlanId.value(planId),
+			current.planId.kind === planId.kind,
 		CancelReservedSubscription: (current) =>
-			PlanId.value(current.planId) === PlanId.value(planId),
+			current.planId.kind === planId.kind,
 		PlanChangeReservedSubscription: (current) =>
-			PlanId.value(current.planId) === PlanId.value(planId),
+			current.planId.kind === planId.kind,
 	});
 
 const encodeInvoice = (invoice: Invoice): InvoiceView =>
@@ -272,7 +259,7 @@ const encodeInvoice = (invoice: Invoice): InvoiceView =>
 		UnpaidInvoice: (current) => ({
 			id: InvoiceId.value(current.id),
 			purposeLabel: purposeLabel(current.purpose),
-			planName: planName(current.planId),
+			planName: PlanName.value(Plan.of(current.planId).name),
 			amount: Amount.value(current.amount),
 			statusLabel: "未払い",
 			issuedAt: IssuedAt.value(current.issuedAt).toLocaleString("ja-JP"),
@@ -281,7 +268,7 @@ const encodeInvoice = (invoice: Invoice): InvoiceView =>
 		PaidInvoice: (current) => ({
 			id: InvoiceId.value(current.id),
 			purposeLabel: purposeLabel(current.purpose),
-			planName: planName(current.planId),
+			planName: PlanName.value(Plan.of(current.planId).name),
 			amount: Amount.value(current.amount),
 			statusLabel: "支払い済み",
 			issuedAt: IssuedAt.value(current.issuedAt).toLocaleString("ja-JP"),
@@ -290,7 +277,7 @@ const encodeInvoice = (invoice: Invoice): InvoiceView =>
 		FailedInvoice: (current) => ({
 			id: InvoiceId.value(current.id),
 			purposeLabel: purposeLabel(current.purpose),
-			planName: planName(current.planId),
+			planName: PlanName.value(Plan.of(current.planId).name),
 			amount: Amount.value(current.amount),
 			statusLabel: "失敗",
 			issuedAt: IssuedAt.value(current.issuedAt).toLocaleString("ja-JP"),

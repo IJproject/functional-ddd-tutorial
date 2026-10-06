@@ -52,7 +52,6 @@ import {
 	InvoiceId,
 	IssuedAt,
 } from "#/domain/subscription/model/invoice.primitive";
-import { PlanId } from "#/domain/subscription/model/plan.primitive";
 import { Subscription } from "#/domain/subscription/model/subscription.entity";
 import {
 	PeriodEndsAt,
@@ -187,7 +186,7 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 					Invoice.paid({
 						id: invoiceId(1),
 						accountId,
-						planId: PlanId.create("Basic"),
+						planId: { kind: "Basic" },
 						amount: Amount.create(980),
 						purpose: InvoicePurpose.New,
 						issuedAt: IssuedAt.create(daysAgo(45)),
@@ -205,7 +204,7 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 		}),
 		subscription: Subscription.trial({
 			accountId,
-			planId: PlanId.create("Basic"),
+			planId: { kind: "Basic" },
 			trialEndsAt: TrialEndsAt.create(daysFromNow(10)),
 		}),
 		invoices: [],
@@ -216,7 +215,7 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 			Invoice.unpaid({
 				id: invoiceId(1),
 				accountId,
-				planId: PlanId.create("Pro"),
+				planId: { kind: "Pro" },
 				amount: Amount.create(2980),
 				purpose: InvoicePurpose.New,
 				issuedAt: IssuedAt.create(daysAgo(1)),
@@ -232,7 +231,7 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 			}),
 			subscription: Subscription.pendingPayment({
 				accountId,
-				planId: PlanId.create("Pro"),
+				planId: { kind: "Pro" },
 				pendingInvoiceId: pendingInvoice.id,
 			}),
 			invoices: [pendingInvoice],
@@ -247,7 +246,7 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 				Invoice.unpaid({
 					id: invoiceId(1),
 					accountId,
-					planId: PlanId.create("Pro"),
+					planId: { kind: "Pro" },
 					amount: Amount.create(2980),
 					purpose: InvoicePurpose.New,
 					issuedAt: IssuedAt.create(daysAgo(1)),
@@ -263,7 +262,7 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 				}),
 				subscription: Subscription.pendingPayment({
 					accountId,
-					planId: PlanId.create("Pro"),
+					planId: { kind: "Pro" },
 					pendingInvoiceId: pendingInvoice.id,
 				}),
 				invoices: [pendingInvoice],
@@ -281,7 +280,7 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 			}),
 			subscription: Subscription.paid({
 				accountId,
-				planId: PlanId.create("Basic"),
+				planId: { kind: "Basic" },
 				periodEndsAt: PeriodEndsAt.create(daysFromNow(20)),
 			}),
 			invoices: [
@@ -290,7 +289,7 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 					Invoice.paid({
 						id: invoiceId(1),
 						accountId,
-						planId: PlanId.create("Basic"),
+						planId: { kind: "Basic" },
 						amount: Amount.create(980),
 						purpose: InvoicePurpose.New,
 						issuedAt: IssuedAt.create(daysAgo(40)),
@@ -301,7 +300,7 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 					Invoice.paid({
 						id: invoiceId(2),
 						accountId,
-						planId: PlanId.create("Basic"),
+						planId: { kind: "Basic" },
 						amount: Amount.create(980),
 						purpose: InvoicePurpose.Renewal,
 						issuedAt: IssuedAt.create(daysAgo(10)),
@@ -312,7 +311,7 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 					Invoice.failed({
 						id: invoiceId(3),
 						accountId,
-						planId: PlanId.create("Basic"),
+						planId: { kind: "Basic" },
 						amount: Amount.create(980),
 						purpose: InvoicePurpose.Renewal,
 						issuedAt: IssuedAt.create(daysAgo(35)),
@@ -332,7 +331,7 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 			}),
 			subscription: Subscription.paid({
 				accountId,
-				planId: PlanId.create("Pro"),
+				planId: { kind: "Pro" },
 				periodEndsAt: PeriodEndsAt.create(daysFromNow(25)),
 			}),
 			invoices: [
@@ -341,7 +340,7 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 					Invoice.paid({
 						id: invoiceId(1),
 						accountId,
-						planId: PlanId.create("Pro"),
+						planId: { kind: "Pro" },
 						amount: Amount.create(2980),
 						purpose: InvoicePurpose.New,
 						issuedAt: IssuedAt.create(daysAgo(5)),
@@ -356,7 +355,7 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 			Invoice.paid({
 				id: invoiceId(1),
 				accountId,
-				planId: PlanId.create("Basic"),
+				planId: { kind: "Basic" },
 				amount: Amount.create(980),
 				purpose: InvoicePurpose.New,
 				issuedAt: IssuedAt.create(daysAgo(15)),
@@ -367,7 +366,7 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 			Invoice.unpaid({
 				id: invoiceId(2),
 				accountId,
-				planId: PlanId.create("Pro"),
+				planId: { kind: "Pro" },
 				amount: Amount.create(2000),
 				purpose: InvoicePurpose.UpgradeDifference,
 				issuedAt: IssuedAt.create(now),
@@ -386,7 +385,7 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 			}),
 			subscription: Subscription.upgradePending({
 				accountId,
-				planId: PlanId.create("Basic"),
+				planId: { kind: "Basic" },
 				periodEndsAt: PeriodEndsAt.create(daysFromNow(15)),
 				pendingInvoiceId: pendingInvoice.id,
 			}),
@@ -402,7 +401,7 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 		}),
 		subscription: Subscription.cancelReserved({
 			accountId,
-			planId: PlanId.create("Pro"),
+			planId: { kind: "Pro" },
 			periodEndsAt: PeriodEndsAt.create(daysFromNow(12)),
 		}),
 		invoices: [
@@ -411,7 +410,7 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 				Invoice.paid({
 					id: invoiceId(1),
 					accountId,
-					planId: PlanId.create("Pro"),
+					planId: { kind: "Pro" },
 					amount: Amount.create(2980),
 					purpose: InvoicePurpose.Renewal,
 					issuedAt: IssuedAt.create(daysAgo(18)),
@@ -428,9 +427,9 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 		}),
 		subscription: Subscription.planChangeReserved({
 			accountId,
-			planId: PlanId.create("Pro"),
+			planId: { kind: "Pro" },
 			periodEndsAt: PeriodEndsAt.create(daysFromNow(8)),
-			nextPlanId: PlanId.create("Basic"),
+			nextPlanId: { kind: "Basic" },
 		}),
 		invoices: [
 			must(
@@ -438,7 +437,7 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 				Invoice.paid({
 					id: invoiceId(1),
 					accountId,
-					planId: PlanId.create("Pro"),
+					planId: { kind: "Pro" },
 					amount: Amount.create(2980),
 					purpose: InvoicePurpose.Renewal,
 					issuedAt: IssuedAt.create(daysAgo(22)),

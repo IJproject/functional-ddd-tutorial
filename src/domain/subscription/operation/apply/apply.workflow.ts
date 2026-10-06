@@ -17,10 +17,8 @@ import {
 	IssuedAt,
 } from "#/domain/subscription/model/invoice.primitive";
 import { Plan } from "#/domain/subscription/model/plan.entity";
-import {
-	MonthlyPrice,
-	PlanId,
-} from "#/domain/subscription/model/plan.primitive";
+import { PlanId } from "#/domain/subscription/model/plan.model";
+import { MonthlyPrice } from "#/domain/subscription/model/plan.primitive";
 import type { Subscription } from "#/domain/subscription/model/subscription.entity";
 import { TrialEndsAt } from "#/domain/subscription/model/subscription.primitive";
 import type {
@@ -67,23 +65,16 @@ export type ApplyToSubscription = (
 /** 無料トライアルの日数。 */
 export const TRIAL_DAYS = 14;
 
-const PLAN_IDS: Readonly<Record<string, PlanId | undefined>> = {
-	Basic: PlanId.create("Basic"),
-	Pro: PlanId.create("Pro"),
-};
-
 /**
  * accountId は境界層が認証済みセッションから渡す信頼済みの値なので、
  * 形式検証はせず AccountId.create を通すだけにする。
  */
 export const validateApplyCommand: ValidateApplyCommand = (command) => {
-	const planId = PLAN_IDS[command.planId];
-	return planId
-		? ok({ accountId: AccountId.create(command.accountId), planId })
-		: err({
-				kind: "InvalidApplyCommand",
-				reason: { kind: "UnknownPlan" },
-			});
+	return Result.match(PlanId.create(command.planId), {
+		ok: (planId): ResultType<ValidatedApplyCommand, InvalidApplyCommand> =>
+			ok({ accountId: AccountId.create(command.accountId), planId }),
+		err: (reason) => err({ kind: "InvalidApplyCommand", reason }),
+	});
 };
 
 const alreadySubscribed = (): ResultType<Applied, AlreadySubscribed> =>

@@ -5,7 +5,10 @@ import type {
 } from "#/domain/subscription/model/account.entity";
 import type { AccountId } from "#/domain/subscription/model/account.primitive";
 import type { UnpaidInvoice } from "#/domain/subscription/model/invoice.entity";
-import type { PlanId } from "#/domain/subscription/model/plan.primitive";
+import type {
+	PlanId,
+	PlanIdError,
+} from "#/domain/subscription/model/plan.model";
 import type {
 	PendingPaymentSubscription,
 	Subscription,
@@ -65,7 +68,7 @@ export type InvalidApplyCommand = Case<
 	"InvalidApplyCommand",
 	{ reason: ApplyCommandError }
 >;
-export type ApplyCommandError = Case<"UnknownPlan">;
+export type ApplyCommandError = PlanIdError;
 
 /** 契約中のアカウントは申し込めない。FreeSubscription 以外はすべてこれ。 */
 export type AlreadySubscribed = Case<"AlreadySubscribed">;

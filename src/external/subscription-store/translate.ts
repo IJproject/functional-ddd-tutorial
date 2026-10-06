@@ -21,7 +21,7 @@ import {
 	InvoiceId,
 	IssuedAt,
 } from "#/domain/subscription/model/invoice.primitive";
-import { PlanId } from "#/domain/subscription/model/plan.primitive";
+import { PlanId } from "#/domain/subscription/model/plan.model";
 import {
 	StoreError,
 	type StoreError as StoreErrorType,
@@ -52,8 +52,6 @@ type StoredInvoiceValues = InferInsertModel<typeof subscriptionInvoiceTable>;
 type StoredAccountChoice =
 	| Case<"TrialUnused", { row: StoredAccount }>
 	| Case<"TrialUsed", { row: StoredAccount; trialUsedAt: Date }>;
-
-type StoredPlanChoice = Case<"Basic"> | Case<"Pro">;
 
 type StoredSubscriptionChoice =
 	| Case<"FreeSubscription", { row: StoredSubscription }>
@@ -89,20 +87,17 @@ const invoiceError = (row: StoredInvoice, reason: string): StoreErrorType =>
 const decodePlanId = (
 	planId: string,
 	malformed: () => StoreErrorType,
-): ResultType<PlanId, StoreErrorType> => {
-	if (planId === "Basic") return ok(PlanId.create("Basic"));
-	if (planId === "Pro") return ok(PlanId.create("Pro"));
-	return err(malformed());
-};
+): ResultType<PlanId, StoreErrorType> =>
+	Result.match(PlanId.create(planId), {
+		ok: (value): ResultType<PlanId, StoreErrorType> => ok(value),
+		err: () => err(malformed()),
+	});
 
 const encodePlanId = (planId: PlanId): StoredInvoice["planId"] =>
-	matchChoice<StoredPlanChoice, StoredInvoice["planId"]>(
-		{ kind: PlanId.value(planId) },
-		{
-			Basic: () => "Basic",
-			Pro: () => "Pro",
-		},
-	);
+	matchChoice<PlanId, StoredInvoice["planId"]>(planId, {
+		Basic: () => "Basic",
+		Pro: () => "Pro",
+	});
 
 /**
  * trial_used_at の NULL 有無だけで必ず Account のどちらかに解釈できる。

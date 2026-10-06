@@ -11,11 +11,12 @@ import {
 	Amount,
 	IssuedAt,
 } from "#/domain/subscription/model/invoice.primitive";
-import { Plan } from "#/domain/subscription/model/plan.entity";
+import { Plan, type PlanChange } from "#/domain/subscription/model/plan.entity";
 import {
-	MonthlyPrice,
 	PlanId,
-} from "#/domain/subscription/model/plan.primitive";
+	type PlanId as PlanIdType,
+} from "#/domain/subscription/model/plan.model";
+import { MonthlyPrice } from "#/domain/subscription/model/plan.primitive";
 import type { Subscription } from "#/domain/subscription/model/subscription.entity";
 import type {
 	ChangePlanError,
@@ -62,20 +63,15 @@ export type ChangePlanForSubscription = (
 // 実装
 // ===========================================================================
 
-const PLAN_IDS: Readonly<Record<string, PlanId | undefined>> = {
-	Basic: PlanId.create("Basic"),
-	Pro: PlanId.create("Pro"),
-};
+export const validateChangePlanCommand: ValidateChangePlanCommand = (command) =>
+	Result.match(PlanId.create(command.planId), {
+		ok: (planId): ResultType<ValidatedChangePlanCommand, UnknownPlan> =>
+			ok({ planId }),
+		err: (reason) => err(reason),
+	});
 
-export const validateChangePlanCommand: ValidateChangePlanCommand = (
-	command,
-) => {
-	const planId = PLAN_IDS[command.planId];
-	return planId ? ok({ planId }) : err({ kind: "UnknownPlan" });
-};
-
-const samePlan = (current: PlanId, requested: PlanId): boolean =>
-	PlanId.value(current) === PlanId.value(requested);
+const samePlan = (current: PlanIdType, requested: PlanIdType): boolean =>
+	current.kind === requested.kind;
 
 const planChangeNotAllowed = (): ResultType<
 	PlanChanged,
@@ -124,9 +120,12 @@ export const changePlanForSubscription: ChangePlanForSubscription = (
 			if (samePlan(current.planId, command.planId)) {
 				return planChangeNotAllowed();
 			}
-			const difference = Plan.priceDifference(current.planId, command.planId);
-			return difference > 0
-				? ok({
+			return matchChoice<
+				PlanChange,
+				ResultType<PlanChanged, Exclude<ChangePlanError, UnknownPlan>>
+			>(Plan.change(current.planId, command.planId), {
+				Upgrade: ({ difference }) =>
+					ok({
 						kind: "UpgradeRequested",
 						subscription: {
 							kind: "UpgradePendingSubscription",
@@ -140,12 +139,13 @@ export const changePlanForSubscription: ChangePlanForSubscription = (
 							id: issued.invoiceId,
 							accountId: current.accountId,
 							planId: command.planId,
-							amount: Amount.create(difference),
+							amount: difference,
 							purpose: { kind: "UpgradeDifference" },
 							issuedAt: IssuedAt.create(issued.now),
 						},
-					})
-				: ok({
+					}),
+				Downgrade: () =>
+					ok({
 						kind: "PlanChangeReserved",
 						subscription: {
 							kind: "PlanChangeReservedSubscription",
@@ -154,7 +154,8 @@ export const changePlanForSubscription: ChangePlanForSubscription = (
 							periodEndsAt: current.periodEndsAt,
 							nextPlanId: command.planId,
 						},
-					});
+					}),
+			});
 		},
 		UpgradePendingSubscription: (current) =>
 			samePlan(current.planId, command.planId)

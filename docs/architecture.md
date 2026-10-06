@@ -76,6 +76,9 @@ src/domain/subscription/
 
 各ブロックはコメントの見出し（`// === 型定義 ===` など）で区切り、該当するものが無いブロックは省く。
 
+**`*.primitive.ts` だけは 1 を適用しない。** 値オブジェクトは型と構築子が 1 対 1 で短く、2 つのブロックに分けると 1 つの概念を読むのにファイル内を往復することになる。型・失敗理由の型・private な定数・`const` を 1 組として隣接させ、見出しのブロックは置かない（§5.1）。
+型が多く「型を先に読めば全体が分かる」が効くのは `*.model.ts` / `*.entity.ts` / `*.workflow.ts` / `*.dto.ts` のほうで、そちらは 1 を守る。
+
 ## 2. 共通の型と道具 — `src/domain/building-blocks.ts`
 
 ### 2.1 Primitive（ブランド型）
@@ -128,6 +131,20 @@ flowchart LR
 どちらも「外の形をドメインの形に直す」仕事だが、置き場所を分けるのは依存の向きが違うからである。
 `dto/` は `domain/` の内側にあり、`external/` を import してはならない。
 
+両方の境界で名前の付け方を揃える。**名詞がどちらの外部かを表し、動詞が向きを表す。**
+
+> `decode` は常に「外の形 → ドメインの形」、`encode` は常に「ドメインの形 → 外の形」。
+
+向きはドメインを中心に決まり、転送の向きではない。そのため上流と下流で名詞と動詞の組み合わせが反転する。
+
+| | `decode`（ドメインへ） | `encode`（ドメインから） |
+|---|---|---|
+| 上流（UI） | `LoginRequest.decode` | `LoginResponse.encode` |
+| 下流（ストア） | `StoredAccount.decode` | `StoredAccount.encode` |
+
+**この反転そのものが「どちらの外部か」を語る**ので、`Request` / `Response` という語を両側で使っても曖昧にならない。
+下流でも、ストアのように「読む・書く」相手には `StoredXxx` という名詞を使う。要求と返答をやり取りする相手（認証基盤・決済ゲートウェイ）には名詞を置かず、`VerifyCredentials` のような動詞名の関数型をポートとして定める（§3.2）。
+
 ### 4.2 DTO 型の定義（Request / Response / View と schema）
 
 - **Request**: UI からの入力。zod の schema から `z.infer` で導出する。schema は「JSON がこの形をしているか」を確かめる構造の検査であり、「メールとして妥当か」のような業務ルールの検証はしない。それは `model/` の値オブジェクトの仕事である。
@@ -154,8 +171,26 @@ URL パラメータのように、構造として正しくてもドメインの 
 失敗は3種類あり、いずれも `dto/` が Response 型の値として用意する。ページは `{ field: null, message }` のような Response の断片を自分で組み立てない。
 
 1. **ドメインのエラー**: ワークフローが `Err` で返す。`encode` の中で翻訳する。
-2. **境界の失敗**: ワークフローに渡す前の読み取りで起きる（ストアの行をドメイン型として解釈できない、など）。Wlaschin の RemoteServiceError にならい、これらは `model/` に型として定義し、`encode` が受けるエラー型の一員（`XxxError | StoreError`）として同じ場所で翻訳する。純粋なワークフロー自身のエラー型には混ぜない。ワークフローは読み取りをしないからである。サーバー関数は「読み取り → ワークフロー → 保存 → encode」を1本の `AsyncResult` のパイプラインとしてつなぐ。
-3. **ワークフロー外の失敗**: 通信断や想定外の例外。サーバー側の `encode` を通れないため、`dto/` が Response オブジェクトの `unexpected` として文言を確定させ、ページは `catch` でそれを表示するだけにする。
+2. **インフラストラクチャの失敗**: ストアや認証基盤や決済ゲートウェイに到達できない、保存できない、保存された行をドメイン型として解釈できない、など。Wlaschin の RemoteServiceError にならい、これらは `model/` に型として定義し、`encode` が受けるエラー型の一員（`XxxError | StoreError`）として同じ場所で翻訳する。
+3. **ワークフロー外の失敗**: ブラウザとサーバーの間の通信断など、サーバー側の `encode` を通れないもの。`dto/` が Response オブジェクトの `unexpected` として文言を確定させ、ページは `catch` でそれを表示するだけにする。
+
+**2 はすべて `Result` に乗せ、例外にしない。** 例外を投げてよいのはパニック（プログラムの誤りで、利用者が再試行しても直らないもの）だけである。インフラの失敗は再試行で直りうるので、型に現れていなければ扱いを選べない。外部アダプタは、外部を呼ぶ箇所だけを `try` で包んで境界エラーへ変換する。
+
+境界エラーの型は、外部ごとに 1 つ置く。
+
+| 型 | 置き場所 | 表すもの |
+|---|---|---|
+| `StoreError` | `subscription/model/store.model.ts` | ストアに到達できない、行を解釈できない |
+| `AuthProviderError` | `auth/model/auth-provider.model.ts` | 認証基盤に到達できない |
+| `PaymentGatewayError` | `subscription/operation/payment/payment.model.ts` | 決済ゲートウェイに到達できない |
+
+いずれも調査用の `reason` を持つが、Response には出さない。
+
+**ドメインのエラー語彙にインフラの失敗を混ぜない。** `LoginError` や `PayInvoiceError` は業務上の失敗だけを列挙し、広げるのはワークフローの戻り値の型のほうである（`AsyncResult<LoggedIn, LoginError | AuthProviderError>`）。読み取りはワークフローの外で起きるので `XxxError | StoreError` となり、途中に I/O を挟む操作では `XxxError | AuthProviderError` のように外部の失敗が加わる。どちらも `encode` が同じ場所で翻訳する。
+
+**業務上の結果と、到達できない失敗を混同しない。** 決済が拒否されたのは業務上の結果（`PaymentOutcome` の `Failed`）で請求を失敗として確定させるが、ゲートウェイに到達できないのは `PaymentGatewayError` であり、請求を失敗にしてはいけない。型を分けることでこの取り違えを防ぐ。
+
+サーバー関数は「読み取り → ワークフロー → 保存 → encode」を1本の `AsyncResult` のパイプラインとしてつなぐ。この合成は `application/` の責務である（§1.3）。
 
 `dto/` に置く文言は、ドメインや境界の結果を利用者に伝える言葉までとする。
 画面の見出し・ラベル・「読み込み中」のような画面固有の文言はページの責務であり、`dto/` には置かない。
@@ -197,9 +232,11 @@ Response の型が encode より下に来るが、型宣言は巻き上げられ
 
 | 拡張子 | 置くもの | 例 |
 |---|---|---|
-| `*.primitive.ts` | 単一の値を包む値オブジェクト | `EmailAddress`、`PlanId` |
+| `*.primitive.ts` | 単一の値を包む値オブジェクト | `EmailAddress`、`MonthlyPrice` |
 | `*.entity.ts` | Id を持ち、ライフサイクルを持つもの。集約ルート | `Subscription`、`Invoice` |
-| `*.model.ts` | Id を持たない複合型。ワークフローの入力・イベント・エラー、複合値オブジェクト | `ValidatedLoginCommand`、`Registered`、`Session` |
+| `*.model.ts` | Id を持たない複合型。ワークフローの入力・イベント・エラー、複合値オブジェクト、choice type | `ValidatedLoginCommand`、`Registered`、`Session`、`PlanId` |
+
+`PlanId` が `*.model.ts` にあるのは、**取りうる値が閉じた集合なので choice type（`Case<"Basic"> | Case<"Pro">`）で表している**ためである。「単一の値を包む」形ではないので primitive ではない。閉じた集合を文字列のブランド型にすると、どの値が存在するかの知識がドメインの外へ漏れる（§5.1）。
 
 ### 5.1 値オブジェクト（`*.primitive.ts`）
 
@@ -208,6 +245,12 @@ Response の型が encode より下に来るが、型宣言は巻き上げられ
 - 同じ概念に属する primitive を 1 ファイルにまとめる（`user.primitive.ts` に `UserId`、`EmailAddress`、`Password`）。ファイル名は概念名で、それを主に使う entity や model と揃える。
 - 構築子は `Xxx.create` / `Xxx.value` のオブジェクト形式にする。検証を伴うなら `Result` を返し、失敗理由は `XxxError` として同じファイルに置く。文言は持たず、ユーザーに見せる言葉は境界層が決める。
 - 信頼境界の内側から来る値（自前の認証基盤が発行した id など）は検証しないので `Result` を返さない。戻り値の型が「失敗しない」ことを語る。
+- **検証の有無は名前ではなく戻り値の型が語る。** 構築子は `create` 1 つだけで、`parse` のような第 2 の構築子を作らない。入力は常にプリミティブ（`string` / `Date` など）で受ける。
+- **オブジェクトは名前空間であってレシーバではない。** `Xxx.value(v)` の形を守り `v.value()` にしない。`this` を使わない。可変状態を持たない。`create` / `value` 以外のプロパティを生やさない。
+- **値から値を導く業務ルールは、オブジェクトのプロパティにせず独立した関数にする。** 「トライアルは 14 日」「期間は 1 ヶ月」のような規則は値の作り方ではないので、`trialPeriodEnd(trialUsedAt)` / `billingPeriodEnd(paidAt)` のように同じファイルの関数として置く。
+- **取りうる値が閉じた集合なら、ブランド型ではなく choice type にして `*.model.ts` へ置く。** 文字列のブランド型にすると `value()` から表現が漏れ、永続化の文字列・画面の表示名・内部の判別子が同じものとして扱われてしまう。choice type なら、それぞれを `matchChoice` で選ぶ別の判断にできる。
+
+ファイル内の並べ方は §1.4 の例外で、**1 つの値オブジェクトに関するものを隣接させる**。型 →（失敗理由の型）→（private な定数）→ `const` →（その値を作る関数）の順に置き、値オブジェクトどうしは空行で区切る。「型定義」「実装」の見出しブロックは置かない。
 
 ### 5.2 エンティティと集約（`*.entity.ts`）
 

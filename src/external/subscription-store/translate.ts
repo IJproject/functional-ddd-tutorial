@@ -12,9 +12,10 @@ import {
 	AccountId,
 	TrialUsedAt,
 } from "#/domain/subscription/model/account.primitive";
-import type {
+import {
 	Invoice,
-	InvoicePurpose,
+	type InvoiceError,
+	type InvoicePurpose,
 } from "#/domain/subscription/model/invoice.entity";
 import {
 	Amount,
@@ -586,24 +587,32 @@ export const StoredInvoice = {
 										purpose,
 										issuedAt: IssuedAt.create(row.issuedAt),
 									};
-									return ok(
-										matchChoice<StoredInvoiceStatusChoice, Invoice>(
-											statusChoice,
-											{
-												UnpaidInvoice: () => ({
-													kind: "UnpaidInvoice",
-													...fields,
-												}),
-												PaidInvoice: () => ({
-													kind: "PaidInvoice",
-													...fields,
-												}),
-												FailedInvoice: () => ({
-													kind: "FailedInvoice",
-													...fields,
-												}),
-											},
-										),
+									return Result.match<
+										Invoice,
+										InvoiceError,
+										ResultType<Invoice, StoreErrorType>
+									>(
+										matchChoice<
+											StoredInvoiceStatusChoice,
+											ResultType<Invoice, InvoiceError>
+										>(statusChoice, {
+											UnpaidInvoice: () => Invoice.unpaid(fields),
+											PaidInvoice: () => Invoice.paid(fields),
+											FailedInvoice: () => Invoice.failed(fields),
+										}),
+										{
+											ok,
+											err: (reason) =>
+												err(
+													invoiceError(
+														row,
+														matchChoice<InvoiceError, string>(reason, {
+															AmountMismatch: ({ expected, actual }) =>
+																`amount mismatch: expected=${expected} actual=${actual}`,
+														}),
+													),
+												),
+										},
 									);
 								},
 							}),

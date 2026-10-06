@@ -72,6 +72,19 @@ export const SignupResponse = {
 		ok: false,
 		errors: [{ field: null, message: "登録に失敗しました" }],
 	} satisfies Extract<SignupResponse, { ok: false }>,
+	/**
+	 * 認証基盤への登録は済んだが、口座の開設に失敗した。
+	 * ログインすればアプリは使えるため、再登録ではなくログインへ誘導する。
+	 */
+	accountSetupIncomplete: {
+		ok: false,
+		errors: [
+			{
+				field: null,
+				message: "アカウントは作成済みです。ログインしてください",
+			},
+		],
+	} satisfies Extract<SignupResponse, { ok: false }>,
 };
 
 /**

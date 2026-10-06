@@ -28,7 +28,7 @@ export const signup = async (
 		return Result.match<void, StoreError, SignupResponse>(
 			await openAccount(AccountId.create(response.userId)),
 			{
-				err: () => SignupResponse.unexpected,
+				err: () => SignupResponse.accountSetupIncomplete,
 				ok: () => response,
 			},
 		);

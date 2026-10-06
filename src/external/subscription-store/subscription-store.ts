@@ -248,15 +248,14 @@ export const saveApplied = (applied: Applied): AsyncResult<void, StoreError> =>
 		TrialStarted: ({ account, subscription }) =>
 			attempt(() =>
 				db.transaction(async (tx) => {
+					const values = StoredAccount.encode(account);
 					await tx
-						.update(subscriptionAccountTable)
-						.set({ trialUsedAt: account.trialUsedAt })
-						.where(
-							eq(
-								subscriptionAccountTable.accountId,
-								AccountId.value(account.id),
-							),
-						);
+						.insert(subscriptionAccountTable)
+						.values(values)
+						.onConflictDoUpdate({
+							target: subscriptionAccountTable.accountId,
+							set: { trialUsedAt: values.trialUsedAt },
+						});
 					const saved = await saveSubscription(tx, subscription);
 					if (saved.tag === "err") throw saved.error.reason;
 				}),

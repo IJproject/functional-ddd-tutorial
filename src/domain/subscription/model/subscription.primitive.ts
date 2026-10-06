@@ -2,25 +2,10 @@ import type { Primitive } from "#/domain/building-blocks";
 import { TrialUsedAt } from "#/domain/subscription/model/account.primitive";
 import { PaidAt } from "#/domain/subscription/model/invoice.primitive";
 
-// ===========================================================================
-// 型定義
-// ===========================================================================
-
 export type TrialEndsAt = Primitive<"TrialEndsAt", Date>;
-export type PeriodEndsAt = Primitive<"PeriodEndsAt", Date>;
-
-// ===========================================================================
-// 実装
-// ===========================================================================
-
 export const TrialEndsAt = {
 	create: (input: Date): TrialEndsAt => input as TrialEndsAt,
 	value: (trialEndsAt: TrialEndsAt): Date => trialEndsAt,
-};
-
-export const PeriodEndsAt = {
-	create: (input: Date): PeriodEndsAt => input as PeriodEndsAt,
-	value: (periodEndsAt: PeriodEndsAt): Date => periodEndsAt,
 };
 
 /** 無料トライアルの日数。 */
@@ -35,6 +20,11 @@ export const trialPeriodEnd = (trialUsedAt: TrialUsedAt): TrialEndsAt =>
 		),
 	);
 
+export type PeriodEndsAt = Primitive<"PeriodEndsAt", Date>;
+export const PeriodEndsAt = {
+	create: (input: Date): PeriodEndsAt => input as PeriodEndsAt,
+	value: (periodEndsAt: PeriodEndsAt): Date => periodEndsAt,
+};
 /** 契約期間の終わり。支払いが成立した時刻から1ヶ月後。 */
 export const billingPeriodEnd = (paidAt: PaidAt): PeriodEndsAt => {
 	const paid = PaidAt.value(paidAt);

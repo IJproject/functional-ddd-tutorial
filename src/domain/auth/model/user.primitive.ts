@@ -6,30 +6,7 @@ import {
 	type Result,
 } from "#/domain/building-blocks";
 
-// ===========================================================================
-// 型定義
-// ===========================================================================
-
 export type UserId = Primitive<"UserId", string>;
-export type EmailAddress = Primitive<"EmailAddress", string>;
-export type Password = Primitive<"Password", string>;
-
-/**
- * EmailAddress の構築が失敗する理由。
- * 文言は持たない。ユーザーに見せる言葉は境界層が決める。
- */
-export type EmailAddressError = Case<"Empty"> | Case<"Malformed">;
-
-/**
- * Password の構築が失敗する理由。
- * 文言は持たない。ユーザーに見せる言葉は境界層が決める。
- */
-export type PasswordError = Case<"Empty"> | Case<"TooShort">;
-
-// ===========================================================================
-// 実装
-// ===========================================================================
-
 export const UserId = {
 	/**
 	 * 信頼境界の内側（自前の認証基盤が発行した id）からの変換。
@@ -39,8 +16,13 @@ export const UserId = {
 	value: (userId: UserId): string => userId,
 };
 
+export type EmailAddress = Primitive<"EmailAddress", string>;
+/**
+ * EmailAddress の構築が失敗する理由。
+ * 文言は持たない。ユーザーに見せる言葉は境界層が決める。
+ */
+export type EmailAddressError = Case<"Empty"> | Case<"Malformed">;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
 export const EmailAddress = {
 	/**
 	 * 形式検証を伴う構築子。失敗しうるので Result を返す。
@@ -56,8 +38,13 @@ export const EmailAddress = {
 	value: (email: EmailAddress): string => email,
 };
 
+export type Password = Primitive<"Password", string>;
+/**
+ * Password の構築が失敗する理由。
+ * 文言は持たない。ユーザーに見せる言葉は境界層が決める。
+ */
+export type PasswordError = Case<"Empty"> | Case<"TooShort">;
 const PASSWORD_MIN_LENGTH = 8;
-
 export const Password = {
 	/**
 	 * signup でも login でも同じ型を使う。

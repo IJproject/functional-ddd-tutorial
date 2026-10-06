@@ -13,7 +13,10 @@ import {
 	ApplyRequest,
 	ApplyResponse,
 } from "#/domain/subscription/operation/apply/apply.dto";
-import type { Applied } from "#/domain/subscription/operation/apply/apply.model";
+import {
+	type Applied,
+	ApplyContext,
+} from "#/domain/subscription/operation/apply/apply.model";
 import { createApplyWorkflow } from "#/domain/subscription/operation/apply/apply.workflow";
 import { ApplyContextView } from "#/domain/subscription/operation/apply/apply-context.dto";
 import { currentSession } from "#/external/better-auth/current-session";
@@ -38,11 +41,17 @@ export const applyContext = async (): Promise<ApplyContextView> => {
 			matchChoice<Session, Promise<ApplyContextView>>(session, {
 				AnonymousSession: async () => ({ kind: "AnonymousApplyContext" }),
 				AuthenticatedSession: async ({ userId }) => {
-					const loaded = await loadApplyContext(toAccountId(userId));
+					const accountId = toAccountId(userId);
+					const loaded = await loadApplyContext(accountId);
 					return Result.match(loaded, {
 						err: (): ApplyContextView => ({ kind: "ApplyContextUnavailable" }),
-						ok: (context) =>
-							ApplyContextView.encode(context.account, context.subscription),
+						ok: (found) => {
+							const context = ApplyContext.of(found, accountId);
+							return ApplyContextView.encode(
+								context.account,
+								context.subscription,
+							);
+						},
 					});
 				},
 			}),
@@ -60,6 +69,7 @@ export const apply = async (request: ApplyRequest): Promise<ApplyResponse> => {
 					const accountId = toAccountId(userId);
 					return pipe(
 						loadApplyContext(accountId),
+						AsyncResult.map((found) => ApplyContext.of(found, accountId)),
 						AsyncResult.flatMap((context) =>
 							applyWorkflow(
 								ApplyRequest.decode(request, AccountId.value(accountId)),

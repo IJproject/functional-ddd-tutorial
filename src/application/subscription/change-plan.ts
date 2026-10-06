@@ -8,6 +8,7 @@ import {
 import { toAccountId } from "#/domain/context-map/auth-to-subscription";
 import { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
 import type { StoreError } from "#/domain/subscription/model/store.model";
+import { Subscription } from "#/domain/subscription/model/subscription.entity";
 import {
 	ChangePlanRequest,
 	ChangePlanResponse,
@@ -34,9 +35,11 @@ export const changePlan = async (
 		ok: (session) =>
 			matchChoice<Session, Promise<ChangePlanResponse>>(session, {
 				AnonymousSession: async () => ChangePlanResponse.authenticationRequired,
-				AuthenticatedSession: async ({ userId }) =>
-					pipe(
-						loadSubscription(toAccountId(userId)),
+				AuthenticatedSession: async ({ userId }) => {
+					const accountId = toAccountId(userId);
+					return pipe(
+						loadSubscription(accountId),
+						AsyncResult.map((found) => Subscription.orFree(found, accountId)),
 						AsyncResult.flatMap((subscription) =>
 							changePlanWorkflow(
 								ChangePlanRequest.decode(request),
@@ -51,7 +54,8 @@ export const changePlan = async (
 								),
 						),
 						async (result) => ChangePlanResponse.encode(await result),
-					),
+					);
+				},
 			}),
 	});
 };

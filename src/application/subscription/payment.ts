@@ -9,6 +9,7 @@ import {
 import { toAccountId } from "#/domain/context-map/auth-to-subscription";
 import { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
 import type { StoreError } from "#/domain/subscription/model/store.model";
+import { Subscription } from "#/domain/subscription/model/subscription.entity";
 import {
 	type PayInvoiceRequest,
 	PaymentResponse,
@@ -44,7 +45,10 @@ export const payInvoice = async (
 					const accountId = toAccountId(userId);
 					const [invoice, subscription] = await Promise.all([
 						findInvoice(accountId, InvoiceId.create(request.invoiceId)),
-						loadSubscription(accountId),
+						pipe(
+							loadSubscription(accountId),
+							AsyncResult.map((found) => Subscription.orFree(found, accountId)),
+						),
 					]);
 					return pipe(
 						Result.combine([invoice, subscription] as const),

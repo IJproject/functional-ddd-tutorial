@@ -1,6 +1,7 @@
 import type { Session } from "#/domain/auth/model/session.model";
-import { matchChoice, Result } from "#/domain/building-blocks";
+import { AsyncResult, matchChoice, Result } from "#/domain/building-blocks";
 import { toAccountId } from "#/domain/context-map/auth-to-subscription";
+import { Subscription } from "#/domain/subscription/model/subscription.entity";
 import { SubscriptionView } from "#/domain/subscription/operation/subscription-view/subscription-view.dto";
 import { currentSession } from "#/external/better-auth/current-session";
 import {
@@ -20,7 +21,9 @@ export const subscriptionView = async (): Promise<SubscriptionView> => {
 				AuthenticatedSession: async ({ userId }) => {
 					const accountId = toAccountId(userId);
 					const [subscription, invoices] = await Promise.all([
-						loadSubscription(accountId),
+						AsyncResult.map<Subscription | null, Subscription>((found) =>
+							Subscription.orFree(found, accountId),
+						)(loadSubscription(accountId)),
 						loadInvoices(accountId),
 					]);
 					return Result.match(Result.combine([subscription, invoices]), {

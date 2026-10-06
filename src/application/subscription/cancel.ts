@@ -7,6 +7,7 @@ import {
 } from "#/domain/building-blocks";
 import { toAccountId } from "#/domain/context-map/auth-to-subscription";
 import type { StoreError } from "#/domain/subscription/model/store.model";
+import { Subscription } from "#/domain/subscription/model/subscription.entity";
 import {
 	CancelTrialResponse,
 	ReserveCancellationResponse,
@@ -34,9 +35,11 @@ export const cancelTrial = async (): Promise<CancelTrialResponse> => {
 			matchChoice<Session, Promise<CancelTrialResponse>>(session, {
 				AnonymousSession: async () =>
 					CancelTrialResponse.authenticationRequired,
-				AuthenticatedSession: async ({ userId }) =>
-					pipe(
-						loadSubscription(toAccountId(userId)),
+				AuthenticatedSession: async ({ userId }) => {
+					const accountId = toAccountId(userId);
+					return pipe(
+						loadSubscription(accountId),
+						AsyncResult.map((found) => Subscription.orFree(found, accountId)),
 						AsyncResult.flatMap(cancelTrialWorkflow),
 						AsyncResult.flatMap<TrialCancelled, TrialCancelled, StoreError>(
 							(cancelled) =>
@@ -46,7 +49,8 @@ export const cancelTrial = async (): Promise<CancelTrialResponse> => {
 								),
 						),
 						async (result) => CancelTrialResponse.encode(await result),
-					),
+					);
+				},
 			}),
 	});
 };
@@ -60,9 +64,11 @@ export const reserveCancellation =
 				matchChoice<Session, Promise<ReserveCancellationResponse>>(session, {
 					AnonymousSession: async () =>
 						ReserveCancellationResponse.authenticationRequired,
-					AuthenticatedSession: async ({ userId }) =>
-						pipe(
-							loadSubscription(toAccountId(userId)),
+					AuthenticatedSession: async ({ userId }) => {
+						const accountId = toAccountId(userId);
+						return pipe(
+							loadSubscription(accountId),
+							AsyncResult.map((found) => Subscription.orFree(found, accountId)),
 							AsyncResult.flatMap(reserveCancellationWorkflow),
 							AsyncResult.flatMap<
 								CancellationReserved,
@@ -76,7 +82,8 @@ export const reserveCancellation =
 							),
 							async (result) =>
 								ReserveCancellationResponse.encode(await result),
-						),
+						);
+					},
 				}),
 		});
 	};

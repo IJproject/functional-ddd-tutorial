@@ -7,16 +7,13 @@ import {
 	Result,
 	type Result as ResultType,
 } from "#/domain/building-blocks";
-import { Account } from "#/domain/subscription/model/account.entity";
+import type { Account } from "#/domain/subscription/model/account.entity";
 import { AccountId } from "#/domain/subscription/model/account.primitive";
 import type { Invoice } from "#/domain/subscription/model/invoice.entity";
 import { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
 import { StoreError } from "#/domain/subscription/model/store.model";
 import { Subscription } from "#/domain/subscription/model/subscription.entity";
-import type {
-	Applied,
-	ApplyContext,
-} from "#/domain/subscription/operation/apply/apply.model";
+import type { Applied } from "#/domain/subscription/operation/apply/apply.model";
 import type {
 	CancellationReserved,
 	TrialCancelled,
@@ -44,6 +41,10 @@ import {
 // ===========================================================================
 
 type WriteExecutor = Pick<typeof db, "insert" | "update">;
+type FoundApplyContext = {
+	account: Account | null;
+	subscription: Subscription | null;
+};
 
 /** ストアへの操作を2トラックに乗せる。到達できない・操作に失敗したを StoreUnavailable に落とす。 */
 const attempt = async <T>(
@@ -131,15 +132,10 @@ export const openAccount = (
 		});
 	});
 
-/**
- * 申し込みに必要な契約者と契約を読む。
- * subscription_account が無い場合も読み取りでは作成せず、未使用アカウントと無料契約を返す。
- * signup 時の openAccount が完了していない状態でも画面自体を壊さず、作成経路を
- * openAccount だけに保つためである。
- */
+/** 申し込みに必要な契約者と契約。行が無いものは null を返す。 */
 export const loadApplyContext = async (
 	accountId: AccountId,
-): AsyncResult<ApplyContext, StoreError> => {
+): AsyncResult<FoundApplyContext, StoreError> => {
 	const id = AccountId.value(accountId);
 	const accountResult = await attempt(() =>
 		db
@@ -153,8 +149,8 @@ export const loadApplyContext = async (
 	const accountRow = accountRows[0];
 	if (!accountRow)
 		return ok({
-			account: Account.trialUnused(accountId),
-			subscription: Subscription.free(accountId),
+			account: null,
+			subscription: null,
 		});
 
 	const subscriptionResult = await attempt(() =>
@@ -170,19 +166,19 @@ export const loadApplyContext = async (
 	const account = StoredAccount.decode(accountRow);
 	const subscription = subscriptionRow
 		? StoredSubscription.decode(subscriptionRow)
-		: ok(Subscription.free(accountId));
+		: ok(null);
 
 	return Result.match<
-		ApplyContext["account"],
+		Account,
 		StoreError,
-		ResultType<ApplyContext, StoreError>
+		ResultType<FoundApplyContext, StoreError>
 	>(account, {
 		err,
 		ok: (domainAccount) =>
 			Result.match<
-				Subscription,
+				Subscription | null,
 				StoreError,
-				ResultType<ApplyContext, StoreError>
+				ResultType<FoundApplyContext, StoreError>
 			>(subscription, {
 				err,
 				ok: (domainSubscription) =>
@@ -194,13 +190,10 @@ export const loadApplyContext = async (
 	});
 };
 
-/**
- * 現在の契約状態だけを読む。
- * 行が無い場合は読み取りで補完せず FreeSubscription と解釈する。
- */
+/** 契約。行がまだ無いアカウントは null を返す。不在が何を意味するかはドメインが決める。 */
 export const loadSubscription = async (
 	accountId: AccountId,
-): AsyncResult<Subscription, StoreError> => {
+): AsyncResult<Subscription | null, StoreError> => {
 	const loaded = await attempt(() =>
 		db
 			.select()
@@ -211,9 +204,7 @@ export const loadSubscription = async (
 	if (loaded.tag === "err") return loaded;
 	const rows = loaded.value;
 	const row = rows[0];
-	return row
-		? StoredSubscription.decode(row)
-		: ok(Subscription.free(accountId));
+	return row ? StoredSubscription.decode(row) : ok(null);
 };
 
 /** 請求の一覧。issued_at の新しい順に読み、壊れた行が1件でもあれば失敗する。 */

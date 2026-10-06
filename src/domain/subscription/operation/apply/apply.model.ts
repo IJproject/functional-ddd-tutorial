@@ -1,7 +1,7 @@
 import type { Case } from "#/domain/building-blocks";
-import type {
+import {
 	Account,
-	TrialUsedAccount,
+	type TrialUsedAccount,
 } from "#/domain/subscription/model/account.entity";
 import type { AccountId } from "#/domain/subscription/model/account.primitive";
 import type { UnpaidInvoice } from "#/domain/subscription/model/invoice.entity";
@@ -9,10 +9,10 @@ import type {
 	PlanId,
 	PlanIdError,
 } from "#/domain/subscription/model/plan.model";
-import type {
-	PendingPaymentSubscription,
+import {
+	type PendingPaymentSubscription,
 	Subscription,
-	TrialSubscription,
+	type TrialSubscription,
 } from "#/domain/subscription/model/subscription.entity";
 
 // ===========================================================================
@@ -35,6 +35,17 @@ export type ValidatedApplyCommand = {
 export type ApplyContext = {
 	account: Account;
 	subscription: Subscription;
+};
+
+/** 読み取り結果から申し込みの前提を組み立てる。行が無いものの扱いは各 entity が決める。 */
+export const ApplyContext = {
+	of: (
+		found: { account: Account | null; subscription: Subscription | null },
+		accountId: AccountId,
+	): ApplyContext => ({
+		account: Account.orTrialUnused(found.account, accountId),
+		subscription: Subscription.orFree(found.subscription, accountId),
+	}),
 };
 
 // ===========================================================================

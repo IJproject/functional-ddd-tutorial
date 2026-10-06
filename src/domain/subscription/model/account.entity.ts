@@ -36,4 +36,8 @@ export const Account = {
 		kind: "TrialUsedAccount",
 		...fields,
 	}),
+
+	/** 読み取った契約者。行がまだ無いアカウントはトライアル未使用として扱う。 */
+	orTrialUnused: (found: Account | null, accountId: AccountId): Account =>
+		found ?? Account.trialUnused(accountId),
 };

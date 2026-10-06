@@ -8,6 +8,7 @@ import {
 import { toAccountId } from "#/domain/context-map/auth-to-subscription";
 import { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
 import type { StoreError } from "#/domain/subscription/model/store.model";
+import { Subscription } from "#/domain/subscription/model/subscription.entity";
 import { createEndPeriodWorkflow } from "#/domain/subscription/operation/schedule/end-period.workflow";
 import { createEndTrialWorkflow } from "#/domain/subscription/operation/schedule/end-trial.workflow";
 import {
@@ -38,9 +39,11 @@ export const endTrial = async (): Promise<EndTrialResponse> => {
 		ok: (session) =>
 			matchChoice<Session, Promise<EndTrialResponse>>(session, {
 				AnonymousSession: async () => EndTrialResponse.authenticationRequired,
-				AuthenticatedSession: async ({ userId }) =>
-					pipe(
-						loadSubscription(toAccountId(userId)),
+				AuthenticatedSession: async ({ userId }) => {
+					const accountId = toAccountId(userId);
+					return pipe(
+						loadSubscription(accountId),
+						AsyncResult.map((found) => Subscription.orFree(found, accountId)),
 						AsyncResult.flatMap(endTrialWorkflow),
 						AsyncResult.flatMap<TrialEnded, TrialEnded, StoreError>((ended) =>
 							pipe(
@@ -49,7 +52,8 @@ export const endTrial = async (): Promise<EndTrialResponse> => {
 							),
 						),
 						async (result) => EndTrialResponse.encode(await result),
-					),
+					);
+				},
 			}),
 	});
 };
@@ -61,9 +65,11 @@ export const endPeriod = async (): Promise<EndPeriodResponse> => {
 		ok: (session) =>
 			matchChoice<Session, Promise<EndPeriodResponse>>(session, {
 				AnonymousSession: async () => EndPeriodResponse.authenticationRequired,
-				AuthenticatedSession: async ({ userId }) =>
-					pipe(
-						loadSubscription(toAccountId(userId)),
+				AuthenticatedSession: async ({ userId }) => {
+					const accountId = toAccountId(userId);
+					return pipe(
+						loadSubscription(accountId),
+						AsyncResult.map((found) => Subscription.orFree(found, accountId)),
 						AsyncResult.flatMap(endPeriodWorkflow),
 						AsyncResult.flatMap<PeriodEnded, PeriodEnded, StoreError>((ended) =>
 							pipe(
@@ -72,7 +78,8 @@ export const endPeriod = async (): Promise<EndPeriodResponse> => {
 							),
 						),
 						async (result) => EndPeriodResponse.encode(await result),
-					),
+					);
+				},
 			}),
 	});
 };

@@ -135,4 +135,12 @@ export const Subscription = {
 		kind: "PlanChangeReservedSubscription",
 		...fields,
 	}),
+
+	/**
+	 * 読み取った契約。行がまだ無いアカウントは無料契約として扱う。
+	 * signup の口座開設が完了していなくても画面を壊さないための方針であり、
+	 * 行の作成は openAccount だけが行う。
+	 */
+	orFree: (found: Subscription | null, accountId: AccountId): Subscription =>
+		found ?? Subscription.free(accountId),
 };

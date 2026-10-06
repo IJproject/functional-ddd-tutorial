@@ -4,10 +4,10 @@ import {
 	ok,
 	type Result as ResultType,
 } from "#/domain/building-blocks";
-import type { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
 import {
 	Amount,
-	IssuedAt,
+	type InvoiceId,
+	type IssuedAt,
 } from "#/domain/subscription/model/invoice.primitive";
 import { Plan } from "#/domain/subscription/model/plan.entity";
 import { MonthlyPrice } from "#/domain/subscription/model/plan.primitive";
@@ -28,7 +28,7 @@ export type EndTrialWorkflow = (
 
 export type EndTrialWorkflowDeps = {
 	newInvoiceId: () => InvoiceId;
-	now: () => Date;
+	issuedAt: () => IssuedAt;
 };
 export type CreateEndTrialWorkflow = (
 	deps: EndTrialWorkflowDeps,
@@ -37,7 +37,7 @@ export type CreateEndTrialWorkflow = (
 /** 現在の状態 → トライアル終了結果。純粋関数（I/O を含まない）。 */
 export type EndTrial = (
 	subscription: Subscription,
-	issued: { invoiceId: InvoiceId; now: Date },
+	issued: { invoiceId: InvoiceId; issuedAt: IssuedAt },
 ) => ResultType<TrialEnded, EndTrialError>;
 
 // ===========================================================================
@@ -69,7 +69,7 @@ export const endTrial: EndTrial = (subscription, issued) =>
 						planId: current.planId,
 						amount: Amount.create(MonthlyPrice.value(plan.monthlyPrice)),
 						purpose: { kind: "New" },
-						issuedAt: IssuedAt.create(issued.now),
+						issuedAt: issued.issuedAt,
 					},
 				});
 			},
@@ -86,5 +86,5 @@ export const createEndTrialWorkflow: CreateEndTrialWorkflow =
 	(deps) => (subscription) =>
 		endTrial(subscription, {
 			invoiceId: deps.newInvoiceId(),
-			now: deps.now(),
+			issuedAt: deps.issuedAt(),
 		});

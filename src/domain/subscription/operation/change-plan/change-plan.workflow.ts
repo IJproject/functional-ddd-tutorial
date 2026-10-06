@@ -6,10 +6,10 @@ import {
 	Result,
 	type Result as ResultType,
 } from "#/domain/building-blocks";
-import type { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
 import {
 	Amount,
-	IssuedAt,
+	type InvoiceId,
+	type IssuedAt,
 } from "#/domain/subscription/model/invoice.primitive";
 import { Plan, type PlanChange } from "#/domain/subscription/model/plan.entity";
 import {
@@ -41,7 +41,7 @@ export type ChangePlanWorkflow = (
 
 export type ChangePlanWorkflowDeps = {
 	newInvoiceId: () => InvoiceId;
-	now: () => Date;
+	issuedAt: () => IssuedAt;
 };
 export type CreateChangePlanWorkflow = (
 	deps: ChangePlanWorkflowDeps,
@@ -56,7 +56,7 @@ export type ValidateChangePlanCommand = (
 export type ChangePlanForSubscription = (
 	command: ValidatedChangePlanCommand,
 	subscription: Subscription,
-	issued: { invoiceId: InvoiceId; now: Date },
+	issued: { invoiceId: InvoiceId; issuedAt: IssuedAt },
 ) => ResultType<PlanChanged, Exclude<ChangePlanError, UnknownPlan>>;
 
 // ===========================================================================
@@ -108,7 +108,7 @@ export const changePlanForSubscription: ChangePlanForSubscription = (
 					planId: command.planId,
 					amount: Amount.create(MonthlyPrice.value(plan.monthlyPrice)),
 					purpose: { kind: "New" },
-					issuedAt: IssuedAt.create(issued.now),
+					issuedAt: issued.issuedAt,
 				},
 			});
 		},
@@ -141,7 +141,7 @@ export const changePlanForSubscription: ChangePlanForSubscription = (
 							planId: command.planId,
 							amount: difference,
 							purpose: { kind: "UpgradeDifference" },
-							issuedAt: IssuedAt.create(issued.now),
+							issuedAt: issued.issuedAt,
 						},
 					}),
 				Downgrade: () =>
@@ -182,7 +182,7 @@ export const createChangePlanWorkflow: CreateChangePlanWorkflow =
 			Result.flatMap((validated) =>
 				changePlanForSubscription(validated, subscription, {
 					invoiceId: deps.newInvoiceId(),
-					now: deps.now(),
+					issuedAt: deps.issuedAt(),
 				}),
 			),
 		);

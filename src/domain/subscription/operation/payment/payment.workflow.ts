@@ -11,8 +11,9 @@ import type {
 	PaidInvoice,
 	UnpaidInvoice,
 } from "#/domain/subscription/model/invoice.entity";
+import type { PaidAt } from "#/domain/subscription/model/invoice.primitive";
 import type { Subscription } from "#/domain/subscription/model/subscription.entity";
-import { PeriodEndsAt } from "#/domain/subscription/model/subscription.primitive";
+import { billingPeriodEnd } from "#/domain/subscription/model/subscription.primitive";
 import type {
 	InvoiceAlreadyProcessed,
 	NoPendingPayment,
@@ -28,7 +29,7 @@ import type {
 export type PayInvoiceWorkflow = (
 	invoice: Invoice,
 	subscription: Subscription,
-	settled: { now: Date },
+	settled: { paidAt: PaidAt },
 ) => AsyncResult<PaymentSettled, PayInvoiceError>;
 
 export type PayInvoiceWorkflowDeps = {
@@ -50,7 +51,7 @@ export type PayInvoice = (
 	invoice: Invoice,
 	subscription: Subscription,
 	outcome: PaymentOutcome,
-	settled: { now: Date },
+	settled: { paidAt: PaidAt },
 ) => ResultType<PaymentSettled, PayInvoiceError>;
 
 // ===========================================================================
@@ -84,7 +85,7 @@ const settlePayment = (
 	invoice: UnpaidInvoice,
 	subscription: Subscription,
 	outcome: PaymentOutcome,
-	settled: { now: Date },
+	settled: { paidAt: PaidAt },
 ): ResultType<PaymentSettled, NoPendingPayment> =>
 	matchChoice<Subscription, ResultType<PaymentSettled, NoPendingPayment>>(
 		subscription,
@@ -97,16 +98,13 @@ const settlePayment = (
 					ResultType<PaymentSettled, NoPendingPayment>
 				>(outcome, {
 					Succeeded: () => {
-						// 引数の now を破壊せず、複製した Date だけを1か月後へ進める。
-						const nextMonth = new Date(settled.now.getTime());
-						nextMonth.setMonth(nextMonth.getMonth() + 1);
 						return ok({
 							kind: "PaymentSettled",
 							subscription: {
 								kind: "PaidSubscription",
 								accountId: current.accountId,
 								planId: invoice.planId,
-								periodEndsAt: PeriodEndsAt.create(nextMonth),
+								periodEndsAt: billingPeriodEnd(settled.paidAt),
 							},
 							invoice: paidInvoice(invoice),
 						});

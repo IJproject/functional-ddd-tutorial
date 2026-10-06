@@ -7,7 +7,10 @@ import {
 	Result,
 } from "#/domain/building-blocks";
 import { toAccountId } from "#/domain/context-map/auth-to-subscription";
-import { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
+import {
+	InvoiceId,
+	PaidAt,
+} from "#/domain/subscription/model/invoice.primitive";
 import type { StoreError } from "#/domain/subscription/model/store.model";
 import { Subscription } from "#/domain/subscription/model/subscription.entity";
 import {
@@ -30,7 +33,7 @@ import {
 
 // composition root: ドメインのポートに具体的な実装を差し込む。
 const payInvoiceWorkflow = createPayInvoiceWorkflow({ chargeInvoice });
-const now = () => new Date();
+const paidAt = () => PaidAt.create(new Date());
 
 /** 請求の支払い。読む → 純粋な核 → 書く → encode。 */
 export const payInvoice = async (
@@ -62,7 +65,7 @@ export const payInvoice = async (
 											err<InvoiceNotFound>({ kind: "InvoiceNotFound" }),
 										)
 									: payInvoiceWorkflow(domainInvoice, domainSubscription, {
-											now: now(),
+											paidAt: paidAt(),
 										}),
 						),
 						AsyncResult.flatMap<PaymentSettled, PaymentSettled, StoreError>(

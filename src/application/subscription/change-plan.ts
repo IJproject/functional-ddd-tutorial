@@ -6,7 +6,10 @@ import {
 	Result,
 } from "#/domain/building-blocks";
 import { toAccountId } from "#/domain/context-map/auth-to-subscription";
-import { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
+import {
+	InvoiceId,
+	IssuedAt,
+} from "#/domain/subscription/model/invoice.primitive";
 import type { StoreError } from "#/domain/subscription/model/store.model";
 import { Subscription } from "#/domain/subscription/model/subscription.entity";
 import {
@@ -23,8 +26,8 @@ import {
 
 // composition root: ドメインのポートに具体的な実装を差し込む。
 const newInvoiceId = () => InvoiceId.create(crypto.randomUUID());
-const now = () => new Date();
-const changePlanWorkflow = createChangePlanWorkflow({ newInvoiceId, now });
+const issuedAt = () => IssuedAt.create(new Date());
+const changePlanWorkflow = createChangePlanWorkflow({ newInvoiceId, issuedAt });
 
 /** プラン変更。読む → 純粋な核 → 書く → encode。 */
 export const changePlan = async (

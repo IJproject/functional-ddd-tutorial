@@ -9,18 +9,18 @@ import {
 import type { Account } from "#/domain/subscription/model/account.entity";
 import {
 	AccountId,
-	TrialUsedAt,
+	type TrialUsedAt,
 } from "#/domain/subscription/model/account.primitive";
 import type { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
 import {
 	Amount,
-	IssuedAt,
+	type IssuedAt,
 } from "#/domain/subscription/model/invoice.primitive";
 import { Plan } from "#/domain/subscription/model/plan.entity";
 import { PlanId } from "#/domain/subscription/model/plan.model";
 import { MonthlyPrice } from "#/domain/subscription/model/plan.primitive";
 import type { Subscription } from "#/domain/subscription/model/subscription.entity";
-import { TrialEndsAt } from "#/domain/subscription/model/subscription.primitive";
+import { trialPeriodEnd } from "#/domain/subscription/model/subscription.primitive";
 import type {
 	AlreadySubscribed,
 	Applied,
@@ -42,7 +42,8 @@ export type ApplyWorkflow = (
 
 export type ApplyWorkflowDeps = {
 	newInvoiceId: () => InvoiceId;
-	now: () => Date;
+	issuedAt: () => IssuedAt;
+	trialUsedAt: () => TrialUsedAt;
 };
 export type CreateApplyWorkflow = (deps: ApplyWorkflowDeps) => ApplyWorkflow;
 
@@ -55,15 +56,16 @@ export type ValidateApplyCommand = (
 export type ApplyToSubscription = (
 	command: ValidatedApplyCommand,
 	context: ApplyContext,
-	issued: { invoiceId: InvoiceId; now: Date },
+	issued: {
+		invoiceId: InvoiceId;
+		issuedAt: IssuedAt;
+		trialUsedAt: TrialUsedAt;
+	},
 ) => ResultType<Applied, AlreadySubscribed>;
 
 // ===========================================================================
 // 実装
 // ===========================================================================
-
-/** 無料トライアルの日数。 */
-export const TRIAL_DAYS = 14;
 
 /**
  * accountId は境界層が認証済みセッションから渡す信頼済みの値なので、
@@ -98,17 +100,13 @@ export const applyToSubscription: ApplyToSubscription = (
 								account: {
 									kind: "TrialUsedAccount",
 									id: account.id,
-									trialUsedAt: TrialUsedAt.create(issued.now),
+									trialUsedAt: issued.trialUsedAt,
 								},
 								subscription: {
 									kind: "TrialSubscription",
 									accountId: command.accountId,
 									planId: command.planId,
-									trialEndsAt: TrialEndsAt.create(
-										new Date(
-											issued.now.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000,
-										),
-									),
+									trialEndsAt: trialPeriodEnd(issued.trialUsedAt),
 								},
 							}),
 						TrialUsedAccount: () => {
@@ -128,7 +126,7 @@ export const applyToSubscription: ApplyToSubscription = (
 									planId: command.planId,
 									amount: Amount.create(MonthlyPrice.value(plan.monthlyPrice)),
 									purpose: { kind: "New" },
-									issuedAt: IssuedAt.create(issued.now),
+									issuedAt: issued.issuedAt,
 								},
 							});
 						},
@@ -154,7 +152,8 @@ export const createApplyWorkflow: CreateApplyWorkflow =
 			Result.flatMap((validated) =>
 				applyToSubscription(validated, context, {
 					invoiceId: deps.newInvoiceId(),
-					now: deps.now(),
+					issuedAt: deps.issuedAt(),
+					trialUsedAt: deps.trialUsedAt(),
 				}),
 			),
 		);

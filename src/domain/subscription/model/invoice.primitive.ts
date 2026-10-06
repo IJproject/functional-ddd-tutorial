@@ -7,6 +7,8 @@ import type { Primitive } from "#/domain/building-blocks";
 export type InvoiceId = Primitive<"InvoiceId", string>;
 export type Amount = Primitive<"Amount", number>;
 export type IssuedAt = Primitive<"IssuedAt", Date>;
+/** 請求の支払いが成立した日時。 */
+export type PaidAt = Primitive<"PaidAt", Date>;
 
 // ===========================================================================
 // 実装
@@ -26,4 +28,9 @@ export const Amount = {
 export const IssuedAt = {
 	create: (input: Date): IssuedAt => input as IssuedAt,
 	value: (issuedAt: IssuedAt): Date => issuedAt,
+};
+
+export const PaidAt = {
+	create: (input: Date): PaidAt => input as PaidAt,
+	value: (paidAt: PaidAt): Date => paidAt,
 };

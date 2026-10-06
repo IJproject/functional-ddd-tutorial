@@ -4,10 +4,10 @@ import {
 	ok,
 	type Result as ResultType,
 } from "#/domain/building-blocks";
-import type { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
 import {
 	Amount,
-	IssuedAt,
+	type InvoiceId,
+	type IssuedAt,
 } from "#/domain/subscription/model/invoice.primitive";
 import { Plan } from "#/domain/subscription/model/plan.entity";
 import { MonthlyPrice } from "#/domain/subscription/model/plan.primitive";
@@ -29,7 +29,7 @@ export type EndPeriodWorkflow = (
 
 export type EndPeriodWorkflowDeps = {
 	newInvoiceId: () => InvoiceId;
-	now: () => Date;
+	issuedAt: () => IssuedAt;
 };
 export type CreateEndPeriodWorkflow = (
 	deps: EndPeriodWorkflowDeps,
@@ -38,7 +38,7 @@ export type CreateEndPeriodWorkflow = (
 /** 現在の状態 → 期間満了結果。純粋関数（I/O を含まない）。 */
 export type EndPeriod = (
 	subscription: Subscription,
-	issued: { invoiceId: InvoiceId; now: Date },
+	issued: { invoiceId: InvoiceId; issuedAt: IssuedAt },
 ) => ResultType<PeriodEnded, EndPeriodError>;
 
 // ===========================================================================
@@ -76,7 +76,7 @@ export const endPeriod: EndPeriod = (subscription, issued) =>
 						planId: current.planId,
 						amount: Amount.create(MonthlyPrice.value(plan.monthlyPrice)),
 						purpose: { kind: "Renewal" },
-						issuedAt: IssuedAt.create(issued.now),
+						issuedAt: issued.issuedAt,
 					},
 				});
 			},
@@ -107,7 +107,7 @@ export const endPeriod: EndPeriod = (subscription, issued) =>
 						planId: current.nextPlanId,
 						amount: Amount.create(MonthlyPrice.value(nextPlan.monthlyPrice)),
 						purpose: { kind: "Renewal" },
-						issuedAt: IssuedAt.create(issued.now),
+						issuedAt: issued.issuedAt,
 					},
 				});
 			},
@@ -119,5 +119,5 @@ export const createEndPeriodWorkflow: CreateEndPeriodWorkflow =
 	(deps) => (subscription) =>
 		endPeriod(subscription, {
 			invoiceId: deps.newInvoiceId(),
-			now: deps.now(),
+			issuedAt: deps.issuedAt(),
 		});

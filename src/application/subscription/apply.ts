@@ -6,8 +6,14 @@ import {
 	Result,
 } from "#/domain/building-blocks";
 import { toAccountId } from "#/domain/context-map/auth-to-subscription";
-import { AccountId } from "#/domain/subscription/model/account.primitive";
-import { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
+import {
+	AccountId,
+	TrialUsedAt,
+} from "#/domain/subscription/model/account.primitive";
+import {
+	InvoiceId,
+	IssuedAt,
+} from "#/domain/subscription/model/invoice.primitive";
 import type { StoreError } from "#/domain/subscription/model/store.model";
 import {
 	ApplyRequest,
@@ -28,7 +34,8 @@ import {
 // composition root: ドメインのポートに具体的な実装を差し込む。
 const applyWorkflow = createApplyWorkflow({
 	newInvoiceId: () => InvoiceId.create(crypto.randomUUID()),
-	now: () => new Date(),
+	issuedAt: () => IssuedAt.create(new Date()),
+	trialUsedAt: () => TrialUsedAt.create(new Date()),
 });
 
 /** 申込画面の状態。読む → encode。 */

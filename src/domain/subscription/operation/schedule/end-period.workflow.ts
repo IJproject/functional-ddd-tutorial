@@ -5,12 +5,13 @@ import {
 	type Result as ResultType,
 } from "#/domain/building-blocks";
 import {
-	Amount,
-	type InvoiceId,
-	type IssuedAt,
+	type InvoicePurpose,
+	issuedAmount,
+} from "#/domain/subscription/model/invoice.entity";
+import type {
+	InvoiceId,
+	IssuedAt,
 } from "#/domain/subscription/model/invoice.primitive";
-import { Plan } from "#/domain/subscription/model/plan.entity";
-import { MonthlyPrice } from "#/domain/subscription/model/plan.primitive";
 import type { Subscription } from "#/domain/subscription/model/subscription.entity";
 import type {
 	EndPeriodError,
@@ -60,7 +61,10 @@ export const endPeriod: EndPeriod = (subscription, issued) =>
 			TrialSubscription: notPaid,
 			PendingPaymentSubscription: notPaid,
 			PaidSubscription: (current) => {
-				const plan = Plan.of(current.planId);
+				const purpose: InvoicePurpose = {
+					kind: "Renewal",
+					planId: current.planId,
+				};
 				return ok({
 					kind: "RenewalRequested",
 					subscription: {
@@ -73,9 +77,8 @@ export const endPeriod: EndPeriod = (subscription, issued) =>
 						kind: "UnpaidInvoice",
 						id: issued.invoiceId,
 						accountId: current.accountId,
-						planId: current.planId,
-						amount: Amount.create(MonthlyPrice.value(plan.monthlyPrice)),
-						purpose: { kind: "Renewal" },
+						amount: issuedAmount(purpose),
+						purpose,
 						issuedAt: issued.issuedAt,
 					},
 				});
@@ -91,7 +94,10 @@ export const endPeriod: EndPeriod = (subscription, issued) =>
 					},
 				}),
 			PlanChangeReservedSubscription: (current) => {
-				const nextPlan = Plan.of(current.nextPlanId);
+				const purpose: InvoicePurpose = {
+					kind: "Renewal",
+					planId: current.nextPlanId,
+				};
 				return ok({
 					kind: "RenewalRequested",
 					subscription: {
@@ -104,9 +110,8 @@ export const endPeriod: EndPeriod = (subscription, issued) =>
 						kind: "UnpaidInvoice",
 						id: issued.invoiceId,
 						accountId: current.accountId,
-						planId: current.nextPlanId,
-						amount: Amount.create(MonthlyPrice.value(nextPlan.monthlyPrice)),
-						purpose: { kind: "Renewal" },
+						amount: issuedAmount(purpose),
+						purpose,
 						issuedAt: issued.issuedAt,
 					},
 				});

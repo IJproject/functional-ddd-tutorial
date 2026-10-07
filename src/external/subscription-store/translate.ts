@@ -13,8 +13,8 @@ import {
 	TrialUsedAt,
 } from "#/domain/subscription/model/account.primitive";
 import {
-	Invoice,
-	type InvoiceError,
+	billedPlanId,
+	type Invoice,
 	type InvoicePurpose,
 } from "#/domain/subscription/model/invoice.entity";
 import {
@@ -547,85 +547,111 @@ const classifyInvoiceStatus = (
 	return err(invoiceError(row, `unknown status=${row.status}`));
 };
 
+const decodeInvoicePurpose = (
+	row: StoredInvoice,
+	choice: StoredInvoicePurposeChoice,
+	planId: PlanId,
+): ResultType<InvoicePurpose, StoreErrorType> =>
+	matchChoice<
+		StoredInvoicePurposeChoice,
+		ResultType<InvoicePurpose, StoreErrorType>
+	>(choice, {
+		New: () => ok({ kind: "New", planId }),
+		Renewal: () => ok({ kind: "Renewal", planId }),
+		UpgradeDifference: () => {
+			const previousPlanId = row.previousPlanId;
+			if (previousPlanId === null)
+				return err(
+					invoiceError(
+						row,
+						"purpose=UpgradeDifference but previous_plan_id is null",
+					),
+				);
+			return Result.match(
+				decodePlanId(previousPlanId, () =>
+					invoiceError(row, `unknown previous_plan_id=${previousPlanId}`),
+				),
+				{
+					err,
+					ok: (from): ResultType<InvoicePurpose, StoreErrorType> =>
+						ok({ kind: "UpgradeDifference", from, to: planId }),
+				},
+			);
+		},
+	});
+
 /** 永続化の請求レコード → ドメインの Invoice。 */
 export const StoredInvoice = {
-	decode: (row: StoredInvoice): ResultType<Invoice, StoreErrorType> =>
-		Result.match(classifyInvoicePurpose(row), {
+	decode: (row: StoredInvoice): ResultType<Invoice, StoreErrorType> => {
+		if (!Number.isInteger(row.amount) || row.amount <= 0)
+			return err(invoiceError(row, `invalid amount=${row.amount}`));
+		return Result.match(classifyInvoicePurpose(row), {
 			err,
-			ok: (purposeChoice) => {
-				const purpose = matchChoice<StoredInvoicePurposeChoice, InvoicePurpose>(
-					purposeChoice,
-					{
-						New: () => ({ kind: "New" }),
-						Renewal: () => ({ kind: "Renewal" }),
-						UpgradeDifference: () => ({ kind: "UpgradeDifference" }),
-					},
-				);
-				return Result.match<
-					PlanId,
-					StoreErrorType,
-					ResultType<Invoice, StoreErrorType>
-				>(
+			ok: (purposeChoice) =>
+				Result.match(
 					decodePlanId(row.planId, () =>
 						invoiceError(row, `unknown plan_id=${row.planId}`),
 					),
 					{
 						err,
 						ok: (planId) =>
-							Result.match<
-								StoredInvoiceStatusChoice,
-								StoreErrorType,
-								ResultType<Invoice, StoreErrorType>
-							>(classifyInvoiceStatus(row), {
+							Result.match(decodeInvoicePurpose(row, purposeChoice, planId), {
 								err,
-								ok: (statusChoice) => {
-									const fields = {
-										id: InvoiceId.create(row.invoiceId),
-										accountId: AccountId.create(row.accountId),
-										planId,
-										amount: Amount.create(row.amount),
-										purpose,
-										issuedAt: IssuedAt.create(row.issuedAt),
-									};
-									return Result.match<
-										Invoice,
-										InvoiceError,
+								ok: (purpose) =>
+									Result.match<
+										StoredInvoiceStatusChoice,
+										StoreErrorType,
 										ResultType<Invoice, StoreErrorType>
-									>(
-										matchChoice<
-											StoredInvoiceStatusChoice,
-											ResultType<Invoice, InvoiceError>
-										>(statusChoice, {
-											UnpaidInvoice: () => Invoice.unpaid(fields),
-											PaidInvoice: () => Invoice.paid(fields),
-											FailedInvoice: () => Invoice.failed(fields),
-										}),
-										{
-											ok,
-											err: (reason) =>
-												err(
-													invoiceError(
-														row,
-														matchChoice<InvoiceError, string>(reason, {
-															AmountMismatch: ({ expected, actual }) =>
-																`amount mismatch: expected=${expected} actual=${actual}`,
+									>(classifyInvoiceStatus(row), {
+										err,
+										ok: (statusChoice) => {
+											const fields = {
+												id: InvoiceId.create(row.invoiceId),
+												accountId: AccountId.create(row.accountId),
+												amount: Amount.create(row.amount),
+												purpose,
+												issuedAt: IssuedAt.create(row.issuedAt),
+											};
+											return ok(
+												matchChoice<StoredInvoiceStatusChoice, Invoice>(
+													statusChoice,
+													{
+														UnpaidInvoice: () => ({
+															kind: "UnpaidInvoice",
+															...fields,
 														}),
-													),
+														PaidInvoice: () => ({
+															kind: "PaidInvoice",
+															...fields,
+														}),
+														FailedInvoice: () => ({
+															kind: "FailedInvoice",
+															...fields,
+														}),
+													},
 												),
+											);
 										},
-									);
-								},
+									}),
 							}),
 					},
-				);
-			},
-		}),
+				),
+		});
+	},
 
 	/** ドメインの請求 → upsert する値。 */
 	encode: (invoice: Invoice): StoredInvoiceValues => ({
 		invoiceId: InvoiceId.value(invoice.id),
 		accountId: AccountId.value(invoice.accountId),
-		planId: encodePlanId(invoice.planId),
+		planId: encodePlanId(billedPlanId(invoice.purpose)),
+		previousPlanId: matchChoice<InvoicePurpose, string | null>(
+			invoice.purpose,
+			{
+				New: () => null,
+				Renewal: () => null,
+				UpgradeDifference: ({ from }) => encodePlanId(from),
+			},
+		),
 		amount: Amount.value(invoice.amount),
 		purpose: encodeInvoicePurpose(invoice.purpose),
 		status: encodeInvoiceStatus(invoice),

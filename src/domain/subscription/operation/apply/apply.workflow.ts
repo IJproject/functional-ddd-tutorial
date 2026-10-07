@@ -7,18 +7,16 @@ import {
 	type Result as ResultType,
 } from "#/domain/building-blocks";
 import type { Account } from "#/domain/subscription/model/account.entity";
+import type { TrialUsedAt } from "#/domain/subscription/model/account.primitive";
 import {
-	AccountId,
-	type TrialUsedAt,
-} from "#/domain/subscription/model/account.primitive";
-import type { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
-import {
-	Amount,
-	type IssuedAt,
+	type InvoicePurpose,
+	issuedAmount,
+} from "#/domain/subscription/model/invoice.entity";
+import type {
+	InvoiceId,
+	IssuedAt,
 } from "#/domain/subscription/model/invoice.primitive";
-import { Plan } from "#/domain/subscription/model/plan.entity";
 import { PlanId } from "#/domain/subscription/model/plan.model";
-import { MonthlyPrice } from "#/domain/subscription/model/plan.primitive";
 import type { Subscription } from "#/domain/subscription/model/subscription.entity";
 import { trialPeriodEnd } from "#/domain/subscription/model/subscription.primitive";
 import type {
@@ -67,14 +65,10 @@ export type ApplyToSubscription = (
 // 実装
 // ===========================================================================
 
-/**
- * accountId は境界層が認証済みセッションから渡す信頼済みの値なので、
- * 形式検証はせず AccountId.create を通すだけにする。
- */
 export const validateApplyCommand: ValidateApplyCommand = (command) => {
 	return Result.match(PlanId.create(command.planId), {
 		ok: (planId): ResultType<ValidatedApplyCommand, InvalidApplyCommand> =>
-			ok({ accountId: AccountId.create(command.accountId), planId }),
+			ok({ planId }),
 		err: (reason) => err({ kind: "InvalidApplyCommand", reason }),
 	});
 };
@@ -104,28 +98,30 @@ export const applyToSubscription: ApplyToSubscription = (
 								},
 								subscription: {
 									kind: "TrialSubscription",
-									accountId: command.accountId,
+									accountId: context.account.id,
 									planId: command.planId,
 									trialEndsAt: trialPeriodEnd(issued.trialUsedAt),
 								},
 							}),
 						TrialUsedAccount: () => {
-							const plan = Plan.of(command.planId);
+							const purpose: InvoicePurpose = {
+								kind: "New",
+								planId: command.planId,
+							};
 							return ok({
 								kind: "PaymentRequested",
 								subscription: {
 									kind: "PendingPaymentSubscription",
-									accountId: command.accountId,
+									accountId: context.account.id,
 									planId: command.planId,
 									pendingInvoiceId: issued.invoiceId,
 								},
 								invoice: {
 									kind: "UnpaidInvoice",
 									id: issued.invoiceId,
-									accountId: command.accountId,
-									planId: command.planId,
-									amount: Amount.create(MonthlyPrice.value(plan.monthlyPrice)),
-									purpose: { kind: "New" },
+									accountId: context.account.id,
+									amount: issuedAmount(purpose),
+									purpose,
 									issuedAt: issued.issuedAt,
 								},
 							});

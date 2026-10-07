@@ -5,8 +5,7 @@ import {
 import { RegisteredAt } from "#/domain/auth/operation/signup/signup.primitive";
 import { createSignupWorkflow } from "#/domain/auth/operation/signup/signup.workflow";
 import { Result } from "#/domain/building-blocks";
-import { AccountId } from "#/domain/subscription/model/account.primitive";
-import type { StoreError } from "#/domain/subscription/model/store.model";
+import { toAccountId } from "#/domain/context-map/auth-to-subscription";
 import { registerUser } from "#/external/better-auth/register-user";
 import { openAccount } from "#/external/subscription-store/subscription-store";
 
@@ -16,21 +15,18 @@ const signupWorkflow = createSignupWorkflow({
 	now: () => RegisteredAt.create(new Date()),
 });
 
-/** 新規登録。decode → ワークフロー → encode → 口座開設。 */
+/** 新規登録。ドメインの登録結果から口座を開設し、最後に応答へ変換する。 */
 export const signup = async (
 	request: SignupRequest,
 ): Promise<SignupResponse> => {
-	const response = SignupResponse.encode(
-		await signupWorkflow(SignupRequest.decode(request)),
-	);
+	const result = await signupWorkflow(SignupRequest.decode(request));
 	// subscription BC の口座開設。BC を跨ぐ型の翻訳は境界層で行う。
-	if (response.ok)
-		return Result.match<void, StoreError, SignupResponse>(
-			await openAccount(AccountId.create(response.userId)),
-			{
+	return Result.match(result, {
+		err: async () => SignupResponse.encode(result),
+		ok: async (registered) =>
+			Result.match(await openAccount(toAccountId(registered.userId)), {
 				err: () => SignupResponse.accountSetupIncomplete,
-				ok: () => response,
-			},
-		);
-	return response;
+				ok: () => SignupResponse.encode(result),
+			}),
+	});
 };

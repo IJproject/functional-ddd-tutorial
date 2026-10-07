@@ -11,18 +11,16 @@ import type { ChargeInvoice } from "#/domain/subscription/operation/payment/paym
  *
  * 乱数を使わないのは、同じ請求に対して常に同じ結果を返すためである。
  *
- * 金額ではなく請求 ID で判定しているのは、Invoice が New / Renewal の請求額を料金表と
- * 突き合わせて検証しており（invoice.entity.ts）、請求額がプランの価格と差額の数種類しか
- * 取り得ないためである。判定用の金額を作れないので、ID を印に使っている。
+ * 金額は発行時点の請求額として保存するため、テスト用の成否は特定の請求 ID で判定する。
  *
  * 実サービスへ差し替えるときは、このファイルだけを置き換える。
  */
 export const chargeInvoice: ChargeInvoice = async (invoice) =>
 	ok<PaymentOutcome>(
-		InvoiceId.value(invoice.id).includes(FAILING_INVOICE_MARKER)
+		InvoiceId.value(invoice.id) === FAILING_INVOICE_ID
 			? { kind: "Failed" }
 			: { kind: "Succeeded" },
 	);
 
-/** この文字列を請求 ID に含めると決済が失敗する。seed がこの印を使う。 */
-const FAILING_INVOICE_MARKER = "-fail";
+/** seed の失敗用請求と共有する固定 ID。 */
+export const FAILING_INVOICE_ID = "00000000-0000-4000-8000-000000000003";

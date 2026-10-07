@@ -17,8 +17,8 @@
 // ハッシュの形式は better-auth が認証時に使うものと同じなので、
 // この行でそのままログインできる。
 //
-// 識別子は UUID ではなく "seed-<用途>" の固定値にしている。再実行しても
-// 同じ値になり、DB を直接覗いたときにどのアカウントの行か分かるため。
+// ユーザー識別子は "seed-<用途>"、請求識別子は固定 UUID にしている。
+// 再実行しても同じ値になり、どのアカウントの行か分かるため。
 // 各識別子は slug から導出し、定義の中では文字列を組み立て直さない。
 // 同じアカウントの ID を別々に書くと、型が通っても他アカウントの請求に
 // なり得るためである。支払い待ちの参照には、請求配列へ入れる
@@ -43,10 +43,7 @@ import {
 	type AccountId,
 	TrialUsedAt,
 } from "#/domain/subscription/model/account.primitive";
-import {
-	Invoice,
-	InvoicePurpose,
-} from "#/domain/subscription/model/invoice.entity";
+import type { Invoice } from "#/domain/subscription/model/invoice.entity";
 import {
 	Amount,
 	InvoiceId,
@@ -65,6 +62,7 @@ import {
 	subscription as subscriptionTable,
 	user as userTable,
 } from "#/external/db/schema";
+import { FAILING_INVOICE_ID } from "#/external/payment-gateway/charge-invoice";
 import {
 	StoredAccount,
 	StoredInvoice,
@@ -99,9 +97,28 @@ const SeedSlug = {
 	/** ログインに使うメールアドレス。 */
 	toEmail: (slug: SeedSlug): ResultType<EmailAddress, EmailAddressError> =>
 		EmailAddress.create(`${SeedSlug.value(slug)}@${SEED_EMAIL_DOMAIN}`),
-	/** 連番から請求の id を作る。 */
-	toInvoiceId: (slug: SeedSlug, sequence: number): InvoiceId =>
-		InvoiceId.create(`seed-inv-${SeedSlug.value(slug)}-${sequence}`),
+};
+
+/** seed の請求 ID。キーが欠けた場合は seed 定義の誤りなので落とす。 */
+const SEED_INVOICE_IDS: Record<string, string> = {
+	"free-used-1": "00000000-0000-4000-8000-000000000001",
+	"pending-1": "00000000-0000-4000-8000-000000000002",
+	"pending-fail-1": FAILING_INVOICE_ID,
+	"paid-basic-1": "00000000-0000-4000-8000-000000000004",
+	"paid-basic-2": "00000000-0000-4000-8000-000000000005",
+	"paid-basic-3": "00000000-0000-4000-8000-000000000006",
+	"paid-pro-1": "00000000-0000-4000-8000-000000000007",
+	"upgrade-1": "00000000-0000-4000-8000-000000000008",
+	"upgrade-2": "00000000-0000-4000-8000-000000000009",
+	"cancel-1": "00000000-0000-4000-8000-00000000000a",
+	"change-1": "00000000-0000-4000-8000-00000000000b",
+};
+
+const seedInvoiceId = (slug: SeedSlug, sequence: number): InvoiceId => {
+	const key = `${SeedSlug.value(slug)}-${sequence}`;
+	const value = SEED_INVOICE_IDS[key];
+	if (value === undefined) throw new Error(`請求 ID が未定義: ${key}`);
+	return InvoiceId.create(value);
 };
 
 const SeedNote = {
@@ -152,7 +169,7 @@ const defineSeedAccount = (
 	const id = SeedSlug.toUserId(slug);
 	const accountId = toAccountId(id);
 	const invoiceId = (sequence: number): InvoiceId =>
-		SeedSlug.toInvoiceId(slug, sequence);
+		seedInvoiceId(slug, sequence);
 
 	return {
 		id,
@@ -181,17 +198,15 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 			}),
 			subscription: Subscription.free(accountId),
 			invoices: [
-				must(
-					"請求",
-					Invoice.paid({
-						id: invoiceId(1),
-						accountId,
-						planId: { kind: "Basic" },
-						amount: Amount.create(980),
-						purpose: InvoicePurpose.New,
-						issuedAt: IssuedAt.create(daysAgo(45)),
-					}),
-				),
+				{
+					kind: "PaidInvoice",
+					id: invoiceId(1),
+					accountId,
+
+					amount: Amount.create(980),
+					purpose: { kind: "New", planId: { kind: "Basic" } },
+					issuedAt: IssuedAt.create(daysAgo(45)),
+				},
 			],
 		}),
 	),
@@ -210,17 +225,15 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 		invoices: [],
 	})),
 	defineSeedAccount(SeedSlug.create("pending"), ({ accountId, invoiceId }) => {
-		const pendingInvoice = must(
-			"請求",
-			Invoice.unpaid({
-				id: invoiceId(1),
-				accountId,
-				planId: { kind: "Pro" },
-				amount: Amount.create(2980),
-				purpose: InvoicePurpose.New,
-				issuedAt: IssuedAt.create(daysAgo(1)),
-			}),
-		);
+		const pendingInvoice: Invoice = {
+			kind: "UnpaidInvoice",
+			id: invoiceId(1),
+			accountId,
+
+			amount: Amount.create(2980),
+			purpose: { kind: "New", planId: { kind: "Pro" } },
+			issuedAt: IssuedAt.create(daysAgo(1)),
+		};
 
 		return {
 			name: must("表示名", UserName.create("支払い待ち / Pro")),
@@ -237,21 +250,19 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 			invoices: [pendingInvoice],
 		};
 	}),
-	// slug により請求 ID が seed-inv-pending-fail-1 となり、"-fail" を含むためフェイクゲートウェイは失敗を返す。
+	// 失敗用の請求 ID はフェイクゲートウェイと共有する定数を使う。
 	defineSeedAccount(
 		SeedSlug.create("pending-fail"),
 		({ accountId, invoiceId }) => {
-			const pendingInvoice = must(
-				"請求",
-				Invoice.unpaid({
-					id: invoiceId(1),
-					accountId,
-					planId: { kind: "Pro" },
-					amount: Amount.create(2980),
-					purpose: InvoicePurpose.New,
-					issuedAt: IssuedAt.create(daysAgo(1)),
-				}),
-			);
+			const pendingInvoice: Invoice = {
+				kind: "UnpaidInvoice",
+				id: invoiceId(1),
+				accountId,
+
+				amount: Amount.create(2980),
+				purpose: { kind: "New", planId: { kind: "Pro" } },
+				issuedAt: IssuedAt.create(daysAgo(1)),
+			};
 
 			return {
 				name: must("表示名", UserName.create("支払い待ち / Pro（決済失敗）")),
@@ -284,39 +295,33 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 				periodEndsAt: PeriodEndsAt.create(daysFromNow(20)),
 			}),
 			invoices: [
-				must(
-					"請求",
-					Invoice.paid({
-						id: invoiceId(1),
-						accountId,
-						planId: { kind: "Basic" },
-						amount: Amount.create(980),
-						purpose: InvoicePurpose.New,
-						issuedAt: IssuedAt.create(daysAgo(40)),
-					}),
-				),
-				must(
-					"請求",
-					Invoice.paid({
-						id: invoiceId(2),
-						accountId,
-						planId: { kind: "Basic" },
-						amount: Amount.create(980),
-						purpose: InvoicePurpose.Renewal,
-						issuedAt: IssuedAt.create(daysAgo(10)),
-					}),
-				),
-				must(
-					"請求",
-					Invoice.failed({
-						id: invoiceId(3),
-						accountId,
-						planId: { kind: "Basic" },
-						amount: Amount.create(980),
-						purpose: InvoicePurpose.Renewal,
-						issuedAt: IssuedAt.create(daysAgo(35)),
-					}),
-				),
+				{
+					kind: "PaidInvoice",
+					id: invoiceId(1),
+					accountId,
+
+					amount: Amount.create(980),
+					purpose: { kind: "New", planId: { kind: "Basic" } },
+					issuedAt: IssuedAt.create(daysAgo(40)),
+				},
+				{
+					kind: "PaidInvoice",
+					id: invoiceId(2),
+					accountId,
+
+					amount: Amount.create(980),
+					purpose: { kind: "Renewal", planId: { kind: "Basic" } },
+					issuedAt: IssuedAt.create(daysAgo(10)),
+				},
+				{
+					kind: "FailedInvoice",
+					id: invoiceId(3),
+					accountId,
+
+					amount: Amount.create(980),
+					purpose: { kind: "Renewal", planId: { kind: "Basic" } },
+					issuedAt: IssuedAt.create(daysAgo(35)),
+				},
 			],
 		}),
 	),
@@ -335,43 +340,41 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 				periodEndsAt: PeriodEndsAt.create(daysFromNow(25)),
 			}),
 			invoices: [
-				must(
-					"請求",
-					Invoice.paid({
-						id: invoiceId(1),
-						accountId,
-						planId: { kind: "Pro" },
-						amount: Amount.create(2980),
-						purpose: InvoicePurpose.New,
-						issuedAt: IssuedAt.create(daysAgo(5)),
-					}),
-				),
+				{
+					kind: "PaidInvoice",
+					id: invoiceId(1),
+					accountId,
+
+					amount: Amount.create(2980),
+					purpose: { kind: "New", planId: { kind: "Pro" } },
+					issuedAt: IssuedAt.create(daysAgo(5)),
+				},
 			],
 		}),
 	),
 	defineSeedAccount(SeedSlug.create("upgrade"), ({ accountId, invoiceId }) => {
-		const paidInvoice = must(
-			"請求",
-			Invoice.paid({
-				id: invoiceId(1),
-				accountId,
-				planId: { kind: "Basic" },
-				amount: Amount.create(980),
-				purpose: InvoicePurpose.New,
-				issuedAt: IssuedAt.create(daysAgo(15)),
-			}),
-		);
-		const pendingInvoice = must(
-			"請求",
-			Invoice.unpaid({
-				id: invoiceId(2),
-				accountId,
-				planId: { kind: "Pro" },
-				amount: Amount.create(2000),
-				purpose: InvoicePurpose.UpgradeDifference,
-				issuedAt: IssuedAt.create(now),
-			}),
-		);
+		const paidInvoice: Invoice = {
+			kind: "PaidInvoice",
+			id: invoiceId(1),
+			accountId,
+
+			amount: Amount.create(980),
+			purpose: { kind: "New", planId: { kind: "Basic" } },
+			issuedAt: IssuedAt.create(daysAgo(15)),
+		};
+		const pendingInvoice: Invoice = {
+			kind: "UnpaidInvoice",
+			id: invoiceId(2),
+			accountId,
+
+			amount: Amount.create(2000),
+			purpose: {
+				kind: "UpgradeDifference",
+				from: { kind: "Basic" },
+				to: { kind: "Pro" },
+			},
+			issuedAt: IssuedAt.create(now),
+		};
 
 		return {
 			name: must(
@@ -405,17 +408,15 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 			periodEndsAt: PeriodEndsAt.create(daysFromNow(12)),
 		}),
 		invoices: [
-			must(
-				"請求",
-				Invoice.paid({
-					id: invoiceId(1),
-					accountId,
-					planId: { kind: "Pro" },
-					amount: Amount.create(2980),
-					purpose: InvoicePurpose.Renewal,
-					issuedAt: IssuedAt.create(daysAgo(18)),
-				}),
-			),
+			{
+				kind: "PaidInvoice",
+				id: invoiceId(1),
+				accountId,
+
+				amount: Amount.create(2980),
+				purpose: { kind: "Renewal", planId: { kind: "Pro" } },
+				issuedAt: IssuedAt.create(daysAgo(18)),
+			},
 		],
 	})),
 	defineSeedAccount(SeedSlug.create("change"), ({ accountId, invoiceId }) => ({
@@ -432,17 +433,15 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 			nextPlanId: { kind: "Basic" },
 		}),
 		invoices: [
-			must(
-				"請求",
-				Invoice.paid({
-					id: invoiceId(1),
-					accountId,
-					planId: { kind: "Pro" },
-					amount: Amount.create(2980),
-					purpose: InvoicePurpose.Renewal,
-					issuedAt: IssuedAt.create(daysAgo(22)),
-				}),
-			),
+			{
+				kind: "PaidInvoice",
+				id: invoiceId(1),
+				accountId,
+
+				amount: Amount.create(2980),
+				purpose: { kind: "Renewal", planId: { kind: "Pro" } },
+				issuedAt: IssuedAt.create(daysAgo(22)),
+			},
 		],
 	})),
 ];

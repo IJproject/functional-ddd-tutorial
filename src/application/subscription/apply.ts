@@ -6,10 +6,7 @@ import {
 	Result,
 } from "#/domain/building-blocks";
 import { toAccountId } from "#/domain/context-map/auth-to-subscription";
-import {
-	AccountId,
-	TrialUsedAt,
-} from "#/domain/subscription/model/account.primitive";
+import { TrialUsedAt } from "#/domain/subscription/model/account.primitive";
 import {
 	InvoiceId,
 	IssuedAt,
@@ -78,10 +75,7 @@ export const apply = async (request: ApplyRequest): Promise<ApplyResponse> => {
 						loadApplyContext(accountId),
 						AsyncResult.map((found) => ApplyContext.of(found, accountId)),
 						AsyncResult.flatMap((context) =>
-							applyWorkflow(
-								ApplyRequest.decode(request, AccountId.value(accountId)),
-								context,
-							),
+							applyWorkflow(ApplyRequest.decode(request), context),
 						),
 						AsyncResult.flatMap<Applied, Applied, StoreError>((applied) =>
 							pipe(

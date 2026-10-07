@@ -8,7 +8,7 @@ export const InvoiceId = {
 
 export type Amount = Primitive<"Amount", number>;
 export const Amount = {
-	/** 信頼境界の内側で計算した結果を受けるため、負数かどうかはここでは検証しない。 */
+	/** 値の妥当性は呼び出し側の責務。DB から読む経路では StoredInvoice.decode が正の整数と確かめてから渡す。 */
 	create: (input: number): Amount => input as Amount,
 	value: (amount: Amount): number => amount,
 };

@@ -24,14 +24,10 @@ export type ApplyRequest = z.infer<typeof applyRequestSchema>;
 // decode（DTO → ドメイン）
 // ===========================================================================
 
-/** ApplyRequest と認証済みアカウント ID → ドメインの未検証入力。 */
+/** ApplyRequest → ドメインの未検証入力。 */
 export const ApplyRequest = {
 	schema: applyRequestSchema,
-	decode: (
-		request: ApplyRequest,
-		accountId: string,
-	): UnvalidatedApplyCommand => ({
-		accountId,
+	decode: (request: ApplyRequest): UnvalidatedApplyCommand => ({
 		planId: request.planId,
 	}),
 };

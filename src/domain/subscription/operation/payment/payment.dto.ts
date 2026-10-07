@@ -1,9 +1,12 @@
 import * as z from "zod";
 import {
+	err,
 	matchChoice,
+	ok,
 	Result,
 	type Result as ResultType,
 } from "#/domain/building-blocks";
+import { InvoiceId } from "#/domain/subscription/model/invoice.primitive";
 import type { StoreError } from "#/domain/subscription/model/store.model";
 import type {
 	InvoiceNotFound,
@@ -25,7 +28,17 @@ export type PayInvoiceRequest = z.infer<typeof payInvoiceRequestSchema>;
 // decode（DTO → ドメイン）
 // ===========================================================================
 
-export const PayInvoiceRequest = { schema: payInvoiceRequestSchema };
+export const PayInvoiceRequest = {
+	schema: payInvoiceRequestSchema,
+	decode: (
+		request: PayInvoiceRequest,
+	): ResultType<InvoiceId, InvoiceNotFound> => {
+		const parsed = z.uuid().safeParse(request.invoiceId);
+		return parsed.success
+			? ok(InvoiceId.create(parsed.data))
+			: err({ kind: "InvoiceNotFound" });
+	},
+};
 
 // ===========================================================================
 // encode（ドメイン → DTO）

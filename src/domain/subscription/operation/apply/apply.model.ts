@@ -21,13 +21,11 @@ import {
 
 /** 信頼境界を越えてきた、まだドメインの型へ変換していない申し込み入力。 */
 export type UnvalidatedApplyCommand = {
-	accountId: string;
 	planId: string;
 };
 
 /** ドメインの primitive へ変換済みの申し込み入力。 */
 export type ValidatedApplyCommand = {
-	accountId: AccountId;
 	planId: PlanId;
 };
 

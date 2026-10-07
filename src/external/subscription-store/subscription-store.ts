@@ -102,6 +102,7 @@ const saveInvoice = (
 				set: {
 					accountId: values.accountId,
 					planId: values.planId,
+					previousPlanId: values.previousPlanId,
 					amount: values.amount,
 					purpose: values.purpose,
 					status: values.status,

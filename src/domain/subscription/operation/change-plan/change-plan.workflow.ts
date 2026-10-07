@@ -7,16 +7,18 @@ import {
 	type Result as ResultType,
 } from "#/domain/building-blocks";
 import {
-	Amount,
-	type InvoiceId,
-	type IssuedAt,
+	type InvoicePurpose,
+	issuedAmount,
+} from "#/domain/subscription/model/invoice.entity";
+import type {
+	InvoiceId,
+	IssuedAt,
 } from "#/domain/subscription/model/invoice.primitive";
 import { Plan, type PlanChange } from "#/domain/subscription/model/plan.entity";
 import {
 	PlanId,
 	type PlanId as PlanIdType,
 } from "#/domain/subscription/model/plan.model";
-import { MonthlyPrice } from "#/domain/subscription/model/plan.primitive";
 import type { Subscription } from "#/domain/subscription/model/subscription.entity";
 import type {
 	ChangePlanError,
@@ -92,7 +94,7 @@ export const changePlanForSubscription: ChangePlanForSubscription = (
 			if (samePlan(current.planId, command.planId)) {
 				return planChangeNotAllowed();
 			}
-			const plan = Plan.of(command.planId);
+			const purpose: InvoicePurpose = { kind: "New", planId: command.planId };
 			return ok({
 				kind: "PaymentRequested",
 				subscription: {
@@ -105,9 +107,8 @@ export const changePlanForSubscription: ChangePlanForSubscription = (
 					kind: "UnpaidInvoice",
 					id: issued.invoiceId,
 					accountId: current.accountId,
-					planId: command.planId,
-					amount: Amount.create(MonthlyPrice.value(plan.monthlyPrice)),
-					purpose: { kind: "New" },
+					amount: issuedAmount(purpose),
+					purpose,
 					issuedAt: issued.issuedAt,
 				},
 			});
@@ -124,8 +125,13 @@ export const changePlanForSubscription: ChangePlanForSubscription = (
 				PlanChange,
 				ResultType<PlanChanged, Exclude<ChangePlanError, UnknownPlan>>
 			>(Plan.change(current.planId, command.planId), {
-				Upgrade: ({ difference }) =>
-					ok({
+				Upgrade: () => {
+					const purpose: InvoicePurpose = {
+						kind: "UpgradeDifference",
+						from: current.planId,
+						to: command.planId,
+					};
+					return ok({
 						kind: "UpgradeRequested",
 						subscription: {
 							kind: "UpgradePendingSubscription",
@@ -138,12 +144,12 @@ export const changePlanForSubscription: ChangePlanForSubscription = (
 							kind: "UnpaidInvoice",
 							id: issued.invoiceId,
 							accountId: current.accountId,
-							planId: command.planId,
-							amount: difference,
-							purpose: { kind: "UpgradeDifference" },
+							amount: issuedAmount(purpose),
+							purpose,
 							issuedAt: issued.issuedAt,
 						},
-					}),
+					});
+				},
 				Downgrade: () =>
 					ok({
 						kind: "PlanChangeReserved",

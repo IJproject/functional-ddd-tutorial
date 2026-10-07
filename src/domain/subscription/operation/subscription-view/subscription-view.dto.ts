@@ -1,7 +1,8 @@
 import { type Case, matchChoice } from "#/domain/building-blocks";
-import type {
-	Invoice,
-	InvoicePurpose,
+import {
+	billedPlanId,
+	type Invoice,
+	type InvoicePurpose,
 } from "#/domain/subscription/model/invoice.entity";
 import {
 	Amount,
@@ -259,7 +260,7 @@ const encodeInvoice = (invoice: Invoice): InvoiceView =>
 		UnpaidInvoice: (current) => ({
 			id: InvoiceId.value(current.id),
 			purposeLabel: purposeLabel(current.purpose),
-			planName: PlanName.value(Plan.of(current.planId).name),
+			planName: PlanName.value(Plan.of(billedPlanId(current.purpose)).name),
 			amount: Amount.value(current.amount),
 			statusLabel: "未払い",
 			issuedAt: IssuedAt.value(current.issuedAt).toLocaleString("ja-JP"),
@@ -268,7 +269,7 @@ const encodeInvoice = (invoice: Invoice): InvoiceView =>
 		PaidInvoice: (current) => ({
 			id: InvoiceId.value(current.id),
 			purposeLabel: purposeLabel(current.purpose),
-			planName: PlanName.value(Plan.of(current.planId).name),
+			planName: PlanName.value(Plan.of(billedPlanId(current.purpose)).name),
 			amount: Amount.value(current.amount),
 			statusLabel: "支払い済み",
 			issuedAt: IssuedAt.value(current.issuedAt).toLocaleString("ja-JP"),
@@ -277,7 +278,7 @@ const encodeInvoice = (invoice: Invoice): InvoiceView =>
 		FailedInvoice: (current) => ({
 			id: InvoiceId.value(current.id),
 			purposeLabel: purposeLabel(current.purpose),
-			planName: PlanName.value(Plan.of(current.planId).name),
+			planName: PlanName.value(Plan.of(billedPlanId(current.purpose)).name),
 			amount: Amount.value(current.amount),
 			statusLabel: "失敗",
 			issuedAt: IssuedAt.value(current.issuedAt).toLocaleString("ja-JP"),

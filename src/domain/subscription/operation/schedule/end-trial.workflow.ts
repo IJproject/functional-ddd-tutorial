@@ -5,12 +5,13 @@ import {
 	type Result as ResultType,
 } from "#/domain/building-blocks";
 import {
-	Amount,
-	type InvoiceId,
-	type IssuedAt,
+	type InvoicePurpose,
+	issuedAmount,
+} from "#/domain/subscription/model/invoice.entity";
+import type {
+	InvoiceId,
+	IssuedAt,
 } from "#/domain/subscription/model/invoice.primitive";
-import { Plan } from "#/domain/subscription/model/plan.entity";
-import { MonthlyPrice } from "#/domain/subscription/model/plan.primitive";
 import type { Subscription } from "#/domain/subscription/model/subscription.entity";
 import type {
 	EndTrialError,
@@ -53,7 +54,7 @@ export const endTrial: EndTrial = (subscription, issued) =>
 		{
 			FreeSubscription: notInTrial,
 			TrialSubscription: (current) => {
-				const plan = Plan.of(current.planId);
+				const purpose: InvoicePurpose = { kind: "New", planId: current.planId };
 				return ok({
 					kind: "TrialEnded",
 					subscription: {
@@ -66,9 +67,8 @@ export const endTrial: EndTrial = (subscription, issued) =>
 						kind: "UnpaidInvoice",
 						id: issued.invoiceId,
 						accountId: current.accountId,
-						planId: current.planId,
-						amount: Amount.create(MonthlyPrice.value(plan.monthlyPrice)),
-						purpose: { kind: "New" },
+						amount: issuedAmount(purpose),
+						purpose,
 						issuedAt: issued.issuedAt,
 					},
 				});

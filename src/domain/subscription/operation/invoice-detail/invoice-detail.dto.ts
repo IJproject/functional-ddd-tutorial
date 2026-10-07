@@ -6,9 +6,10 @@ import {
 	ok,
 	type Result as ResultType,
 } from "#/domain/building-blocks";
-import type {
-	Invoice,
-	InvoicePurpose,
+import {
+	billedPlanId,
+	type Invoice,
+	type InvoicePurpose,
 } from "#/domain/subscription/model/invoice.entity";
 import {
 	Amount,
@@ -62,7 +63,7 @@ export const InvoiceDetailItemView = {
 			UnpaidInvoice: (current) => ({
 				id: InvoiceId.value(current.id),
 				purposeLabel: purposeLabel(current.purpose),
-				planName: PlanName.value(Plan.of(current.planId).name),
+				planName: PlanName.value(Plan.of(billedPlanId(current.purpose)).name),
 				amount: Amount.value(current.amount),
 				statusLabel: "未払い",
 				statusDescription: "契約画面から支払いを実行できます。",
@@ -71,7 +72,7 @@ export const InvoiceDetailItemView = {
 			PaidInvoice: (current) => ({
 				id: InvoiceId.value(current.id),
 				purposeLabel: purposeLabel(current.purpose),
-				planName: PlanName.value(Plan.of(current.planId).name),
+				planName: PlanName.value(Plan.of(billedPlanId(current.purpose)).name),
 				amount: Amount.value(current.amount),
 				statusLabel: "支払い済み",
 				statusDescription: "この請求は決済済みです。",
@@ -80,7 +81,7 @@ export const InvoiceDetailItemView = {
 			FailedInvoice: (current) => ({
 				id: InvoiceId.value(current.id),
 				purposeLabel: purposeLabel(current.purpose),
-				planName: PlanName.value(Plan.of(current.planId).name),
+				planName: PlanName.value(Plan.of(billedPlanId(current.purpose)).name),
 				amount: Amount.value(current.amount),
 				statusLabel: "失敗",
 				statusDescription: "決済に失敗しています。契約画面から再実行できます。",

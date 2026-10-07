@@ -7,14 +7,11 @@ import {
 	Result,
 } from "#/domain/building-blocks";
 import { toAccountId } from "#/domain/context-map/auth-to-subscription";
-import {
-	InvoiceId,
-	PaidAt,
-} from "#/domain/subscription/model/invoice.primitive";
+import { PaidAt } from "#/domain/subscription/model/invoice.primitive";
 import type { StoreError } from "#/domain/subscription/model/store.model";
 import { Subscription } from "#/domain/subscription/model/subscription.entity";
 import {
-	type PayInvoiceRequest,
+	PayInvoiceRequest,
 	PaymentResponse,
 } from "#/domain/subscription/operation/payment/payment.dto";
 import type {
@@ -46,9 +43,11 @@ export const payInvoice = async (
 			matchChoice<Session, Promise<PaymentResponse>>(session, {
 				AnonymousSession: async () => PaymentResponse.authenticationRequired,
 				AuthenticatedSession: async ({ userId }) => {
+					const decoded = PayInvoiceRequest.decode(request);
+					if (decoded.tag === "err") return PaymentResponse.encode(decoded);
 					const accountId = toAccountId(userId);
 					const [invoice, subscription] = await Promise.all([
-						findInvoice(accountId, InvoiceId.create(request.invoiceId)),
+						findInvoice(accountId, decoded.value),
 						pipe(
 							loadSubscription(accountId),
 							AsyncResult.map((found) => Subscription.orFree(found, accountId)),

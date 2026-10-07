@@ -191,9 +191,9 @@ export const subscription = pgTable("subscription", {
 /**
  * 請求。ドメインの Invoice（UnpaidInvoice | PaidInvoice | FailedInvoice）に対応する。
  *
- * 3つの Case はフィールドが同一で、違うのは支払いの状態だけ。したがって
- * nullable な列が1つも無く、`status` だけが Case を分ける。
- * `purpose` は請求が立った理由（New / Renewal / UpgradeDifference）で、status とは別の軸。
+ * 3つの Case は支払いの状態を `status` で分ける。
+ * `purpose` は請求が立った理由で、status とは別の軸。
+ * `previous_plan_id` は UpgradeDifference の変更元プランだけに使うため nullable にする。
  */
 export const subscriptionInvoice = pgTable(
 	"subscription_invoice",
@@ -203,6 +203,7 @@ export const subscriptionInvoice = pgTable(
 			.notNull()
 			.references(() => subscriptionAccount.accountId, { onDelete: "cascade" }),
 		planId: text("plan_id").notNull(),
+		previousPlanId: text("previous_plan_id"),
 		amount: integer("amount").notNull(),
 		purpose: text("purpose").notNull(),
 		status: text("status").notNull(),

@@ -1,3 +1,4 @@
+import type { AuthProviderError } from "#/domain/auth/model/auth-provider.model";
 import type {
 	LoggedOut,
 	LogoutError,
@@ -47,5 +48,3 @@ const AUTH_PROVIDER_UNAVAILABLE_MESSAGE = "時間をおいてもう一度お試�
 export type LogoutResponse =
 	| { ok: true; userId: string }
 	| { ok: false; message: string };
-
-import type { AuthProviderError } from "#/domain/auth/model/auth-provider.model";

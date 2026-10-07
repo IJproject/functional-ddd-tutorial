@@ -6,11 +6,12 @@ import {
 	pipe,
 	type Result as ResultType,
 } from "#/domain/building-blocks";
-import type {
-	FailedInvoice,
-	Invoice,
-	PaidInvoice,
-	UnpaidInvoice,
+import {
+	billedPlanId,
+	type FailedInvoice,
+	type Invoice,
+	type PaidInvoice,
+	type UnpaidInvoice,
 } from "#/domain/subscription/model/invoice.entity";
 import type { PaidAt } from "#/domain/subscription/model/invoice.primitive";
 import type { Subscription } from "#/domain/subscription/model/subscription.entity";
@@ -66,7 +67,6 @@ const paidInvoice = (invoice: UnpaidInvoice): PaidInvoice => ({
 	kind: "PaidInvoice",
 	id: invoice.id,
 	accountId: invoice.accountId,
-	planId: invoice.planId,
 	amount: invoice.amount,
 	purpose: invoice.purpose,
 	issuedAt: invoice.issuedAt,
@@ -76,7 +76,6 @@ const failedInvoice = (invoice: UnpaidInvoice): FailedInvoice => ({
 	kind: "FailedInvoice",
 	id: invoice.id,
 	accountId: invoice.accountId,
-	planId: invoice.planId,
 	amount: invoice.amount,
 	purpose: invoice.purpose,
 	issuedAt: invoice.issuedAt,
@@ -107,7 +106,7 @@ const settlePayment = (
 							subscription: {
 								kind: "PaidSubscription",
 								accountId: current.accountId,
-								planId: invoice.planId,
+								planId: billedPlanId(invoice.purpose),
 								periodEndsAt: billingPeriodEnd(settled.paidAt),
 							},
 							invoice: paidInvoice(invoice),
@@ -135,7 +134,7 @@ const settlePayment = (
 							subscription: {
 								kind: "PaidSubscription",
 								accountId: current.accountId,
-								planId: invoice.planId,
+								planId: billedPlanId(invoice.purpose),
 								periodEndsAt: current.periodEndsAt,
 							},
 							invoice: paidInvoice(invoice),

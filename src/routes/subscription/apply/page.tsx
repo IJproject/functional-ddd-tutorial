@@ -20,8 +20,8 @@ import {
 	PAYMENT_REQUIRED_MESSAGE,
 	TRIAL_AVAILABLE_MESSAGE,
 } from "#/domain/subscription/operation/apply/apply-context.dto";
-import { LoginRequired } from "./login-required/login-required";
-import { PlanList } from "./plan-list/plan-list";
+import { LoginRequired } from "./-login-required/login-required";
+import { PlanList } from "./-plan-list/plan-list";
 
 const getApplyContext = createServerFn({ method: "GET" }).handler(applyContext);
 

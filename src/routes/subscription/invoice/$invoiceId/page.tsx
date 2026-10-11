@@ -18,7 +18,7 @@ import {
  * 動的セグメントはフラットルート側へ置き、ページ本体は既存の -<ページ>/<ページ>-page 規則に揃える。
  * ルートが InvoicePage を import するため、ここでは Route の直接 import による循環参照を避けて getRouteApi を使う。
  */
-const routeApi = getRouteApi("/subscription/invoice/$invoiceId");
+const routeApi = getRouteApi("/subscription/invoice/$invoiceId/");
 
 const INVOICE_DETAIL_TEXT = {
 	title: "請求の詳細",

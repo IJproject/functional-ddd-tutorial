@@ -9,31 +9,16 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as AuthLoginRouteImport } from './routes/auth/login'
-import { Route as AuthSignupRouteImport } from './routes/auth/signup'
-import { Route as SubscriptionApplyRouteImport } from './routes/subscription/apply'
+import { Route as homeIndexRouteImport } from './routes/(home)/index'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
-import { Route as SubscriptionInvoiceInvoiceIdRouteImport } from './routes/subscription/invoice.$invoiceId'
+import { Route as AuthLoginIndexRouteImport } from './routes/auth/login/index'
+import { Route as AuthSignupIndexRouteImport } from './routes/auth/signup/index'
+import { Route as SubscriptionApplyIndexRouteImport } from './routes/subscription/apply/index'
+import { Route as SubscriptionInvoiceInvoiceIdIndexRouteImport } from './routes/subscription/invoice/$invoiceId/index'
 
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
+const homeIndexRoute = homeIndexRouteImport.update({
+  id: '/(home)/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthLoginRoute = AuthLoginRouteImport.update({
-  id: '/auth/login',
-  path: '/auth/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthSignupRoute = AuthSignupRouteImport.update({
-  id: '/auth/signup',
-  path: '/auth/signup',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SubscriptionApplyRoute = SubscriptionApplyRouteImport.update({
-  id: '/subscription/apply',
-  path: '/subscription/apply',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
@@ -41,102 +26,96 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SubscriptionInvoiceInvoiceIdRoute =
-  SubscriptionInvoiceInvoiceIdRouteImport.update({
-    id: '/subscription/invoice/$invoiceId',
-    path: '/subscription/invoice/$invoiceId',
+const AuthLoginIndexRoute = AuthLoginIndexRouteImport.update({
+  id: '/auth/login/',
+  path: '/auth/login/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthSignupIndexRoute = AuthSignupIndexRouteImport.update({
+  id: '/auth/signup/',
+  path: '/auth/signup/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SubscriptionApplyIndexRoute = SubscriptionApplyIndexRouteImport.update({
+  id: '/subscription/apply/',
+  path: '/subscription/apply/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SubscriptionInvoiceInvoiceIdIndexRoute =
+  SubscriptionInvoiceInvoiceIdIndexRouteImport.update({
+    id: '/subscription/invoice/$invoiceId/',
+    path: '/subscription/invoice/$invoiceId/',
     getParentRoute: () => rootRouteImport,
   } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/auth/login': typeof AuthLoginRoute
-  '/auth/signup': typeof AuthSignupRoute
-  '/subscription/apply': typeof SubscriptionApplyRoute
+  '/': typeof homeIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/subscription/invoice/$invoiceId': typeof SubscriptionInvoiceInvoiceIdRoute
+  '/auth/login/': typeof AuthLoginIndexRoute
+  '/auth/signup/': typeof AuthSignupIndexRoute
+  '/subscription/apply/': typeof SubscriptionApplyIndexRoute
+  '/subscription/invoice/$invoiceId/': typeof SubscriptionInvoiceInvoiceIdIndexRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/auth/login': typeof AuthLoginRoute
-  '/auth/signup': typeof AuthSignupRoute
-  '/subscription/apply': typeof SubscriptionApplyRoute
+  '/': typeof homeIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/subscription/invoice/$invoiceId': typeof SubscriptionInvoiceInvoiceIdRoute
+  '/auth/login': typeof AuthLoginIndexRoute
+  '/auth/signup': typeof AuthSignupIndexRoute
+  '/subscription/apply': typeof SubscriptionApplyIndexRoute
+  '/subscription/invoice/$invoiceId': typeof SubscriptionInvoiceInvoiceIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/auth/login': typeof AuthLoginRoute
-  '/auth/signup': typeof AuthSignupRoute
-  '/subscription/apply': typeof SubscriptionApplyRoute
+  '/(home)/': typeof homeIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/subscription/invoice/$invoiceId': typeof SubscriptionInvoiceInvoiceIdRoute
+  '/auth/login/': typeof AuthLoginIndexRoute
+  '/auth/signup/': typeof AuthSignupIndexRoute
+  '/subscription/apply/': typeof SubscriptionApplyIndexRoute
+  '/subscription/invoice/$invoiceId/': typeof SubscriptionInvoiceInvoiceIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/auth/login'
-    | '/auth/signup'
-    | '/subscription/apply'
     | '/api/auth/$'
-    | '/subscription/invoice/$invoiceId'
+    | '/auth/login/'
+    | '/auth/signup/'
+    | '/subscription/apply/'
+    | '/subscription/invoice/$invoiceId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/api/auth/$'
     | '/auth/login'
     | '/auth/signup'
     | '/subscription/apply'
-    | '/api/auth/$'
     | '/subscription/invoice/$invoiceId'
   id:
     | '__root__'
-    | '/'
-    | '/auth/login'
-    | '/auth/signup'
-    | '/subscription/apply'
+    | '/(home)/'
     | '/api/auth/$'
-    | '/subscription/invoice/$invoiceId'
+    | '/auth/login/'
+    | '/auth/signup/'
+    | '/subscription/apply/'
+    | '/subscription/invoice/$invoiceId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  AuthLoginRoute: typeof AuthLoginRoute
-  AuthSignupRoute: typeof AuthSignupRoute
-  SubscriptionApplyRoute: typeof SubscriptionApplyRoute
+  homeIndexRoute: typeof homeIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
-  SubscriptionInvoiceInvoiceIdRoute: typeof SubscriptionInvoiceInvoiceIdRoute
+  AuthLoginIndexRoute: typeof AuthLoginIndexRoute
+  AuthSignupIndexRoute: typeof AuthSignupIndexRoute
+  SubscriptionApplyIndexRoute: typeof SubscriptionApplyIndexRoute
+  SubscriptionInvoiceInvoiceIdIndexRoute: typeof SubscriptionInvoiceInvoiceIdIndexRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
+    '/(home)/': {
+      id: '/(home)/'
       path: '/'
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/auth/login': {
-      id: '/auth/login'
-      path: '/auth/login'
-      fullPath: '/auth/login'
-      preLoaderRoute: typeof AuthLoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/auth/signup': {
-      id: '/auth/signup'
-      path: '/auth/signup'
-      fullPath: '/auth/signup'
-      preLoaderRoute: typeof AuthSignupRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/subscription/apply': {
-      id: '/subscription/apply'
-      path: '/subscription/apply'
-      fullPath: '/subscription/apply'
-      preLoaderRoute: typeof SubscriptionApplyRouteImport
+      preLoaderRoute: typeof homeIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/auth/$': {
@@ -146,23 +125,45 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/subscription/invoice/$invoiceId': {
-      id: '/subscription/invoice/$invoiceId'
+    '/auth/login/': {
+      id: '/auth/login/'
+      path: '/auth/login'
+      fullPath: '/auth/login/'
+      preLoaderRoute: typeof AuthLoginIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth/signup/': {
+      id: '/auth/signup/'
+      path: '/auth/signup'
+      fullPath: '/auth/signup/'
+      preLoaderRoute: typeof AuthSignupIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/subscription/apply/': {
+      id: '/subscription/apply/'
+      path: '/subscription/apply'
+      fullPath: '/subscription/apply/'
+      preLoaderRoute: typeof SubscriptionApplyIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/subscription/invoice/$invoiceId/': {
+      id: '/subscription/invoice/$invoiceId/'
       path: '/subscription/invoice/$invoiceId'
-      fullPath: '/subscription/invoice/$invoiceId'
-      preLoaderRoute: typeof SubscriptionInvoiceInvoiceIdRouteImport
+      fullPath: '/subscription/invoice/$invoiceId/'
+      preLoaderRoute: typeof SubscriptionInvoiceInvoiceIdIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  AuthLoginRoute: AuthLoginRoute,
-  AuthSignupRoute: AuthSignupRoute,
-  SubscriptionApplyRoute: SubscriptionApplyRoute,
+  homeIndexRoute: homeIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
-  SubscriptionInvoiceInvoiceIdRoute: SubscriptionInvoiceInvoiceIdRoute,
+  AuthLoginIndexRoute: AuthLoginIndexRoute,
+  AuthSignupIndexRoute: AuthSignupIndexRoute,
+  SubscriptionApplyIndexRoute: SubscriptionApplyIndexRoute,
+  SubscriptionInvoiceInvoiceIdIndexRoute:
+    SubscriptionInvoiceInvoiceIdIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

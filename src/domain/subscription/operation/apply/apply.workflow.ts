@@ -8,10 +8,7 @@ import {
 } from "#/domain/building-blocks";
 import type { Account } from "#/domain/subscription/model/account.entity";
 import type { TrialUsedAt } from "#/domain/subscription/model/account.primitive";
-import {
-	type InvoicePurpose,
-	issuedAmount,
-} from "#/domain/subscription/model/invoice.entity";
+import { Invoice } from "#/domain/subscription/model/invoice.entity";
 import type {
 	InvoiceId,
 	IssuedAt,
@@ -103,12 +100,8 @@ export const applyToSubscription: ApplyToSubscription = (
 									trialEndsAt: trialPeriodEnd(issued.trialUsedAt),
 								},
 							}),
-						TrialUsedAccount: () => {
-							const purpose: InvoicePurpose = {
-								kind: "New",
-								planId: command.planId,
-							};
-							return ok({
+						TrialUsedAccount: () =>
+							ok({
 								kind: "PaymentRequested",
 								subscription: {
 									kind: "PendingPaymentSubscription",
@@ -116,16 +109,13 @@ export const applyToSubscription: ApplyToSubscription = (
 									planId: command.planId,
 									pendingInvoiceId: issued.invoiceId,
 								},
-								invoice: {
-									kind: "UnpaidInvoice",
+								invoice: Invoice.issue({
 									id: issued.invoiceId,
 									accountId: context.account.id,
-									amount: issuedAmount(purpose),
-									purpose,
+									purpose: { kind: "New", planId: command.planId },
 									issuedAt: issued.issuedAt,
-								},
-							});
-						},
+								}),
+							}),
 					},
 				),
 			TrialSubscription: alreadySubscribed,

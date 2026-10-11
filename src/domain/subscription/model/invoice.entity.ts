@@ -4,8 +4,13 @@ import {
 	Amount,
 	type InvoiceId,
 	type IssuedAt,
+	type PaidAt,
 } from "#/domain/subscription/model/invoice.primitive";
-import { Plan, type PlanChange } from "#/domain/subscription/model/plan.entity";
+import {
+	Plan,
+	type PlanUpgrade,
+	upgradeDifference,
+} from "#/domain/subscription/model/plan.entity";
 import type { PlanId } from "#/domain/subscription/model/plan.model";
 import { MonthlyPrice } from "#/domain/subscription/model/plan.primitive";
 
@@ -16,16 +21,21 @@ import { MonthlyPrice } from "#/domain/subscription/model/plan.primitive";
 /**
  * 請求が立った理由と対象プラン。支払いの状態とは別の軸なので purpose に持たせる。
  * seed でもリテラルで対象を明示するため、定数オブジェクトは置かない。
+ * 変更元と変更先は PlanUpgrade が持つので、ダウングレードの組は表せない。
  */
 export type InvoicePurpose =
 	| Case<"New", { planId: PlanId }>
 	| Case<"Renewal", { planId: PlanId }>
-	| Case<"UpgradeDifference", { from: PlanId; to: PlanId }>;
+	| Case<"UpgradeDifference", { upgrade: PlanUpgrade }>;
 
 export type Invoice = UnpaidInvoice | PaidInvoice | FailedInvoice;
 
 export type UnpaidInvoice = Case<"UnpaidInvoice", InvoiceFields>;
-export type PaidInvoice = Case<"PaidInvoice", InvoiceFields>;
+/** 支払いが成立した請求だけが支払日を持つ。 */
+export type PaidInvoice = Case<
+	"PaidInvoice",
+	InvoiceFields & { paidAt: PaidAt }
+>;
 export type FailedInvoice = Case<"FailedInvoice", InvoiceFields>;
 
 /** 3つの Case に共通するフィールドを1箇所に書くための型。 */
@@ -46,7 +56,7 @@ export const billedPlanId = (purpose: InvoicePurpose): PlanId =>
 	matchChoice<InvoicePurpose, PlanId>(purpose, {
 		New: ({ planId }) => planId,
 		Renewal: ({ planId }) => planId,
-		UpgradeDifference: ({ to }) => to,
+		UpgradeDifference: ({ upgrade }) => upgrade.to,
 	});
 
 /**
@@ -54,18 +64,28 @@ export const billedPlanId = (purpose: InvoicePurpose): PlanId =>
  * 復元では呼ばない。保存された額は発行時点の事実であり、現行料金と照合すると
  * 料金改定で過去の請求が読めなくなるため。
  */
-export const issuedAmount = (purpose: InvoicePurpose): Amount =>
+const issuedAmount = (purpose: InvoicePurpose): Amount =>
 	matchChoice<InvoicePurpose, Amount>(purpose, {
 		New: ({ planId }) =>
 			Amount.create(MonthlyPrice.value(Plan.of(planId).monthlyPrice)),
 		Renewal: ({ planId }) =>
 			Amount.create(MonthlyPrice.value(Plan.of(planId).monthlyPrice)),
-		UpgradeDifference: ({ from, to }) =>
-			matchChoice<PlanChange, Amount>(Plan.change(from, to), {
-				Upgrade: ({ difference }) => difference,
-				Downgrade: () => {
-					// UpgradeDifference を組み立てるのは change-plan の Upgrade 分岐だけなので、ここに来るのはプログラムの誤り。§3.3 のパニックに当たる。
-					throw new Error("UpgradeDifference requires an upgrade");
-				},
-			}),
+		UpgradeDifference: ({ upgrade }) => upgradeDifference(upgrade),
 	});
+
+export const Invoice = {
+	/**
+	 * 請求を発行する。金額は料金表から決まるので、呼び出し側は金額を渡さない。
+	 * 復元（StoredInvoice.decode）では使わない。保存された額は発行時点の事実であるため。
+	 */
+	issue: (fields: {
+		id: InvoiceId;
+		accountId: AccountId;
+		purpose: InvoicePurpose;
+		issuedAt: IssuedAt;
+	}): UnpaidInvoice => ({
+		kind: "UnpaidInvoice",
+		...fields,
+		amount: issuedAmount(fields.purpose),
+	}),
+};

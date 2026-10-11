@@ -6,10 +6,7 @@ import {
 	Result,
 	type Result as ResultType,
 } from "#/domain/building-blocks";
-import {
-	type InvoicePurpose,
-	issuedAmount,
-} from "#/domain/subscription/model/invoice.entity";
+import { Invoice } from "#/domain/subscription/model/invoice.entity";
 import type {
 	InvoiceId,
 	IssuedAt,
@@ -94,7 +91,6 @@ export const changePlanForSubscription: ChangePlanForSubscription = (
 			if (samePlan(current.planId, command.planId)) {
 				return planChangeNotAllowed();
 			}
-			const purpose: InvoicePurpose = { kind: "New", planId: command.planId };
 			return ok({
 				kind: "PaymentRequested",
 				subscription: {
@@ -103,14 +99,12 @@ export const changePlanForSubscription: ChangePlanForSubscription = (
 					planId: command.planId,
 					pendingInvoiceId: issued.invoiceId,
 				},
-				invoice: {
-					kind: "UnpaidInvoice",
+				invoice: Invoice.issue({
 					id: issued.invoiceId,
 					accountId: current.accountId,
-					amount: issuedAmount(purpose),
-					purpose,
+					purpose: { kind: "New", planId: command.planId },
 					issuedAt: issued.issuedAt,
-				},
+				}),
 			});
 		},
 		PendingPaymentSubscription: (current) =>
@@ -125,13 +119,8 @@ export const changePlanForSubscription: ChangePlanForSubscription = (
 				PlanChange,
 				ResultType<PlanChanged, Exclude<ChangePlanError, UnknownPlan>>
 			>(Plan.change(current.planId, command.planId), {
-				Upgrade: () => {
-					const purpose: InvoicePurpose = {
-						kind: "UpgradeDifference",
-						from: current.planId,
-						to: command.planId,
-					};
-					return ok({
+				Upgrade: ({ upgrade }) =>
+					ok({
 						kind: "UpgradeRequested",
 						subscription: {
 							kind: "UpgradePendingSubscription",
@@ -140,16 +129,13 @@ export const changePlanForSubscription: ChangePlanForSubscription = (
 							periodEndsAt: current.periodEndsAt,
 							pendingInvoiceId: issued.invoiceId,
 						},
-						invoice: {
-							kind: "UnpaidInvoice",
+						invoice: Invoice.issue({
 							id: issued.invoiceId,
 							accountId: current.accountId,
-							amount: issuedAmount(purpose),
-							purpose,
+							purpose: { kind: "UpgradeDifference", upgrade },
 							issuedAt: issued.issuedAt,
-						},
-					});
-				},
+						}),
+					}),
 				Downgrade: () =>
 					ok({
 						kind: "PlanChangeReserved",

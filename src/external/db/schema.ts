@@ -194,6 +194,7 @@ export const subscription = pgTable("subscription", {
  * 3つの Case は支払いの状態を `status` で分ける。
  * `purpose` は請求が立った理由で、status とは別の軸。
  * `previous_plan_id` は UpgradeDifference の変更元プランだけに使うため nullable にする。
+ * `paid_at` は PaidInvoice だけが持つ支払日なので nullable にする。
  */
 export const subscriptionInvoice = pgTable(
 	"subscription_invoice",
@@ -208,6 +209,7 @@ export const subscriptionInvoice = pgTable(
 		purpose: text("purpose").notNull(),
 		status: text("status").notNull(),
 		issuedAt: timestamp("issued_at").notNull(),
+		paidAt: timestamp("paid_at"),
 	},
 	(table) => [
 		// 請求一覧は新しい順に引くため。

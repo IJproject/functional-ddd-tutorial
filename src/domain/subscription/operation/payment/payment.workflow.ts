@@ -63,13 +63,14 @@ export type PayInvoice = (
 // 実装
 // ===========================================================================
 
-const paidInvoice = (invoice: UnpaidInvoice): PaidInvoice => ({
+const paidInvoice = (invoice: UnpaidInvoice, paidAt: PaidAt): PaidInvoice => ({
 	kind: "PaidInvoice",
 	id: invoice.id,
 	accountId: invoice.accountId,
 	amount: invoice.amount,
 	purpose: invoice.purpose,
 	issuedAt: invoice.issuedAt,
+	paidAt,
 });
 
 const failedInvoice = (invoice: UnpaidInvoice): FailedInvoice => ({
@@ -109,7 +110,7 @@ const settlePayment = (
 								planId: billedPlanId(invoice.purpose),
 								periodEndsAt: billingPeriodEnd(settled.paidAt),
 							},
-							invoice: paidInvoice(invoice),
+							invoice: paidInvoice(invoice, settled.paidAt),
 						});
 					},
 					Failed: () =>
@@ -137,7 +138,7 @@ const settlePayment = (
 								planId: billedPlanId(invoice.purpose),
 								periodEndsAt: current.periodEndsAt,
 							},
-							invoice: paidInvoice(invoice),
+							invoice: paidInvoice(invoice, settled.paidAt),
 						}),
 					Failed: () =>
 						ok({

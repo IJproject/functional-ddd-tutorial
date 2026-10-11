@@ -21,7 +21,12 @@ import {
 	Amount,
 	InvoiceId,
 	IssuedAt,
+	PaidAt,
 } from "#/domain/subscription/model/invoice.primitive";
+import {
+	PlanUpgrade,
+	type PlanUpgradeError,
+} from "#/domain/subscription/model/plan.entity";
 import { PlanId } from "#/domain/subscription/model/plan.model";
 import {
 	StoreError,
@@ -574,7 +579,20 @@ const decodeInvoicePurpose = (
 				{
 					err,
 					ok: (from): ResultType<InvoicePurpose, StoreErrorType> =>
-						ok({ kind: "UpgradeDifference", from, to: planId }),
+						Result.match<
+							PlanUpgrade,
+							PlanUpgradeError,
+							ResultType<InvoicePurpose, StoreErrorType>
+						>(PlanUpgrade.create({ from, to: planId }), {
+							ok: (upgrade) => ok({ kind: "UpgradeDifference", upgrade }),
+							err: () =>
+								err(
+									invoiceError(
+										row,
+										`previous_plan_id=${previousPlanId} to plan_id=${row.planId} is not an upgrade`,
+									),
+								),
+						}),
 				},
 			);
 		},
@@ -612,25 +630,34 @@ export const StoredInvoice = {
 												purpose,
 												issuedAt: IssuedAt.create(row.issuedAt),
 											};
-											return ok(
-												matchChoice<StoredInvoiceStatusChoice, Invoice>(
-													statusChoice,
-													{
-														UnpaidInvoice: () => ({
-															kind: "UnpaidInvoice",
-															...fields,
-														}),
-														PaidInvoice: () => ({
-															kind: "PaidInvoice",
-															...fields,
-														}),
-														FailedInvoice: () => ({
-															kind: "FailedInvoice",
-															...fields,
-														}),
-													},
-												),
-											);
+											return matchChoice<
+												StoredInvoiceStatusChoice,
+												ResultType<Invoice, StoreErrorType>
+											>(statusChoice, {
+												UnpaidInvoice: () =>
+													ok({
+														kind: "UnpaidInvoice",
+														...fields,
+													}),
+												PaidInvoice: () =>
+													row.paidAt === null
+														? err(
+																invoiceError(
+																	row,
+																	"status=PaidInvoice but paid_at is null",
+																),
+															)
+														: ok({
+																kind: "PaidInvoice",
+																...fields,
+																paidAt: PaidAt.create(row.paidAt),
+															}),
+												FailedInvoice: () =>
+													ok({
+														kind: "FailedInvoice",
+														...fields,
+													}),
+											});
 										},
 									}),
 							}),
@@ -649,13 +676,18 @@ export const StoredInvoice = {
 			{
 				New: () => null,
 				Renewal: () => null,
-				UpgradeDifference: ({ from }) => encodePlanId(from),
+				UpgradeDifference: ({ upgrade }) => encodePlanId(upgrade.from),
 			},
 		),
 		amount: Amount.value(invoice.amount),
 		purpose: encodeInvoicePurpose(invoice.purpose),
 		status: encodeInvoiceStatus(invoice),
 		issuedAt: IssuedAt.value(invoice.issuedAt),
+		paidAt: matchChoice<Invoice, Date | null>(invoice, {
+			UnpaidInvoice: () => null,
+			PaidInvoice: (paid) => PaidAt.value(paid.paidAt),
+			FailedInvoice: () => null,
+		}),
 	}),
 };
 

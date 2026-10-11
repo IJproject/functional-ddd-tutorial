@@ -4,10 +4,7 @@ import {
 	ok,
 	type Result as ResultType,
 } from "#/domain/building-blocks";
-import {
-	type InvoicePurpose,
-	issuedAmount,
-} from "#/domain/subscription/model/invoice.entity";
+import { Invoice } from "#/domain/subscription/model/invoice.entity";
 import type {
 	InvoiceId,
 	IssuedAt,
@@ -53,9 +50,8 @@ export const endTrial: EndTrial = (subscription, issued) =>
 		subscription,
 		{
 			FreeSubscription: notInTrial,
-			TrialSubscription: (current) => {
-				const purpose: InvoicePurpose = { kind: "New", planId: current.planId };
-				return ok({
+			TrialSubscription: (current) =>
+				ok({
 					kind: "TrialEnded",
 					subscription: {
 						kind: "PendingPaymentSubscription",
@@ -63,16 +59,13 @@ export const endTrial: EndTrial = (subscription, issued) =>
 						planId: current.planId,
 						pendingInvoiceId: issued.invoiceId,
 					},
-					invoice: {
-						kind: "UnpaidInvoice",
+					invoice: Invoice.issue({
 						id: issued.invoiceId,
 						accountId: current.accountId,
-						amount: issuedAmount(purpose),
-						purpose,
+						purpose: { kind: "New", planId: current.planId },
 						issuedAt: issued.issuedAt,
-					},
-				});
-			},
+					}),
+				}),
 			PendingPaymentSubscription: notInTrial,
 			PaidSubscription: notInTrial,
 			UpgradePendingSubscription: notInTrial,

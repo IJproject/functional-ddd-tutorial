@@ -107,6 +107,7 @@ const saveInvoice = (
 					purpose: values.purpose,
 					status: values.status,
 					issuedAt: values.issuedAt,
+					paidAt: values.paidAt,
 				},
 			});
 	});

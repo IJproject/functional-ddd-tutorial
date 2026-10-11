@@ -48,7 +48,9 @@ import {
 	Amount,
 	InvoiceId,
 	IssuedAt,
+	PaidAt,
 } from "#/domain/subscription/model/invoice.primitive";
+import { PlanUpgrade } from "#/domain/subscription/model/plan.entity";
 import { Subscription } from "#/domain/subscription/model/subscription.entity";
 import {
 	PeriodEndsAt,
@@ -202,10 +204,10 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 					kind: "PaidInvoice",
 					id: invoiceId(1),
 					accountId,
-
 					amount: Amount.create(980),
 					purpose: { kind: "New", planId: { kind: "Basic" } },
 					issuedAt: IssuedAt.create(daysAgo(45)),
+					paidAt: PaidAt.create(daysAgo(45)),
 				},
 			],
 		}),
@@ -229,7 +231,6 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 			kind: "UnpaidInvoice",
 			id: invoiceId(1),
 			accountId,
-
 			amount: Amount.create(2980),
 			purpose: { kind: "New", planId: { kind: "Pro" } },
 			issuedAt: IssuedAt.create(daysAgo(1)),
@@ -258,7 +259,6 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 				kind: "UnpaidInvoice",
 				id: invoiceId(1),
 				accountId,
-
 				amount: Amount.create(2980),
 				purpose: { kind: "New", planId: { kind: "Pro" } },
 				issuedAt: IssuedAt.create(daysAgo(1)),
@@ -299,25 +299,24 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 					kind: "PaidInvoice",
 					id: invoiceId(1),
 					accountId,
-
 					amount: Amount.create(980),
 					purpose: { kind: "New", planId: { kind: "Basic" } },
 					issuedAt: IssuedAt.create(daysAgo(40)),
+					paidAt: PaidAt.create(daysAgo(40)),
 				},
 				{
 					kind: "PaidInvoice",
 					id: invoiceId(2),
 					accountId,
-
 					amount: Amount.create(980),
 					purpose: { kind: "Renewal", planId: { kind: "Basic" } },
 					issuedAt: IssuedAt.create(daysAgo(10)),
+					paidAt: PaidAt.create(daysAgo(10)),
 				},
 				{
 					kind: "FailedInvoice",
 					id: invoiceId(3),
 					accountId,
-
 					amount: Amount.create(980),
 					purpose: { kind: "Renewal", planId: { kind: "Basic" } },
 					issuedAt: IssuedAt.create(daysAgo(35)),
@@ -344,10 +343,10 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 					kind: "PaidInvoice",
 					id: invoiceId(1),
 					accountId,
-
 					amount: Amount.create(2980),
 					purpose: { kind: "New", planId: { kind: "Pro" } },
 					issuedAt: IssuedAt.create(daysAgo(5)),
+					paidAt: PaidAt.create(daysAgo(5)),
 				},
 			],
 		}),
@@ -357,21 +356,22 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 			kind: "PaidInvoice",
 			id: invoiceId(1),
 			accountId,
-
 			amount: Amount.create(980),
 			purpose: { kind: "New", planId: { kind: "Basic" } },
 			issuedAt: IssuedAt.create(daysAgo(15)),
+			paidAt: PaidAt.create(daysAgo(15)),
 		};
 		const pendingInvoice: Invoice = {
 			kind: "UnpaidInvoice",
 			id: invoiceId(2),
 			accountId,
-
 			amount: Amount.create(2000),
 			purpose: {
 				kind: "UpgradeDifference",
-				from: { kind: "Basic" },
-				to: { kind: "Pro" },
+				upgrade: must(
+					"アップグレード",
+					PlanUpgrade.create({ from: { kind: "Basic" }, to: { kind: "Pro" } }),
+				),
 			},
 			issuedAt: IssuedAt.create(now),
 		};
@@ -412,10 +412,10 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 				kind: "PaidInvoice",
 				id: invoiceId(1),
 				accountId,
-
 				amount: Amount.create(2980),
 				purpose: { kind: "Renewal", planId: { kind: "Pro" } },
 				issuedAt: IssuedAt.create(daysAgo(18)),
+				paidAt: PaidAt.create(daysAgo(18)),
 			},
 		],
 	})),
@@ -437,10 +437,10 @@ const SEED_ACCOUNTS: readonly SeedAccount[] = [
 				kind: "PaidInvoice",
 				id: invoiceId(1),
 				accountId,
-
 				amount: Amount.create(2980),
 				purpose: { kind: "Renewal", planId: { kind: "Pro" } },
 				issuedAt: IssuedAt.create(daysAgo(22)),
+				paidAt: PaidAt.create(daysAgo(22)),
 			},
 		],
 	})),

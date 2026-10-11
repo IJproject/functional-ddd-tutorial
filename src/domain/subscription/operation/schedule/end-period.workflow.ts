@@ -4,10 +4,7 @@ import {
 	ok,
 	type Result as ResultType,
 } from "#/domain/building-blocks";
-import {
-	type InvoicePurpose,
-	issuedAmount,
-} from "#/domain/subscription/model/invoice.entity";
+import { Invoice } from "#/domain/subscription/model/invoice.entity";
 import type {
 	InvoiceId,
 	IssuedAt,
@@ -60,12 +57,8 @@ export const endPeriod: EndPeriod = (subscription, issued) =>
 			FreeSubscription: notPaid,
 			TrialSubscription: notPaid,
 			PendingPaymentSubscription: notPaid,
-			PaidSubscription: (current) => {
-				const purpose: InvoicePurpose = {
-					kind: "Renewal",
-					planId: current.planId,
-				};
-				return ok({
+			PaidSubscription: (current) =>
+				ok({
 					kind: "RenewalRequested",
 					subscription: {
 						kind: "PendingPaymentSubscription",
@@ -73,16 +66,13 @@ export const endPeriod: EndPeriod = (subscription, issued) =>
 						planId: current.planId,
 						pendingInvoiceId: issued.invoiceId,
 					},
-					invoice: {
-						kind: "UnpaidInvoice",
+					invoice: Invoice.issue({
 						id: issued.invoiceId,
 						accountId: current.accountId,
-						amount: issuedAmount(purpose),
-						purpose,
+						purpose: { kind: "Renewal", planId: current.planId },
 						issuedAt: issued.issuedAt,
-					},
-				});
-			},
+					}),
+				}),
 			UpgradePendingSubscription: () =>
 				err<PaymentPending>({ kind: "PaymentPending" }),
 			CancelReservedSubscription: (current) =>
@@ -93,12 +83,8 @@ export const endPeriod: EndPeriod = (subscription, issued) =>
 						accountId: current.accountId,
 					},
 				}),
-			PlanChangeReservedSubscription: (current) => {
-				const purpose: InvoicePurpose = {
-					kind: "Renewal",
-					planId: current.nextPlanId,
-				};
-				return ok({
+			PlanChangeReservedSubscription: (current) =>
+				ok({
 					kind: "RenewalRequested",
 					subscription: {
 						kind: "PendingPaymentSubscription",
@@ -106,16 +92,13 @@ export const endPeriod: EndPeriod = (subscription, issued) =>
 						planId: current.nextPlanId,
 						pendingInvoiceId: issued.invoiceId,
 					},
-					invoice: {
-						kind: "UnpaidInvoice",
+					invoice: Invoice.issue({
 						id: issued.invoiceId,
 						accountId: current.accountId,
-						amount: issuedAmount(purpose),
-						purpose,
+						purpose: { kind: "Renewal", planId: current.nextPlanId },
 						issuedAt: issued.issuedAt,
-					},
-				});
-			},
+					}),
+				}),
 		},
 	);
 

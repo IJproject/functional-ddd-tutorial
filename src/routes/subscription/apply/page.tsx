@@ -1,43 +1,38 @@
 import { useNavigate } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
-import { type ReactNode, useEffect, useState } from "react";
-import {
-	apply as applyAction,
-	applyContext,
-} from "#/application/subscription/apply";
+import { useEffect, useState } from "react";
+import { apply, applyView } from "#/application/subscription/apply";
 import { Button } from "#/components/control/button";
 import { Alert } from "#/components/feedback/alert";
-import { matchChoice } from "#/domain/building-blocks";
 import {
 	type ApplyFieldError,
 	ApplyRequest,
 	ApplyResponse,
 } from "#/domain/subscription/operation/apply/apply.dto";
 import {
-	ALREADY_SUBSCRIBED_APPLY_MESSAGE,
-	APPLY_CONTEXT_UNAVAILABLE_MESSAGE,
-	type ApplyContextView,
-	PAYMENT_REQUIRED_MESSAGE,
-	TRIAL_AVAILABLE_MESSAGE,
-} from "#/domain/subscription/operation/apply/apply-context.dto";
+	APPLY_VIEW_UNAVAILABLE_MESSAGE,
+	type ApplyView,
+} from "#/domain/subscription/operation/apply/apply-view.dto";
 import { LoginRequired } from "./-login-required/login-required";
 import { PlanList } from "./-plan-list/plan-list";
 
-const getApplyContext = createServerFn({ method: "GET" }).handler(applyContext);
+const getApplyView = createServerFn({ method: "GET" }).handler(applyView);
 
 const applySubscription = createServerFn({ method: "POST" })
 	.validator(ApplyRequest.schema)
-	.handler(async ({ data }) => applyAction(data));
+	.handler(async ({ data }) => apply(data));
 
 export function ApplyPage() {
 	const navigate = useNavigate();
-	const [data, setData] = useState<ApplyContextView | null>(null);
+	// 取得の状態（ページのもの）
+	const [view, setView] = useState<ApplyView | null>(null);
+	const [loadFailed, setLoadFailed] = useState(false);
+	// 申し込みの結果（ページのもの）
 	const [errors, setErrors] = useState<ApplyFieldError[]>([]);
-	const [contextNotice, setContextNotice] = useState<string | null>(null);
 	useEffect(() => {
-		getApplyContext()
-			.then(setData)
-			.catch(() => setContextNotice(APPLY_CONTEXT_UNAVAILABLE_MESSAGE));
+		getApplyView()
+			.then(setView)
+			.catch(() => setLoadFailed(true));
 	}, []);
 
 	/** field ごとの振り分け。field が null ならフォーム全体のエラー。 */
@@ -45,13 +40,13 @@ export function ApplyPage() {
 		errors.filter((item) => item.field === field);
 	const formErrors = errorsFor(null);
 	const planErrors = errorsFor("planId");
-	const visibleErrors = [...formErrors, ...planErrors];
-	const errorMessages = [
-		...visibleErrors.map((item) => item.message),
-		...(contextNotice === null ? [] : [contextNotice]),
+	const alerts = [
+		...[...formErrors, ...planErrors].map((item) => item.message),
+		...(loadFailed ? [APPLY_VIEW_UNAVAILABLE_MESSAGE] : []),
+		...(view && "alert" in view ? [view.alert] : []),
 	];
 
-	async function apply(planId: string) {
+	async function handleApply(planId: string) {
 		try {
 			const result = await applySubscription({ data: { planId } });
 			if (!result.ok) {
@@ -64,74 +59,33 @@ export function ApplyPage() {
 			setErrors(ApplyResponse.unexpected.errors);
 		}
 	}
-	if (!data)
-		return (
-			<main className="demo-page">
-				<section className="demo-panel">
-					{errorMessages.length > 0 ? (
-						<Alert messages={errorMessages} />
-					) : (
-						<p className="demo-note">読み込み中...</p>
-					)}
-				</section>
-			</main>
-		);
-	return matchChoice<ApplyContextView, ReactNode>(data, {
-		AnonymousApplyContext: () => (
-			<main className="demo-page">
-				<section className="demo-panel">
-					<LoginRequired errorMessages={errorMessages} />
-				</section>
-			</main>
-		),
-		ApplyContextUnavailable: () => (
-			<main className="demo-page">
-				<section className="demo-panel">
-					<Alert
-						messages={[...errorMessages, APPLY_CONTEXT_UNAVAILABLE_MESSAGE]}
-					/>
-				</section>
-			</main>
-		),
-		AlreadySubscribed: () => (
-			<main className="demo-page">
-				<section className="demo-panel space-y-6">
-					<h1 className="demo-title">プランを申し込む</h1>
-					<Alert messages={errorMessages} />
+	return (
+		<main className="demo-page">
+			<section className="demo-panel space-y-6">
+				<h1 className="demo-title">プランを申し込む</h1>
+				<Alert messages={alerts} />
+				{view === null && !loadFailed && (
+					<p className="demo-note">読み込み中...</p>
+				)}
+				{view && "loginPrompt" in view && (
+					<LoginRequired message={view.loginPrompt} />
+				)}
+				{view && "subscribedNotice" in view && (
 					<div className="space-y-4">
-						<p className="demo-note">{ALREADY_SUBSCRIBED_APPLY_MESSAGE}</p>
+						<p className="demo-note">{view.subscribedNotice}</p>
 						<Button kind="link" to="/">
 							契約へ
 						</Button>
 					</div>
-				</section>
-			</main>
-		),
-		TrialAvailable: ({ plans }) => (
-			<main className="demo-page">
-				<section className="demo-panel space-y-6">
-					<h1 className="demo-title">プランを申し込む</h1>
-					<Alert messages={errorMessages} />
+				)}
+				{view && "plans" in view && (
 					<PlanList
-						plans={plans}
-						notice={TRIAL_AVAILABLE_MESSAGE}
-						onApply={apply}
+						plans={view.plans}
+						notice={view.planNotice}
+						onApply={handleApply}
 					/>
-				</section>
-			</main>
-		),
-		PaymentRequired: ({ plans }) => (
-			<main className="demo-page">
-				<section className="demo-panel space-y-6">
-					<h1 className="demo-title">プランを申し込む</h1>
-					<Alert messages={errorMessages} />
-					<PlanList
-						plans={plans}
-						notice={PAYMENT_REQUIRED_MESSAGE}
-						onApply={apply}
-					/>
-				</section>
-			</main>
-		),
-	});
+				)}
+			</section>
+		</main>
+	);
 }

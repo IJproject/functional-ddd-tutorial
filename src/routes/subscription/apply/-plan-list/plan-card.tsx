@@ -1,5 +1,5 @@
 import { Button } from "#/components/control/button";
-import type { ApplyPlanView } from "#/domain/subscription/operation/apply/apply-context.dto";
+import type { ApplyPlanView } from "#/domain/subscription/operation/apply/apply-view.dto";
 
 type PlanCardProps = {
 	plan: ApplyPlanView;

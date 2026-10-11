@@ -49,23 +49,24 @@ export const PaymentResponse = {
 	encode: (
 		result: ResultType<
 			PaymentSettled,
-			PayInvoiceError | PaymentGatewayError | InvoiceNotFound | StoreError
+			PayInvoiceError | PaymentGatewayError | StoreError
 		>,
 	): PaymentResponse =>
 		Result.match<
 			PaymentSettled,
-			PayInvoiceError | PaymentGatewayError | InvoiceNotFound | StoreError,
+			PayInvoiceError | PaymentGatewayError | StoreError,
 			PaymentResponse
 		>(result, {
 			ok: () => ({ ok: true }),
 			err: (error) => ({
 				ok: false,
 				message: matchChoice<
-					PayInvoiceError | PaymentGatewayError | InvoiceNotFound | StoreError,
+					PayInvoiceError | PaymentGatewayError | StoreError,
 					string
 				>(error, {
 					InvoiceAlreadyProcessed: () => "この請求はすでに処理済みです",
 					NoPendingPayment: () => "支払い待ちの請求がありません",
+					NotPendingInvoice: () => "この請求は支払い待ちの請求ではありません",
 					InvoiceNotFound: () => INVOICE_NOT_FOUND_MESSAGE,
 					MalformedSubscription: () => MALFORMED_STORED_DATA_MESSAGE,
 					MalformedInvoice: () => MALFORMED_STORED_DATA_MESSAGE,
@@ -84,7 +85,7 @@ export const PaymentResponse = {
 	} satisfies Extract<PaymentResponse, { ok: false }>,
 };
 
-/** ポートが請求を見つけられなかったときの境界層の文言。 */
+/** 請求が見つからないとき（形式不正の id を含む）の文言。 */
 const INVOICE_NOT_FOUND_MESSAGE = "請求が見つかりません";
 const MALFORMED_STORED_DATA_MESSAGE = "契約情報を読み込めませんでした";
 const STORE_UNAVAILABLE_MESSAGE = "時間をおいてもう一度お試しください";

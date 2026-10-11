@@ -1,25 +1,24 @@
 import type { Session } from "#/domain/auth/model/session.model";
 import {
 	AsyncResult,
-	err,
 	matchChoice,
 	pipe,
 	Result,
 } from "#/domain/building-blocks";
 import { toAccountId } from "#/domain/context-map/auth-to-subscription";
-import { PaidAt } from "#/domain/subscription/model/invoice.primitive";
+import type { AccountId } from "#/domain/subscription/model/account.primitive";
+import type { Invoice } from "#/domain/subscription/model/invoice.entity";
+import {
+	type InvoiceId,
+	PaidAt,
+} from "#/domain/subscription/model/invoice.primitive";
 import type { StoreError } from "#/domain/subscription/model/store.model";
 import { Subscription } from "#/domain/subscription/model/subscription.entity";
 import {
 	PayInvoiceRequest,
 	PaymentResponse,
 } from "#/domain/subscription/operation/payment/payment.dto";
-import type {
-	InvoiceNotFound,
-	PayInvoiceError,
-	PaymentGatewayError,
-	PaymentSettled,
-} from "#/domain/subscription/operation/payment/payment.model";
+import type { PaymentSettled } from "#/domain/subscription/operation/payment/payment.model";
 import { createPayInvoiceWorkflow } from "#/domain/subscription/operation/payment/payment.workflow";
 import { currentSession } from "#/external/better-auth/current-session";
 import { chargeInvoice } from "#/external/payment-gateway/charge-invoice";
@@ -30,8 +29,10 @@ import {
 } from "#/external/subscription-store/subscription-store";
 
 // composition root: ドメインのポートに具体的な実装を差し込む。
-const payInvoiceWorkflow = createPayInvoiceWorkflow({ chargeInvoice });
-const paidAt = () => PaidAt.create(new Date());
+const payInvoiceWorkflow = createPayInvoiceWorkflow({
+	chargeInvoice,
+	paidAt: () => PaidAt.create(new Date()),
+});
 
 /** 請求の支払い。読む → 純粋な核 → 書く → encode。 */
 export const payInvoice = async (
@@ -43,30 +44,14 @@ export const payInvoice = async (
 			matchChoice<Session, Promise<PaymentResponse>>(session, {
 				AnonymousSession: async () => PaymentResponse.authenticationRequired,
 				AuthenticatedSession: async ({ userId }) => {
-					const decoded = PayInvoiceRequest.decode(request);
-					if (decoded.tag === "err") return PaymentResponse.encode(decoded);
 					const accountId = toAccountId(userId);
-					const [invoice, subscription] = await Promise.all([
-						findInvoice(accountId, decoded.value),
-						pipe(
-							loadSubscription(accountId),
-							AsyncResult.map((found) => Subscription.orFree(found, accountId)),
-						),
-					]);
 					return pipe(
-						Result.combine([invoice, subscription] as const),
-						AsyncResult.flatMap(
-							([domainInvoice, domainSubscription]): AsyncResult<
-								PaymentSettled,
-								PayInvoiceError | PaymentGatewayError | InvoiceNotFound
-							> =>
-								domainInvoice === null
-									? Promise.resolve(
-											err<InvoiceNotFound>({ kind: "InvoiceNotFound" }),
-										)
-									: payInvoiceWorkflow(domainInvoice, domainSubscription, {
-											paidAt: paidAt(),
-										}),
+						PayInvoiceRequest.decode(request),
+						AsyncResult.flatMap((invoiceId) =>
+							loadPayment(accountId, invoiceId),
+						),
+						AsyncResult.flatMap(({ invoice, subscription }) =>
+							payInvoiceWorkflow(invoice, subscription),
 						),
 						AsyncResult.flatMap<PaymentSettled, PaymentSettled, StoreError>(
 							(settled) =>
@@ -80,4 +65,28 @@ export const payInvoice = async (
 				},
 			}),
 	});
+};
+
+/** 支払いに必要な請求と契約を並行して読む。請求が無ければ null のまま渡し、意味はワークフローが決める。 */
+const loadPayment = async (
+	accountId: AccountId,
+	invoiceId: InvoiceId,
+): AsyncResult<
+	{ invoice: Invoice | null; subscription: Subscription },
+	StoreError
+> => {
+	const [invoice, subscription] = await Promise.all([
+		findInvoice(accountId, invoiceId),
+		pipe(
+			loadSubscription(accountId),
+			AsyncResult.map((found) => Subscription.orFree(found, accountId)),
+		),
+	]);
+	return pipe(
+		Result.combine([invoice, subscription] as const),
+		Result.map(([found, current]) => ({
+			invoice: found,
+			subscription: current,
+		})),
+	);
 };

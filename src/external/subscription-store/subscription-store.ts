@@ -325,7 +325,17 @@ export const savePaymentSettled = (
 	result: PaymentSettled,
 ): AsyncResult<void, StoreError> =>
 	matchChoice<PaymentSettled, AsyncResult<void, StoreError>>(result, {
-		PaymentSettled: ({ subscription, invoice }) =>
+		PaymentSucceeded: ({ subscription, invoice }) =>
+			attempt(() =>
+				db.transaction(async (tx) => {
+					const savedInvoice = await saveInvoice(tx, invoice);
+					if (savedInvoice.tag === "err") throw savedInvoice.error.reason;
+					const savedSubscription = await saveSubscription(tx, subscription);
+					if (savedSubscription.tag === "err")
+						throw savedSubscription.error.reason;
+				}),
+			),
+		PaymentFailed: ({ subscription, invoice }) =>
 			attempt(() =>
 				db.transaction(async (tx) => {
 					const savedInvoice = await saveInvoice(tx, invoice);

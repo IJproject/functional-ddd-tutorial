@@ -24,10 +24,10 @@ export type SignupWorkflow = (
 	command: UnvalidatedSignupCommand,
 ) => AsyncResult<Registered, SignupError | AuthProviderError>;
 
-/** パイプラインを組み立てるための依存。各ステップと現在時刻の取得を注入する。 */
+/** 外部サービスのポートと、イベントの日時を返すポート。 */
 export type SignupWorkflowDeps = {
 	registerUser: RegisterUser;
-	now: () => RegisteredAt;
+	registeredAt: () => RegisteredAt;
 };
 export type CreateSignupWorkflow = (deps: SignupWorkflowDeps) => SignupWorkflow;
 
@@ -93,5 +93,5 @@ export const createSignupWorkflow: CreateSignupWorkflow = (deps) => (command) =>
 	pipe(
 		validateSignupCommand(command),
 		AsyncResult.flatMap(deps.registerUser),
-		AsyncResult.map((user) => createRegisteredEvent(user, deps.now())),
+		AsyncResult.map((user) => createRegisteredEvent(user, deps.registeredAt())),
 	);

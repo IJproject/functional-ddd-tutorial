@@ -17,7 +17,7 @@ import {
 	InvoiceId,
 	type PaidAt,
 } from "#/domain/subscription/model/invoice.primitive";
-import type { Subscription } from "#/domain/subscription/model/subscription.entity";
+import { Subscription } from "#/domain/subscription/model/subscription.entity";
 import { billingPeriodEnd } from "#/domain/subscription/model/subscription.primitive";
 import type {
 	AwaitingPaymentSubscription,
@@ -133,20 +133,16 @@ export const settlePayment: SettlePayment = (payable, outcome, paidAt) => {
 				matchChoice<PaymentOutcome, PaymentSettled>(outcome, {
 					Succeeded: () => ({
 						kind: "PaymentSucceeded",
-						subscription: {
-							kind: "PaidSubscription",
+						subscription: Subscription.paid({
 							accountId: current.accountId,
 							planId: billedPlanId(invoice.purpose),
 							periodEndsAt: billingPeriodEnd(paidAt),
-						},
+						}),
 						invoice: paidInvoice(invoice, paidAt),
 					}),
 					Failed: () => ({
 						kind: "PaymentFailed",
-						subscription: {
-							kind: "FreeSubscription",
-							accountId: current.accountId,
-						},
+						subscription: Subscription.free(current.accountId),
 						invoice: failedInvoice(invoice),
 					}),
 				}),
@@ -154,22 +150,20 @@ export const settlePayment: SettlePayment = (payable, outcome, paidAt) => {
 				matchChoice<PaymentOutcome, PaymentSettled>(outcome, {
 					Succeeded: () => ({
 						kind: "PaymentSucceeded",
-						subscription: {
-							kind: "PaidSubscription",
+						subscription: Subscription.paid({
 							accountId: current.accountId,
 							planId: billedPlanId(invoice.purpose),
 							periodEndsAt: current.periodEndsAt,
-						},
+						}),
 						invoice: paidInvoice(invoice, paidAt),
 					}),
 					Failed: () => ({
 						kind: "PaymentFailed",
-						subscription: {
-							kind: "PaidSubscription",
+						subscription: Subscription.paid({
 							accountId: current.accountId,
 							planId: current.planId,
 							periodEndsAt: current.periodEndsAt,
-						},
+						}),
 						invoice: failedInvoice(invoice),
 					}),
 				}),

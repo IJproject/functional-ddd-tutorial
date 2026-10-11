@@ -8,7 +8,7 @@ import { discardSession } from "#/external/better-auth/discard-session";
 // composition root: ドメインのポートに具体的な実装を差し込む。
 const logoutWorkflow = createLogoutWorkflow({
 	discardSession,
-	now: () => LoggedOutAt.create(new Date()),
+	loggedOutAt: () => LoggedOutAt.create(new Date()),
 });
 
 /** ログアウト。セッション取得 → ワークフロー → encode。 */

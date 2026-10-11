@@ -1,24 +1,19 @@
 import { Button } from "#/components/control/button";
-import {
-	type ApplyPlanView,
-	PAYMENT_REQUIRED_MESSAGE,
-	TRIAL_AVAILABLE_MESSAGE,
-} from "#/domain/subscription/operation/apply/apply-context.dto";
+import type { ApplyPlanView } from "#/domain/subscription/operation/apply/apply-context.dto";
 
 type PlanCardProps = {
 	plan: ApplyPlanView;
-	trialUsed: boolean;
+	notice: string;
 	onApply: (planId: string) => void;
 };
 
-export function PlanCard({ plan, trialUsed, onApply }: PlanCardProps) {
+export function PlanCard({ plan, notice, onApply }: PlanCardProps) {
 	return (
 		<article className="demo-card flex flex-wrap items-center justify-between gap-4">
 			<div className="space-y-1">
 				<p className="demo-metric-sm">{plan.name}</p>
 				<p className="demo-note">
-					月額 ¥{plan.monthlyPrice.toLocaleString()}・
-					{trialUsed ? PAYMENT_REQUIRED_MESSAGE : TRIAL_AVAILABLE_MESSAGE}
+					月額 ¥{plan.monthlyPrice.toLocaleString()}・{notice}
 				</p>
 			</div>
 			<Button kind="action" onClick={() => onApply(plan.id)}>

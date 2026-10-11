@@ -60,7 +60,7 @@ export const ApplyResponse = {
 /** ドメインのエラーを、表示対象の項目と文言へ網羅的に翻訳する。 */
 const toFieldError = (error: ApplyError | StoreError): ApplyFieldError =>
 	matchChoice(error, {
-		InvalidApplyCommand: ({ reason }) =>
+		ValidationFailed: ({ reason }) =>
 			matchChoice(reason, {
 				UnknownPlan: () => ({
 					field: "planId" as const,

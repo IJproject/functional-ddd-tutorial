@@ -3,20 +3,15 @@ import { PlanCard } from "./plan-card";
 
 type PlanListProps = {
 	plans: readonly ApplyPlanView[];
-	trialUsed: boolean;
+	notice: string;
 	onApply: (planId: string) => void;
 };
 
-export function PlanList({ plans, trialUsed, onApply }: PlanListProps) {
+export function PlanList({ plans, notice, onApply }: PlanListProps) {
 	return (
 		<div className="space-y-4">
 			{plans.map((plan) => (
-				<PlanCard
-					key={plan.id}
-					plan={plan}
-					trialUsed={trialUsed}
-					onApply={onApply}
-				/>
+				<PlanCard key={plan.id} plan={plan} notice={notice} onApply={onApply} />
 			))}
 		</div>
 	);

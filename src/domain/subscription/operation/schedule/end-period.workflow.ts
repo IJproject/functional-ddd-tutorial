@@ -9,7 +9,7 @@ import type {
 	InvoiceId,
 	IssuedAt,
 } from "#/domain/subscription/model/invoice.primitive";
-import type { Subscription } from "#/domain/subscription/model/subscription.entity";
+import { Subscription } from "#/domain/subscription/model/subscription.entity";
 import type {
 	EndPeriodError,
 	NotPaid,
@@ -60,12 +60,11 @@ export const endPeriod: EndPeriod = (subscription, issued) =>
 			PaidSubscription: (current) =>
 				ok({
 					kind: "RenewalRequested",
-					subscription: {
-						kind: "PendingPaymentSubscription",
+					subscription: Subscription.pendingPayment({
 						accountId: current.accountId,
 						planId: current.planId,
 						pendingInvoiceId: issued.invoiceId,
-					},
+					}),
 					invoice: Invoice.issue({
 						id: issued.invoiceId,
 						accountId: current.accountId,
@@ -78,20 +77,16 @@ export const endPeriod: EndPeriod = (subscription, issued) =>
 			CancelReservedSubscription: (current) =>
 				ok({
 					kind: "SubscriptionEnded",
-					subscription: {
-						kind: "FreeSubscription",
-						accountId: current.accountId,
-					},
+					subscription: Subscription.free(current.accountId),
 				}),
 			PlanChangeReservedSubscription: (current) =>
 				ok({
 					kind: "RenewalRequested",
-					subscription: {
-						kind: "PendingPaymentSubscription",
+					subscription: Subscription.pendingPayment({
 						accountId: current.accountId,
 						planId: current.nextPlanId,
 						pendingInvoiceId: issued.invoiceId,
-					},
+					}),
 					invoice: Invoice.issue({
 						id: issued.invoiceId,
 						accountId: current.accountId,

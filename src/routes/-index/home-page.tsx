@@ -33,9 +33,12 @@ import {
 	EndTrialResponse,
 } from "#/domain/subscription/operation/schedule/schedule.dto";
 import {
+	type InvoiceView,
 	NO_INVOICES_MESSAGE,
+	type PlanOptionView,
 	SUBSCRIPTION_LOGIN_REQUIRED_MESSAGE,
 	SUBSCRIPTION_VIEW_UNAVAILABLE_MESSAGE,
+	type SubscriptionStateView,
 	type SubscriptionView,
 } from "#/domain/subscription/operation/subscription-view/subscription-view.dto";
 
@@ -60,26 +63,22 @@ const HOME_TEXT = {
 	endPeriod: "（模擬）期間満了日を迎える",
 } as const;
 
-/**
- * 状態バッジの色。色は表示の都合なので DTO には持たせず、ここで決める。
- * キーは SubscriptionStateView.statusLabel の文言。DTO 側の文言を変えると
- * ここから外れて neutral に落ちる（型では検出できない）ことは承知の上の割り切り。
- */
-const STATUS_TONE: Record<string, BadgeTone> = {
-	無料プラン: "neutral",
-	トライアル中: "info",
-	支払い待ち: "warning",
-	有料契約中: "success",
+/** 状態バッジの色。表示用の色は DTO の case で網羅する。 */
+const STATUS_TONE: Record<SubscriptionStateView["kind"], BadgeTone> = {
+	Free: "neutral",
+	Trial: "info",
+	PendingPayment: "warning",
+	Paid: "success",
+	UpgradePending: "success",
+	CancelReserved: "success",
+	PlanChangeReserved: "success",
 };
 
-/**
- * 請求バッジの色。STATUS_TONE と同じ理由でここに置く（色は表示の都合であり DTO の関心ではない）。
- * キーは InvoiceView.statusLabel の文言。
- */
-const INVOICE_STATUS_TONE: Record<string, BadgeTone> = {
-	未払い: "warning",
-	支払い済み: "success",
-	失敗: "danger",
+/** 請求バッジの色。 */
+const INVOICE_STATUS_TONE: Record<InvoiceView["kind"], BadgeTone> = {
+	Unpaid: "warning",
+	Paid: "success",
+	Failed: "danger",
 };
 
 /** `/` のガード用。ログイン済みかどうかだけを返す。 */
@@ -161,6 +160,206 @@ export function HomePage() {
 	const pay = (invoiceId: string) =>
 		act(() => payInvoice({ data: { invoiceId } }), PaymentResponse.unexpected);
 
+	const subscribedHeading = (
+		state: Exclude<SubscriptionStateView, { kind: "Free" }>,
+		note?: string,
+	) => (
+		<div className="space-y-2">
+			<div className="flex flex-wrap items-center gap-3">
+				<h1 className="demo-metric">{state.planName}</h1>
+				<Badge tone={STATUS_TONE[state.kind]}>{state.statusLabel}</Badge>
+			</div>
+			{note && <p className="demo-note">{note}</p>}
+		</div>
+	);
+
+	const renderHeading = (state: SubscriptionStateView): ReactNode =>
+		matchChoice<SubscriptionStateView, ReactNode>(state, {
+			Free: ({ statusLabel, notice }) => (
+				<div className="space-y-2">
+					<h1 className="demo-metric">{statusLabel}</h1>
+					<p className="demo-note">{notice}</p>
+				</div>
+			),
+			Trial: (current) => subscribedHeading(current),
+			PendingPayment: (current) => subscribedHeading(current, current.notice),
+			Paid: (current) => subscribedHeading(current),
+			UpgradePending: (current) => subscribedHeading(current),
+			CancelReserved: (current) =>
+				subscribedHeading(current, current.bookingText),
+			PlanChangeReserved: (current) =>
+				subscribedHeading(current, current.bookingText),
+		});
+
+	const dateField = (label: string, value: string) => (
+		<div className="flex flex-wrap gap-x-10 gap-y-4">
+			<div className="space-y-1">
+				<p className="demo-label">{label}</p>
+				<p className="demo-value">{value}</p>
+			</div>
+		</div>
+	);
+	const renderDate = (state: SubscriptionStateView): ReactNode =>
+		matchChoice<SubscriptionStateView, ReactNode>(state, {
+			Free: () => null,
+			Trial: ({ trialEndsAt }) =>
+				dateField(HOME_TEXT.trialEndLabel, trialEndsAt),
+			PendingPayment: () => null,
+			Paid: ({ periodEndsAt }) =>
+				dateField(HOME_TEXT.periodEndLabel, periodEndsAt),
+			UpgradePending: ({ periodEndsAt }) =>
+				dateField(HOME_TEXT.periodEndLabel, periodEndsAt),
+			CancelReserved: ({ periodEndsAt }) =>
+				dateField(HOME_TEXT.periodEndLabel, periodEndsAt),
+			PlanChangeReserved: ({ periodEndsAt }) =>
+				dateField(HOME_TEXT.periodEndLabel, periodEndsAt),
+		});
+
+	const reserveCancellationButton = () => (
+		<div className="flex flex-wrap gap-3">
+			<Button
+				kind="action"
+				variant="danger"
+				onClick={() =>
+					act(reserveCancellation, ReserveCancellationResponse.unexpected)
+				}
+			>
+				{HOME_TEXT.reserveCancellation}
+			</Button>
+		</div>
+	);
+	const renderActions = (state: SubscriptionStateView): ReactNode =>
+		matchChoice<SubscriptionStateView, ReactNode>(state, {
+			Free: () => (
+				<div className="flex flex-wrap gap-3">
+					<Button kind="link" to="/subscription/apply">
+						{HOME_TEXT.applyLink}
+					</Button>
+				</div>
+			),
+			Trial: () => (
+				<div className="flex flex-wrap gap-3">
+					<Button
+						kind="action"
+						variant="danger"
+						onClick={() => act(cancelTrial, CancelTrialResponse.unexpected)}
+					>
+						{HOME_TEXT.cancelTrial}
+					</Button>
+				</div>
+			),
+			PendingPayment: () => null,
+			Paid: reserveCancellationButton,
+			UpgradePending: () => null,
+			CancelReserved: () => null,
+			PlanChangeReserved: reserveCancellationButton,
+		});
+
+	const renderPlanOption = (plan: PlanOptionView): ReactNode =>
+		matchChoice<PlanOptionView, ReactNode>(plan, {
+			CurrentPlan: (current) => (
+				<article
+					className="demo-card flex flex-wrap items-center justify-between gap-4"
+					key={current.id}
+				>
+					<div className="space-y-1">
+						<p className="demo-metric-sm">{current.name}</p>
+					</div>
+					<Button kind="action" disabled onClick={() => {}}>
+						{HOME_TEXT.changePlan}
+					</Button>
+				</article>
+			),
+			ChangeablePlan: (changeable) => (
+				<article
+					className="demo-card flex flex-wrap items-center justify-between gap-4"
+					key={changeable.id}
+				>
+					<div className="space-y-1">
+						<p className="demo-metric-sm">{changeable.name}</p>
+						<p className="demo-note">{changeable.changeDescription}</p>
+					</div>
+					<Button
+						kind="action"
+						onClick={() =>
+							act(
+								() => requestPlanChange({ data: { planId: changeable.id } }),
+								ChangePlanResponse.unexpected,
+							)
+						}
+					>
+						{HOME_TEXT.changePlan}
+					</Button>
+				</article>
+			),
+		});
+
+	const planChangeSection = (
+		state: Extract<SubscriptionStateView, { kind: "Trial" | "Paid" }>,
+	) => (
+		<section className="demo-panel space-y-6">
+			<h2 className="demo-section-title">{HOME_TEXT.changePlanTitle}</h2>
+			<div className="space-y-6">
+				<div className="space-y-1">
+					<p className="demo-label">{HOME_TEXT.currentPlanLabel}</p>
+					<div className="flex flex-wrap items-center gap-2">
+						<p className="demo-value">{state.planName}</p>
+						<Badge tone={STATUS_TONE[state.kind]}>{state.statusLabel}</Badge>
+					</div>
+				</div>
+				<div className="space-y-4">
+					{state.planOptions.map(renderPlanOption)}
+				</div>
+			</div>
+		</section>
+	);
+	const renderPlanChange = (state: SubscriptionStateView): ReactNode =>
+		matchChoice<SubscriptionStateView, ReactNode>(state, {
+			Free: () => null,
+			Trial: planChangeSection,
+			PendingPayment: () => null,
+			Paid: planChangeSection,
+			UpgradePending: () => null,
+			CancelReserved: () => null,
+			PlanChangeReserved: () => null,
+		});
+
+	/** 期日を迎えさせられるもの。どの状態でもセクションは出し、押せるボタンを状態で決める。 */
+	type SimulationTarget = "TrialEnd" | "PeriodEnd" | "None";
+	const simulationSection = (target: SimulationTarget) => (
+		<section className="demo-panel space-y-4">
+			<h2 className="demo-section-title">{HOME_TEXT.simulationTitle}</h2>
+			<div className="flex flex-wrap gap-3">
+				<Button
+					kind="action"
+					variant="secondary"
+					disabled={target !== "TrialEnd"}
+					onClick={() => act(endTrial, EndTrialResponse.unexpected)}
+				>
+					{HOME_TEXT.endTrial}
+				</Button>
+				<Button
+					kind="action"
+					variant="secondary"
+					disabled={target !== "PeriodEnd"}
+					onClick={() => act(endPeriod, EndPeriodResponse.unexpected)}
+				>
+					{HOME_TEXT.endPeriod}
+				</Button>
+			</div>
+		</section>
+	);
+	const renderSimulation = (state: SubscriptionStateView): ReactNode =>
+		matchChoice<SubscriptionStateView, ReactNode>(state, {
+			Free: () => simulationSection("None"),
+			Trial: () => simulationSection("TrialEnd"),
+			PendingPayment: () => simulationSection("None"),
+			Paid: () => simulationSection("PeriodEnd"),
+			UpgradePending: () => simulationSection("None"),
+			CancelReserved: () => simulationSection("PeriodEnd"),
+			PlanChangeReserved: () => simulationSection("PeriodEnd"),
+		});
+
 	const errorAlert = <Alert messages={errors} />;
 	if (!data)
 		return (
@@ -193,127 +392,15 @@ export function HomePage() {
 				</section>
 			</main>
 		),
-
-		SubscriptionFound: ({ state, plans, invoices }) => (
+		SubscriptionFound: ({ state, invoices }) => (
 			<main className="demo-page">
 				<section className="demo-panel space-y-6">
 					{errorAlert}
-					<div className="space-y-2">
-						<div className="flex flex-wrap items-center gap-3">
-							<h1 className="demo-metric">
-								{state.planName ?? state.statusLabel}
-							</h1>
-							{state.planName !== null && (
-								<Badge tone={STATUS_TONE[state.statusLabel] ?? "neutral"}>
-									{state.statusLabel}
-								</Badge>
-							)}
-						</div>
-						{state.notice && <p className="demo-note">{state.notice}</p>}
-						{state.bookingText && (
-							<p className="demo-note">{state.bookingText}</p>
-						)}
-					</div>
-					{(state.trialEndsAt || state.periodEndsAt) && (
-						<div className="flex flex-wrap gap-x-10 gap-y-4">
-							{state.trialEndsAt && (
-								<div className="space-y-1">
-									<p className="demo-label">{HOME_TEXT.trialEndLabel}</p>
-									<p className="demo-value">{state.trialEndsAt}</p>
-								</div>
-							)}
-							{state.periodEndsAt && (
-								<div className="space-y-1">
-									<p className="demo-label">{HOME_TEXT.periodEndLabel}</p>
-									<p className="demo-value">{state.periodEndsAt}</p>
-								</div>
-							)}
-						</div>
-					)}
-					{(state.showApplyLink ||
-						state.canCancelTrial ||
-						state.canReserveCancellation) && (
-						<div className="flex flex-wrap gap-3">
-							{state.showApplyLink && (
-								<Button kind="link" to="/subscription/apply">
-									{HOME_TEXT.applyLink}
-								</Button>
-							)}
-							{state.canCancelTrial && (
-								<Button
-									kind="action"
-									variant="danger"
-									onClick={() =>
-										act(cancelTrial, CancelTrialResponse.unexpected)
-									}
-								>
-									{HOME_TEXT.cancelTrial}
-								</Button>
-							)}
-							{state.canReserveCancellation && (
-								<Button
-									kind="action"
-									variant="danger"
-									onClick={() =>
-										act(
-											reserveCancellation,
-											ReserveCancellationResponse.unexpected,
-										)
-									}
-								>
-									{HOME_TEXT.reserveCancellation}
-								</Button>
-							)}
-						</div>
-					)}
+					{renderHeading(state)}
+					{renderDate(state)}
+					{renderActions(state)}
 				</section>
-				{/*
-				 * プラン変更が実際にできる状態のときだけ出す。
-				 * 無料プランのときは「先に申し込んでください」と案内するだけで、
-				 * 行き先がヒーローの「サブスクを申し込む」と同じになり導線が重複するため。
-				 */}
-				{!state.showApplyLink && (
-					<section className="demo-panel space-y-6">
-						<h2 className="demo-section-title">{HOME_TEXT.changePlanTitle}</h2>
-						<div className="space-y-6">
-							<div className="space-y-1">
-								<p className="demo-label">{HOME_TEXT.currentPlanLabel}</p>
-								<div className="flex flex-wrap items-center gap-2">
-									<p className="demo-value">{state.planName}</p>
-									<Badge tone={STATUS_TONE[state.statusLabel] ?? "neutral"}>
-										{state.statusLabel}
-									</Badge>
-								</div>
-							</div>
-							<div className="space-y-4">
-								{plans.map((plan) => (
-									<article
-										className="demo-card flex flex-wrap items-center justify-between gap-4"
-										key={plan.id}
-									>
-										<div className="space-y-1">
-											<p className="demo-metric-sm">{plan.name}</p>
-											<p className="demo-note">{plan.changeDescription}</p>
-										</div>
-										<Button
-											kind="action"
-											disabled={plan.changeDisabled}
-											onClick={() =>
-												act(
-													() =>
-														requestPlanChange({ data: { planId: plan.id } }),
-													ChangePlanResponse.unexpected,
-												)
-											}
-										>
-											{HOME_TEXT.changePlan}
-										</Button>
-									</article>
-								))}
-							</div>
-						</div>
-					</section>
-				)}
+				{renderPlanChange(state)}
 				<section className="demo-panel space-y-6">
 					<div className="space-y-2">
 						<h2 className="demo-section-title">{HOME_TEXT.invoicesTitle}</h2>
@@ -330,11 +417,7 @@ export function HomePage() {
 											<p className="demo-metric-sm">
 												¥{invoice.amount.toLocaleString()}
 											</p>
-											<Badge
-												tone={
-													INVOICE_STATUS_TONE[invoice.statusLabel] ?? "neutral"
-												}
-											>
+											<Badge tone={INVOICE_STATUS_TONE[invoice.kind]}>
 												{invoice.statusLabel}
 											</Badge>
 										</div>
@@ -352,13 +435,17 @@ export function HomePage() {
 										{HOME_TEXT.invoiceDetailLink}
 									</Button>
 								</div>
-								{invoice.payable && (
-									<div className="flex flex-wrap gap-2">
-										<Button kind="action" onClick={() => pay(invoice.id)}>
-											{HOME_TEXT.payInvoice}
-										</Button>
-									</div>
-								)}
+								{matchChoice<InvoiceView, ReactNode>(invoice, {
+									Unpaid: (current) => (
+										<div className="flex flex-wrap gap-2">
+											<Button kind="action" onClick={() => pay(current.id)}>
+												{HOME_TEXT.payInvoice}
+											</Button>
+										</div>
+									),
+									Paid: () => null,
+									Failed: () => null,
+								})}
 							</article>
 						))}
 						{invoices.length === 0 && (
@@ -366,27 +453,7 @@ export function HomePage() {
 						)}
 					</div>
 				</section>
-				<section className="demo-panel space-y-4">
-					<h2 className="demo-section-title">{HOME_TEXT.simulationTitle}</h2>
-					<div className="flex flex-wrap gap-3">
-						<Button
-							kind="action"
-							variant="secondary"
-							disabled={!state.canEndTrial}
-							onClick={() => act(endTrial, EndTrialResponse.unexpected)}
-						>
-							{HOME_TEXT.endTrial}
-						</Button>
-						<Button
-							kind="action"
-							variant="secondary"
-							disabled={!state.canEndPeriod}
-							onClick={() => act(endPeriod, EndPeriodResponse.unexpected)}
-						>
-							{HOME_TEXT.endPeriod}
-						</Button>
-					</div>
-				</section>
+				{renderSimulation(state)}
 			</main>
 		),
 	});

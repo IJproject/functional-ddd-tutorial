@@ -4,7 +4,7 @@ import {
 	ok,
 	type Result as ResultType,
 } from "#/domain/building-blocks";
-import type { Subscription } from "#/domain/subscription/model/subscription.entity";
+import { Subscription } from "#/domain/subscription/model/subscription.entity";
 import type {
 	CancellationReserved,
 	CancelTrialError,
@@ -44,10 +44,7 @@ export const cancelTrialWorkflow: CancelTrialWorkflow = (subscription) =>
 			TrialSubscription: (current) =>
 				ok({
 					kind: "TrialCancelled",
-					subscription: {
-						kind: "FreeSubscription",
-						accountId: current.accountId,
-					},
+					subscription: Subscription.free(current.accountId),
 				}),
 			PendingPaymentSubscription: notInTrial,
 			PaidSubscription: notInTrial,
@@ -77,12 +74,11 @@ export const reserveCancellationWorkflow: ReserveCancellationWorkflow = (
 		PaidSubscription: (current) =>
 			ok({
 				kind: "CancellationReserved",
-				subscription: {
-					kind: "CancelReservedSubscription",
+				subscription: Subscription.cancelReserved({
 					accountId: current.accountId,
 					planId: current.planId,
 					periodEndsAt: current.periodEndsAt,
-				},
+				}),
 			}),
 		UpgradePendingSubscription: () =>
 			err<PaymentPending>({ kind: "PaymentPending" }),
@@ -91,11 +87,10 @@ export const reserveCancellationWorkflow: ReserveCancellationWorkflow = (
 		PlanChangeReservedSubscription: (current) =>
 			ok({
 				kind: "CancellationReserved",
-				subscription: {
-					kind: "CancelReservedSubscription",
+				subscription: Subscription.cancelReserved({
 					accountId: current.accountId,
 					planId: current.planId,
 					periodEndsAt: current.periodEndsAt,
-				},
+				}),
 			}),
 	});

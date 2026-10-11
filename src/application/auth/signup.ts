@@ -12,7 +12,7 @@ import { openAccount } from "#/external/subscription-store/subscription-store";
 // composition root: ドメインのポートに具体的な実装を差し込む。
 const signupWorkflow = createSignupWorkflow({
 	registerUser,
-	now: () => RegisteredAt.create(new Date()),
+	registeredAt: () => RegisteredAt.create(new Date()),
 });
 
 /** 新規登録。ドメインの登録結果から口座を開設し、最後に応答へ変換する。 */

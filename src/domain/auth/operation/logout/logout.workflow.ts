@@ -24,10 +24,10 @@ export type LogoutWorkflow = (
 	session: Session,
 ) => AsyncResult<LoggedOut, LogoutError | AuthProviderError>;
 
-/** パイプラインを組み立てるための依存。各ステップと現在時刻の取得を注入する。 */
+/** 外部サービスのポートと、イベントの日時を返すポート。 */
 export type LogoutWorkflowDeps = {
 	discardSession: DiscardSession;
-	now: () => LoggedOutAt;
+	loggedOutAt: () => LoggedOutAt;
 };
 export type CreateLogoutWorkflow = (deps: LogoutWorkflowDeps) => LogoutWorkflow;
 
@@ -67,7 +67,7 @@ export const createLogoutWorkflow: CreateLogoutWorkflow = (deps) => (session) =>
 				pipe(
 					deps.discardSession(authenticated),
 					AsyncResult.flatMap<void, LoggedOut, never>(() =>
-						ok(createLoggedOutEvent(authenticated, deps.now())),
+						ok(createLoggedOutEvent(authenticated, deps.loggedOutAt())),
 					),
 				),
 		},

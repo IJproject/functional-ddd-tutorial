@@ -21,10 +21,10 @@ export type LoginWorkflow = (
 	command: UnvalidatedLoginCommand,
 ) => AsyncResult<LoggedIn, LoginError | AuthProviderError>;
 
-/** パイプラインを組み立てるための依存。各ステップと現在時刻の取得を注入する。 */
+/** 外部サービスのポートと、イベントの日時を返すポート。 */
 export type LoginWorkflowDeps = {
 	verifyCredentials: VerifyCredentials;
-	now: () => LoggedInAt;
+	loggedInAt: () => LoggedInAt;
 };
 export type CreateLoginWorkflow = (deps: LoginWorkflowDeps) => LoginWorkflow;
 
@@ -81,5 +81,5 @@ export const createLoginWorkflow: CreateLoginWorkflow = (deps) => (command) =>
 	pipe(
 		validateLoginCommand(command),
 		AsyncResult.flatMap(deps.verifyCredentials),
-		AsyncResult.map((user) => createLoggedInEvent(user, deps.now())),
+		AsyncResult.map((user) => createLoggedInEvent(user, deps.loggedInAt())),
 	);

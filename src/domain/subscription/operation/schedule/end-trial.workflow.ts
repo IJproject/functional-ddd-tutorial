@@ -9,7 +9,7 @@ import type {
 	InvoiceId,
 	IssuedAt,
 } from "#/domain/subscription/model/invoice.primitive";
-import type { Subscription } from "#/domain/subscription/model/subscription.entity";
+import { Subscription } from "#/domain/subscription/model/subscription.entity";
 import type {
 	EndTrialError,
 	NotInTrial,
@@ -53,12 +53,11 @@ export const endTrial: EndTrial = (subscription, issued) =>
 			TrialSubscription: (current) =>
 				ok({
 					kind: "TrialEnded",
-					subscription: {
-						kind: "PendingPaymentSubscription",
+					subscription: Subscription.pendingPayment({
 						accountId: current.accountId,
 						planId: current.planId,
 						pendingInvoiceId: issued.invoiceId,
-					},
+					}),
 					invoice: Invoice.issue({
 						id: issued.invoiceId,
 						accountId: current.accountId,

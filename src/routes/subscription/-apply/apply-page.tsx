@@ -17,6 +17,8 @@ import {
 	ALREADY_SUBSCRIBED_APPLY_MESSAGE,
 	APPLY_CONTEXT_UNAVAILABLE_MESSAGE,
 	type ApplyContextView,
+	PAYMENT_REQUIRED_MESSAGE,
+	TRIAL_AVAILABLE_MESSAGE,
 } from "#/domain/subscription/operation/apply/apply-context.dto";
 import { LoginRequired } from "./login-required/login-required";
 import { PlanList } from "./plan-list/plan-list";
@@ -91,21 +93,43 @@ export function ApplyPage() {
 				</section>
 			</main>
 		),
-		ApplyContextFound: ({ applicable, plans, trialUsed }) => (
+		AlreadySubscribed: () => (
 			<main className="demo-page">
 				<section className="demo-panel space-y-6">
 					<h1 className="demo-title">プランを申し込む</h1>
 					<Alert messages={errorMessages} />
-					{!applicable ? (
-						<div className="space-y-4">
-							<p className="demo-note">{ALREADY_SUBSCRIBED_APPLY_MESSAGE}</p>
-							<Button kind="link" to="/">
-								契約へ
-							</Button>
-						</div>
-					) : (
-						<PlanList plans={plans} trialUsed={trialUsed} onApply={apply} />
-					)}
+					<div className="space-y-4">
+						<p className="demo-note">{ALREADY_SUBSCRIBED_APPLY_MESSAGE}</p>
+						<Button kind="link" to="/">
+							契約へ
+						</Button>
+					</div>
+				</section>
+			</main>
+		),
+		TrialAvailable: ({ plans }) => (
+			<main className="demo-page">
+				<section className="demo-panel space-y-6">
+					<h1 className="demo-title">プランを申し込む</h1>
+					<Alert messages={errorMessages} />
+					<PlanList
+						plans={plans}
+						notice={TRIAL_AVAILABLE_MESSAGE}
+						onApply={apply}
+					/>
+				</section>
+			</main>
+		),
+		PaymentRequired: ({ plans }) => (
+			<main className="demo-page">
+				<section className="demo-panel space-y-6">
+					<h1 className="demo-title">プランを申し込む</h1>
+					<Alert messages={errorMessages} />
+					<PlanList
+						plans={plans}
+						notice={PAYMENT_REQUIRED_MESSAGE}
+						onApply={apply}
+					/>
 				</section>
 			</main>
 		),

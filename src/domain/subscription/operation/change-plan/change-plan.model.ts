@@ -50,22 +50,25 @@ export type PlanChangeReserved = Case<
 // ===========================================================================
 
 export type ChangePlanError =
-	| UnknownPlan
+	| ValidationFailed
 	| NotSubscribed
-	| PlanChangeNotAllowed
 	| PaymentPending
-	| ReservationExists;
+	| ReservationExists
+	| SamePlan;
 
-/** 指定されたプランが料金表に存在しない。 */
-export type UnknownPlan = PlanIdError;
+/** 入力値の形式が不正。 */
+export type ValidationFailed = Case<
+	"ValidationFailed",
+	{ reason: PlanIdError }
+>;
 
 /** 無料状態では変更元のプランが存在しない。 */
 export type NotSubscribed = Case<"NotSubscribed">;
 
-/** 支払い待ち、または現在と同じプランへの変更は受け付けない。 */
-export type PlanChangeNotAllowed = Case<"PlanChangeNotAllowed">;
+/** 現在と同じプランへの変更は受け付けない。 */
+export type SamePlan = Case<"SamePlan">;
 
-/** 未処理のアップグレード請求がある。 */
+/** 支払い待ちの請求がある。新規契約・アップグレード差額のどちらも。 */
 export type PaymentPending = Case<"PaymentPending">;
 
 /** 解約またはプラン変更の予約がすでにある。 */

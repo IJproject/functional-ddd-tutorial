@@ -6,7 +6,7 @@ import {
 	Result,
 	type Result as ResultType,
 } from "#/domain/building-blocks";
-import type { Account } from "#/domain/subscription/model/account.entity";
+import { Account } from "#/domain/subscription/model/account.entity";
 import type { TrialUsedAt } from "#/domain/subscription/model/account.primitive";
 import { Invoice } from "#/domain/subscription/model/invoice.entity";
 import type {
@@ -14,16 +14,16 @@ import type {
 	IssuedAt,
 } from "#/domain/subscription/model/invoice.primitive";
 import { PlanId } from "#/domain/subscription/model/plan.model";
-import type { Subscription } from "#/domain/subscription/model/subscription.entity";
+import { Subscription } from "#/domain/subscription/model/subscription.entity";
 import { trialPeriodEnd } from "#/domain/subscription/model/subscription.primitive";
 import type {
 	AlreadySubscribed,
 	Applied,
 	ApplyContext,
 	ApplyError,
-	InvalidApplyCommand,
 	UnvalidatedApplyCommand,
 	ValidatedApplyCommand,
+	ValidationFailed,
 } from "#/domain/subscription/operation/apply/apply.model";
 
 // ===========================================================================
@@ -45,7 +45,7 @@ export type CreateApplyWorkflow = (deps: ApplyWorkflowDeps) => ApplyWorkflow;
 /** ① 未検証 → ② 検証済み。純粋関数。 */
 export type ValidateApplyCommand = (
 	command: UnvalidatedApplyCommand,
-) => ResultType<ValidatedApplyCommand, InvalidApplyCommand>;
+) => ResultType<ValidatedApplyCommand, ValidationFailed>;
 
 /** ② 検証済み + 現在の状態 → ③ 申し込み結果。純粋関数（I/O を含まない）。 */
 export type ApplyToSubscription = (
@@ -64,9 +64,9 @@ export type ApplyToSubscription = (
 
 export const validateApplyCommand: ValidateApplyCommand = (command) => {
 	return Result.match(PlanId.create(command.planId), {
-		ok: (planId): ResultType<ValidatedApplyCommand, InvalidApplyCommand> =>
+		ok: (planId): ResultType<ValidatedApplyCommand, ValidationFailed> =>
 			ok({ planId }),
-		err: (reason) => err({ kind: "InvalidApplyCommand", reason }),
+		err: (reason) => err({ kind: "ValidationFailed", reason }),
 	});
 };
 
@@ -88,27 +88,24 @@ export const applyToSubscription: ApplyToSubscription = (
 						TrialUnusedAccount: (account) =>
 							ok({
 								kind: "TrialStarted",
-								account: {
-									kind: "TrialUsedAccount",
+								account: Account.trialUsed({
 									id: account.id,
 									trialUsedAt: issued.trialUsedAt,
-								},
-								subscription: {
-									kind: "TrialSubscription",
+								}),
+								subscription: Subscription.trial({
 									accountId: context.account.id,
 									planId: command.planId,
 									trialEndsAt: trialPeriodEnd(issued.trialUsedAt),
-								},
+								}),
 							}),
 						TrialUsedAccount: () =>
 							ok({
 								kind: "PaymentRequested",
-								subscription: {
-									kind: "PendingPaymentSubscription",
+								subscription: Subscription.pendingPayment({
 									accountId: context.account.id,
 									planId: command.planId,
 									pendingInvoiceId: issued.invoiceId,
-								},
+								}),
 								invoice: Invoice.issue({
 									id: issued.invoiceId,
 									accountId: context.account.id,

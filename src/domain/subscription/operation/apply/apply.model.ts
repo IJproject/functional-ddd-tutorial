@@ -70,14 +70,13 @@ export type PaymentRequested = Case<
 // エラー
 // ===========================================================================
 
-export type ApplyError = InvalidApplyCommand | AlreadySubscribed;
+export type ApplyError = ValidationFailed | AlreadySubscribed;
 
 /** 入力値の形式が不正。 */
-export type InvalidApplyCommand = Case<
-	"InvalidApplyCommand",
-	{ reason: ApplyCommandError }
+export type ValidationFailed = Case<
+	"ValidationFailed",
+	{ reason: PlanIdError }
 >;
-export type ApplyCommandError = PlanIdError;
 
 /** 契約中のアカウントは申し込めない。FreeSubscription 以外はすべてこれ。 */
 export type AlreadySubscribed = Case<"AlreadySubscribed">;

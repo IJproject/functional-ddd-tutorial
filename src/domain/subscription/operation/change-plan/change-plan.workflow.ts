@@ -16,17 +16,17 @@ import {
 	PlanId,
 	type PlanId as PlanIdType,
 } from "#/domain/subscription/model/plan.model";
-import type { Subscription } from "#/domain/subscription/model/subscription.entity";
+import { Subscription } from "#/domain/subscription/model/subscription.entity";
 import type {
 	ChangePlanError,
 	NotSubscribed,
 	PaymentPending,
 	PlanChanged,
-	PlanChangeNotAllowed,
 	ReservationExists,
-	UnknownPlan,
+	SamePlan,
 	UnvalidatedChangePlanCommand,
 	ValidatedChangePlanCommand,
+	ValidationFailed,
 } from "#/domain/subscription/operation/change-plan/change-plan.model";
 
 // ===========================================================================
@@ -49,14 +49,14 @@ export type CreateChangePlanWorkflow = (
 /** ① 未検証 → ② 検証済み。純粋関数。 */
 export type ValidateChangePlanCommand = (
 	command: UnvalidatedChangePlanCommand,
-) => ResultType<ValidatedChangePlanCommand, UnknownPlan>;
+) => ResultType<ValidatedChangePlanCommand, ValidationFailed>;
 
 /** ② 検証済み + 現在の状態 → ③ プラン変更結果。純粋関数（I/O を含まない）。 */
 export type ChangePlanForSubscription = (
 	command: ValidatedChangePlanCommand,
 	subscription: Subscription,
 	issued: { invoiceId: InvoiceId; issuedAt: IssuedAt },
-) => ResultType<PlanChanged, Exclude<ChangePlanError, UnknownPlan>>;
+) => ResultType<PlanChanged, Exclude<ChangePlanError, ValidationFailed>>;
 
 // ===========================================================================
 // 実装
@@ -64,18 +64,16 @@ export type ChangePlanForSubscription = (
 
 export const validateChangePlanCommand: ValidateChangePlanCommand = (command) =>
 	Result.match(PlanId.create(command.planId), {
-		ok: (planId): ResultType<ValidatedChangePlanCommand, UnknownPlan> =>
+		ok: (planId): ResultType<ValidatedChangePlanCommand, ValidationFailed> =>
 			ok({ planId }),
-		err: (reason) => err(reason),
+		err: (reason) => err({ kind: "ValidationFailed", reason }),
 	});
 
 const samePlan = (current: PlanIdType, requested: PlanIdType): boolean =>
 	current.kind === requested.kind;
 
-const planChangeNotAllowed = (): ResultType<
-	PlanChanged,
-	PlanChangeNotAllowed
-> => err({ kind: "PlanChangeNotAllowed" });
+const samePlanError = (): ResultType<PlanChanged, SamePlan> =>
+	err({ kind: "SamePlan" });
 
 export const changePlanForSubscription: ChangePlanForSubscription = (
 	command,
@@ -84,21 +82,20 @@ export const changePlanForSubscription: ChangePlanForSubscription = (
 ) =>
 	matchChoice<
 		Subscription,
-		ResultType<PlanChanged, Exclude<ChangePlanError, UnknownPlan>>
+		ResultType<PlanChanged, Exclude<ChangePlanError, ValidationFailed>>
 	>(subscription, {
 		FreeSubscription: () => err<NotSubscribed>({ kind: "NotSubscribed" }),
 		TrialSubscription: (current) => {
 			if (samePlan(current.planId, command.planId)) {
-				return planChangeNotAllowed();
+				return samePlanError();
 			}
 			return ok({
 				kind: "PaymentRequested",
-				subscription: {
-					kind: "PendingPaymentSubscription",
+				subscription: Subscription.pendingPayment({
 					accountId: current.accountId,
 					planId: command.planId,
 					pendingInvoiceId: issued.invoiceId,
-				},
+				}),
 				invoice: Invoice.issue({
 					id: issued.invoiceId,
 					accountId: current.accountId,
@@ -107,28 +104,25 @@ export const changePlanForSubscription: ChangePlanForSubscription = (
 				}),
 			});
 		},
-		PendingPaymentSubscription: (current) =>
-			samePlan(current.planId, command.planId)
-				? planChangeNotAllowed()
-				: err<PlanChangeNotAllowed>({ kind: "PlanChangeNotAllowed" }),
+		PendingPaymentSubscription: () =>
+			err<PaymentPending>({ kind: "PaymentPending" }),
 		PaidSubscription: (current) => {
 			if (samePlan(current.planId, command.planId)) {
-				return planChangeNotAllowed();
+				return samePlanError();
 			}
 			return matchChoice<
 				PlanChange,
-				ResultType<PlanChanged, Exclude<ChangePlanError, UnknownPlan>>
+				ResultType<PlanChanged, Exclude<ChangePlanError, ValidationFailed>>
 			>(Plan.change(current.planId, command.planId), {
 				Upgrade: ({ upgrade }) =>
 					ok({
 						kind: "UpgradeRequested",
-						subscription: {
-							kind: "UpgradePendingSubscription",
+						subscription: Subscription.upgradePending({
 							accountId: current.accountId,
 							planId: current.planId,
 							periodEndsAt: current.periodEndsAt,
 							pendingInvoiceId: issued.invoiceId,
-						},
+						}),
 						invoice: Invoice.issue({
 							id: issued.invoiceId,
 							accountId: current.accountId,
@@ -139,28 +133,21 @@ export const changePlanForSubscription: ChangePlanForSubscription = (
 				Downgrade: () =>
 					ok({
 						kind: "PlanChangeReserved",
-						subscription: {
-							kind: "PlanChangeReservedSubscription",
+						subscription: Subscription.planChangeReserved({
 							accountId: current.accountId,
 							planId: current.planId,
 							periodEndsAt: current.periodEndsAt,
 							nextPlanId: command.planId,
-						},
+						}),
 					}),
 			});
 		},
-		UpgradePendingSubscription: (current) =>
-			samePlan(current.planId, command.planId)
-				? planChangeNotAllowed()
-				: err<PaymentPending>({ kind: "PaymentPending" }),
-		CancelReservedSubscription: (current) =>
-			samePlan(current.planId, command.planId)
-				? planChangeNotAllowed()
-				: err<ReservationExists>({ kind: "ReservationExists" }),
-		PlanChangeReservedSubscription: (current) =>
-			samePlan(current.planId, command.planId)
-				? planChangeNotAllowed()
-				: err<ReservationExists>({ kind: "ReservationExists" }),
+		UpgradePendingSubscription: () =>
+			err<PaymentPending>({ kind: "PaymentPending" }),
+		CancelReservedSubscription: () =>
+			err<ReservationExists>({ kind: "ReservationExists" }),
+		PlanChangeReservedSubscription: () =>
+			err<ReservationExists>({ kind: "ReservationExists" }),
 	});
 
 /**

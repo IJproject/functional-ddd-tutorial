@@ -61,17 +61,20 @@ const toFieldError = (
 	error: ChangePlanError | StoreError,
 ): ChangePlanFieldError =>
 	matchChoice<ChangePlanError | StoreError, ChangePlanFieldError>(error, {
-		UnknownPlan: () => ({
-			field: "planId",
-			message: "有料プランを選択してください",
-		}),
+		ValidationFailed: ({ reason }) =>
+			matchChoice(reason, {
+				UnknownPlan: () => ({
+					field: "planId",
+					message: "有料プランを選択してください",
+				}),
+			}),
 		NotSubscribed: () => ({
 			field: null,
 			message: "先にサブスクを申し込んでください",
 		}),
-		PlanChangeNotAllowed: () => ({
+		SamePlan: () => ({
 			field: null,
-			message: "このプランには変更できません",
+			message: "現在と同じプランです",
 		}),
 		PaymentPending: () => ({
 			field: null,

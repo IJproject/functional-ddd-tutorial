@@ -9,7 +9,7 @@ import { verifyCredentials } from "#/external/better-auth/verify-credentials";
 // composition root: ドメインのポートに具体的な実装を差し込む。
 const loginWorkflow = createLoginWorkflow({
 	verifyCredentials,
-	now: () => LoggedInAt.create(new Date()),
+	loggedInAt: () => LoggedInAt.create(new Date()),
 });
 
 /** ログイン。decode → ワークフロー → encode。 */

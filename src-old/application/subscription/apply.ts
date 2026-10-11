@@ -21,7 +21,7 @@ import {
 	ApplyContext,
 } from "#/domain/subscription/operation/apply/apply.model";
 import { createApplyWorkflow } from "#/domain/subscription/operation/apply/apply.workflow";
-import { ApplyContextView } from "#/domain/subscription/operation/apply/apply-context.dto";
+import { ApplyView } from "#/domain/subscription/operation/apply/apply-view.dto";
 import { currentSession } from "#/external/better-auth/current-session";
 import {
 	loadApplyContext,
@@ -36,25 +36,20 @@ const applyWorkflow = createApplyWorkflow({
 });
 
 /** 申込画面の状態。読む → encode。 */
-export const applyContext = async (): Promise<ApplyContextView> => {
+export const applyView = async (): Promise<ApplyView> => {
 	return Result.match(await currentSession(), {
-		err: async (): Promise<ApplyContextView> => ({
-			kind: "ApplyContextUnavailable",
-		}),
+		err: async (): Promise<ApplyView> => ApplyView.unavailable,
 		ok: (session) =>
-			matchChoice<Session, Promise<ApplyContextView>>(session, {
-				AnonymousSession: async () => ({ kind: "AnonymousApplyContext" }),
+			matchChoice<Session, Promise<ApplyView>>(session, {
+				AnonymousSession: async () => ApplyView.anonymous,
 				AuthenticatedSession: async ({ userId }) => {
 					const accountId = toAccountId(userId);
 					const loaded = await loadApplyContext(accountId);
 					return Result.match(loaded, {
-						err: (): ApplyContextView => ({ kind: "ApplyContextUnavailable" }),
+						err: (): ApplyView => ApplyView.unavailable,
 						ok: (found) => {
 							const context = ApplyContext.of(found, accountId);
-							return ApplyContextView.encode(
-								context.account,
-								context.subscription,
-							);
+							return ApplyView.encode(context.account, context.subscription);
 						},
 					});
 				},

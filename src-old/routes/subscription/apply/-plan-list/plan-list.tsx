@@ -1,4 +1,4 @@
-import type { ApplyPlanView } from "#/domain/subscription/operation/apply/apply-context.dto";
+import type { ApplyPlanView } from "#/domain/subscription/operation/apply/apply-view.dto";
 import { PlanCard } from "./plan-card";
 
 type PlanListProps = {

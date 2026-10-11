@@ -9,7 +9,6 @@ import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import TanStackQueryDevtools from "#/components/devtools/tanstack-query-devtools";
 import { THEME_INIT_SCRIPT } from "#/components/theme/theme";
 import appCss from "../styles.css?url";
-import Header, { fetchHeaderSession } from "./-root/header";
 
 interface MyRouterContext {
 	queryClient: QueryClient;
@@ -36,13 +35,10 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 			},
 		],
 	}),
-	loader: () => fetchHeaderSession(),
 	shellComponent: RootDocument,
 });
 
 function RootDocument({ children }: { children: React.ReactNode }) {
-	const session = Route.useLoaderData();
-
 	return (
 		<html lang="en" suppressHydrationWarning>
 			<head>
@@ -50,7 +46,6 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 				<HeadContent />
 			</head>
 			<body className="font-sans antialiased [overflow-wrap:anywhere] selection:bg-[var(--primary-soft)]">
-				<Header session={session} />
 				{children}
 				<TanStackDevtools
 					config={{

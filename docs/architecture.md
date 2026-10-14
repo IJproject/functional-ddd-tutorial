@@ -139,9 +139,70 @@ src/domain/subscription/
 
 ### 2.2 Case / choice type
 
-### 2.3 Result / AsyncResult とコンビネータ
+### 2.3 Result と Railway
+
+失敗しうる処理は、例外を投げずに `Result` を返す。成功（`ok: true` と `value`）と失敗（`ok: false` と `error`）のどちらかで、`ok` を確かめるまで `value` に触れられない。失敗を処理し忘れると型エラーになる。
+
+```ts
+export type Result<T, E> = Ok<T> | Err<E>;
+export type Ok<T> = { readonly ok: true; readonly value: T };
+export type Err<E> = { readonly ok: false; readonly error: E };
+```
+
+`Result` を返す処理をつなぐ考え方を、Wlaschin は Railway Oriented Programming と呼ぶ。成功のレールと失敗のレールの2本があり、一度失敗のレールに移ると、後ろの処理は飛ばされて出口まで流れる。
+
+| 操作 | レール | 渡す関数 | 例 |
+|---|---|---|---|
+| 乗る（switch 関数） | 1 → 2 | — | `InvoiceId.create(input)`：文字列を受け、`Result` を返す |
+| `map` | 2 → 2 | 失敗しない関数 | `toView`：請求を画面用の形にする |
+| `flatMap`（Wlaschin の `bind`） | 2 → 2 | 失敗しうる関数 | `findInvoice`：ID で請求を探し、無ければ失敗 |
+| `match` | 2 → 1 | 成功時・失敗時の2つ | 境界で、成功なら画面を、失敗ならエラーを返す |
+
+`flatMap` は、`Result` を返す関数をつないでも `Result<Result<…>>` の二重にならない（flat にする）ことから来た名前である。
+
+#### 組み立てるのはロジック側、降りるのはコンポーネント
+
+| 場所 | 書き方 |
+|---|---|
+| ロジック側（domain・DTO・loader など、JSX の無い関数） | `Result` をつないでレールを組み立てる |
+| コンポーネント | `if (!result.ok)` で降り、成功の値だけを JSX に渡す |
+
+JSX の中で `match` を使わない。ロジックの流れと画面の出し分けが1つの式に混ざり、読みにくくなるためである。コンポーネントを書く人が知っていればよいのは `if (!result.ok)` だけにする。
+
+```tsx
+function RouteComponent() {
+	const params = InvoiceParamsDto.toDomain(Route.useParams());
+	if (!params.ok) throw new Error(params.error);
+	return <InvoicePage invoiceId={params.value.invoiceId} />;
+}
+```
+
+段が少ないうちは、ロジック側も早期 return で書く。書き方が違うだけで、Railway と同じ動きになる。
+
+| Railway | 早期 return |
+|---|---|
+| 乗る | `const id = InvoiceId.create(input);` |
+| `flatMap`：失敗なら後ろを飛ばす | `if (!id.ok) return id;` |
+| `map`：成功の値を変換する | `return ok({ invoiceId: id.value });` |
+| `match`：降りる | `if (!params.ok) throw …;` |
+
+1つの関数で `if (!x.ok) return x;` が3〜4回続いて読みにくくなったら、`map` / `flatMap` を `Result` に足す（§2.4）。
 
 ### 2.4 pipe
+
+まだ用意していない。§2.3 の `map` / `flatMap` を足すときに、あわせて足す。段が増えたとき、内側から読む入れ子を避けて、上から順に読めるようにするための道具である。
+
+```ts
+// pipe なし：内側から読む
+Result.map(Result.flatMap(InvoiceId.create(id), findInvoice), toView)
+
+// pipe あり：上から順に読む
+pipe(
+	InvoiceId.create(id),
+	Result.flatMap(findInvoice),
+	Result.map(toView),
+)
+```
 
 ## 3. 外部との接点 — `src/external/`
 

@@ -9,27 +9,53 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SubscriptionInvoiceInvoiceIdIndexRouteImport } from './routes/subscription/invoice/$invoiceId/index'
 
-export interface FileRoutesByFullPath {}
-export interface FileRoutesByTo {}
+const SubscriptionInvoiceInvoiceIdIndexRoute =
+  SubscriptionInvoiceInvoiceIdIndexRouteImport.update({
+    id: '/subscription/invoice/$invoiceId/',
+    path: '/subscription/invoice/$invoiceId/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+
+export interface FileRoutesByFullPath {
+  '/subscription/invoice/$invoiceId/': typeof SubscriptionInvoiceInvoiceIdIndexRoute
+}
+export interface FileRoutesByTo {
+  '/subscription/invoice/$invoiceId': typeof SubscriptionInvoiceInvoiceIdIndexRoute
+}
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
+  '/subscription/invoice/$invoiceId/': typeof SubscriptionInvoiceInvoiceIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: never
+  fullPaths: '/subscription/invoice/$invoiceId/'
   fileRoutesByTo: FileRoutesByTo
-  to: never
-  id: '__root__'
+  to: '/subscription/invoice/$invoiceId'
+  id: '__root__' | '/subscription/invoice/$invoiceId/'
   fileRoutesById: FileRoutesById
 }
-export interface RootRouteChildren {}
-
-declare module '@tanstack/react-router' {
-  interface FileRoutesByPath {}
+export interface RootRouteChildren {
+  SubscriptionInvoiceInvoiceIdIndexRoute: typeof SubscriptionInvoiceInvoiceIdIndexRoute
 }
 
-const rootRouteChildren: RootRouteChildren = {}
+declare module '@tanstack/react-router' {
+  interface FileRoutesByPath {
+    '/subscription/invoice/$invoiceId/': {
+      id: '/subscription/invoice/$invoiceId/'
+      path: '/subscription/invoice/$invoiceId'
+      fullPath: '/subscription/invoice/$invoiceId/'
+      preLoaderRoute: typeof SubscriptionInvoiceInvoiceIdIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+  }
+}
+
+const rootRouteChildren: RootRouteChildren = {
+  SubscriptionInvoiceInvoiceIdIndexRoute:
+    SubscriptionInvoiceInvoiceIdIndexRoute,
+}
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()

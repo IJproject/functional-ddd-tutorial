@@ -3,6 +3,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import {
 	createRootRouteWithContext,
 	HeadContent,
+	Outlet,
 	ScriptOnce,
 	Scripts,
 } from "@tanstack/react-router";
@@ -37,7 +38,17 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
 		],
 	}),
 	shellComponent: RootDocument,
+	component: RootLayout,
 });
+
+/** すべてのページに共通の外枠。 */
+function RootLayout() {
+	return (
+		<main className="demo-page">
+			<Outlet />
+		</main>
+	);
+}
 
 function RootDocument({ children }: { children: React.ReactNode }) {
 	return (

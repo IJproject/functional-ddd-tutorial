@@ -125,10 +125,13 @@ pre code {
 }
 
 /* 認証ページのように、内容が少なく視線を中央に集めたいページ。
-   ヘッダー（約 4rem）を除いた高さいっぱいを使い、パネルを上下中央に置く。 */
-.demo-page.is-narrow {
-  width: min(640px, calc(100% - 2rem));
-  min-height: calc(100dvh - 4rem);
+   demo-page の内側に置き、上下の余白（5rem）とヘッダー（約 4rem）を除いた高さいっぱいを使って、パネルを上下中央に置く。 */
+.demo-narrow {
+  width: min(640px, 100%);
+  margin-inline: auto;
+  min-height: calc(100dvh - 9rem);
+  display: flex;
+  flex-direction: column;
   justify-content: center;
 }
 

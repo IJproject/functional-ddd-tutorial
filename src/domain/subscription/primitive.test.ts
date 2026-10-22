@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { InvoiceId } from "./primitive";
+import { Amount, InvoiceId, IssuedAt } from "./primitive";
 
 /** @see {@link InvoiceId.create} */
 describe("InvoiceId.create", () => {
@@ -70,5 +70,80 @@ describe("InvoiceId.create", () => {
 
 	it.each(TEST_CASES)("$title", ({ args, expected }) => {
 		expect(InvoiceId.create(args.input)).toEqual(expected);
+	});
+});
+
+/** @see {@link Amount.create} */
+describe("Amount.create", () => {
+	const TEST_CASES = [
+		{
+			title: "正の整数を受け付ける",
+			args: { input: 1980 },
+			expected: { ok: true, value: 1980 },
+		},
+		{
+			title: "0 を受け付ける",
+			args: { input: 0 },
+			expected: { ok: true, value: 0 },
+		},
+		{
+			title: "負の数は受け付けない",
+			args: { input: -1 },
+			expected: { ok: false, error: "AmountNegative" },
+		},
+		{
+			title: "小数は受け付けない",
+			args: { input: 1.5 },
+			expected: { ok: false, error: "AmountNotInteger" },
+		},
+		{
+			title: "NaN は受け付けない",
+			args: { input: Number.NaN },
+			expected: { ok: false, error: "AmountNotInteger" },
+		},
+		{
+			title: "Infinity は受け付けない",
+			args: { input: Number.POSITIVE_INFINITY },
+			expected: { ok: false, error: "AmountNotInteger" },
+		},
+	];
+
+	it.each(TEST_CASES)("$title", ({ args, expected }) => {
+		expect(Amount.create(args.input)).toEqual(expected);
+	});
+});
+
+/** @see {@link IssuedAt.create} */
+describe("IssuedAt.create", () => {
+	const TEST_CASES = [
+		{
+			title: "時差付きの ISO 8601 を受け付ける",
+			args: { input: "2026-10-11T13:00:00+09:00" },
+			expected: { ok: true, value: new Date("2026-10-11T04:00:00Z") },
+		},
+		{
+			title: "UTC の ISO 8601 を受け付ける",
+			args: { input: "2026-10-11T04:00:00Z" },
+			expected: { ok: true, value: new Date("2026-10-11T04:00:00Z") },
+		},
+		{
+			title: "日付として読めない文字列は受け付けない",
+			args: { input: "abc" },
+			expected: { ok: false, error: "IssuedAtInvalid" },
+		},
+		{
+			title: "空文字は受け付けない",
+			args: { input: "" },
+			expected: { ok: false, error: "IssuedAtInvalid" },
+		},
+		{
+			title: "存在しない月は受け付けない",
+			args: { input: "2026-13-01T00:00:00Z" },
+			expected: { ok: false, error: "IssuedAtInvalid" },
+		},
+	];
+
+	it.each(TEST_CASES)("$title", ({ args, expected }) => {
+		expect(IssuedAt.create(args.input)).toEqual(expected);
 	});
 });

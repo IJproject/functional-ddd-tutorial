@@ -1,4 +1,4 @@
-import { InvoiceId } from "#/domain/subscription/primitive";
+import type { InvoiceId } from "#/domain/subscription/primitive";
 // エラーハンドリングの処理を書かないと、Resultで返ってきた値の中身にアクセスできないようになっている
 export function InvoicePage({ invoiceId }: { invoiceId: InvoiceId }) {
 	return (
@@ -29,7 +29,7 @@ export function InvoicePage({ invoiceId }: { invoiceId: InvoiceId }) {
 							</div>
 							<div className="space-y-1">
 								<p className="demo-label">請求 ID</p>
-								<p className="demo-value">{InvoiceId.value(invoiceId)}</p>
+								<p className="demo-value">{invoiceId}</p>
 							</div>
 						</div>
 					</article>

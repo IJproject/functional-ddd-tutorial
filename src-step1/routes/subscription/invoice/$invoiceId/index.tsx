@@ -7,15 +7,21 @@ import {
 import { InvoicePage } from "./page";
 
 export const Route = createFileRoute("/subscription/invoice/$invoiceId/")({
+	params: { parse: parseInvoiceParams },
 	component: RouteComponent,
 });
 
 function RouteComponent() {
-	const params = InvoiceParamsDto.toDomain(Route.useParams());
-	if (!params.ok) throw new Error(params.error);
-	return <InvoicePage invoiceId={params.value.invoiceId} />;
+	const { invoiceId } = Route.useParams();
+	return <InvoicePage invoiceId={invoiceId} />;
 }
 
+/** URLパラメータのparserとDTO */
+function parseInvoiceParams(params: InvoiceParamsDto) {
+	const parsed = InvoiceParamsDto.toDomain(params);
+	if (!parsed.ok) throw new Error(parsed.error);
+	return parsed.value;
+}
 type InvoiceParamsDto = { invoiceId: string };
 const InvoiceParamsDto = {
 	toDomain: (

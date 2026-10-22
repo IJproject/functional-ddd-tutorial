@@ -9,14 +9,14 @@ import type {
 /** 請求を表示できない理由。 */
 export type QueryInvoiceError = "InvoiceNotFound" | FindInvoiceError;
 
-/** queryInvoice が外から差し込んでもらうもの。 */
-export type QueryInvoiceDeps = {
+/** queryInvoice が使うポート。 */
+export type QueryInvoicePorts = {
 	findInvoice: FindInvoicePort;
 };
 
 /** 請求を1件読む。依存を受け取るので、テストでは偽物を渡せる。 */
 export const queryInvoice =
-	({ findInvoice }: QueryInvoiceDeps) =>
+	({ findInvoice }: QueryInvoicePorts) =>
 	async (invoiceId: InvoiceId): AsyncResult<Invoice, QueryInvoiceError> => {
 		const invoice = await findInvoice(invoiceId);
 		if (!invoice.ok) return invoice;

@@ -1,0 +1,389 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap");
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme {
+  --font-sans: "Manrope", ui-sans-serif, system-ui, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+}
+
+:root {
+  --text: #0f172a;
+  --text-muted: #475569;
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --surface-muted: #f1f5f9;
+  --line: #e2e8f0;
+  --line-strong: #cbd5e1;
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --primary-contrast: #ffffff;
+  --primary-soft: #eff6ff;
+  --primary-ring: rgba(37, 99, 235, 0.25);
+  --danger: #dc2626;
+  --danger-soft: #fef2f2;
+  --danger-line: #fecaca;
+  --warning: #b45309;
+  --warning-soft: #fffbeb;
+  --warning-line: #fde68a;
+  --success: #059669;
+  --success-soft: #ecfdf5;
+  --success-line: #a7f3d0;
+  --header-bg: rgba(255, 255, 255, 0.85);
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 6px 16px rgba(15, 23, 42, 0.08);
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+}
+
+:root[data-theme="dark"] {
+  --text: #e2e8f0;
+  --text-muted: #94a3b8;
+  --bg: #0b1220;
+  --surface: #111a2b;
+  --surface-muted: #16213a;
+  --line: #26334d;
+  --line-strong: #3b4a68;
+  --primary: #3b82f6;
+  --primary-hover: #60a5fa;
+  --primary-contrast: #ffffff;
+  --primary-soft: rgba(59, 130, 246, 0.14);
+  --primary-ring: rgba(96, 165, 250, 0.35);
+  --danger: #f87171;
+  --danger-soft: rgba(248, 113, 113, 0.12);
+  --danger-line: rgba(248, 113, 113, 0.32);
+  --warning: #fbbf24;
+  --warning-soft: rgba(251, 191, 36, 0.12);
+  --warning-line: rgba(251, 191, 36, 0.32);
+  --success: #34d399;
+  --success-soft: rgba(52, 211, 153, 0.12);
+  --success-line: rgba(52, 211, 153, 0.32);
+  --header-bg: rgba(11, 18, 32, 0.85);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.45);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  color: var(--primary);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+a:hover {
+  color: var(--primary-hover);
+}
+
+code {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+  padding: 2px 7px;
+  font-size: 0.9em;
+}
+
+pre code {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  font-size: inherit;
+}
+
+.page-wrap {
+  width: min(1080px, calc(100% - 2rem));
+  margin-inline: auto;
+}
+
+.demo-page {
+  width: min(1080px, calc(100% - 2rem));
+  margin-inline: auto;
+  padding-block: 2.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* 認証ページのように、内容が少なく視線を中央に集めたいページ。
+   demo-page の内側に置き、上下の余白（5rem）とヘッダー（約 4rem）を除いた高さいっぱいを使って、パネルを上下中央に置く。 */
+.demo-narrow {
+  width: min(640px, 100%);
+  margin-inline: auto;
+  min-height: calc(100dvh - 9rem);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.demo-panel {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  padding: 1.75rem;
+}
+
+.demo-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: none;
+  padding: 1rem;
+}
+
+.demo-title {
+  margin: 0 0 0.5rem;
+  color: var(--text);
+  font-size: 1.75rem;
+  line-height: 1.3;
+  font-weight: 700;
+}
+
+/* 主役の値。ページで最も大きい文字。 */
+.demo-metric {
+  margin: 0;
+  color: var(--text);
+  font-size: 2.5rem;
+  line-height: 1.15;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+/* カード内の主役。.demo-metric より一段小さい。 */
+.demo-metric-sm {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.5rem;
+  line-height: 1.25;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* セクション見出し。ページ見出し（.demo-title）より一段下。
+   本文 1rem に対して 1.25 倍、主役 .demo-metric に対して 1/2。 */
+.demo-section-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.25rem;
+  line-height: 1.4;
+  font-weight: 700;
+}
+
+/* 値に添えるラベル。 */
+.demo-label {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+/* .demo-label と対になる値。ラベルより濃く・太くしてコントラストを付ける。 */
+.demo-value {
+  margin: 0;
+  color: var(--text);
+  font-size: 1rem;
+  line-height: 1.5;
+  font-weight: 600;
+}
+
+/* 補助テキスト。 */
+.demo-note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.demo-muted {
+  color: var(--text-muted);
+}
+
+.demo-input {
+  width: 100%;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  padding: 0.6rem 0.75rem;
+}
+
+.demo-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-ring);
+  outline: none;
+}
+
+.demo-button,
+.demo-button-secondary,
+.demo-button-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 1.1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.25;
+  text-decoration: none;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.demo-button {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--primary-contrast);
+}
+
+.demo-button:hover {
+  border-color: var(--primary-hover);
+  background: var(--primary-hover);
+  color: var(--primary-contrast);
+}
+
+.demo-button-secondary {
+  border-color: var(--line-strong);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.demo-button-secondary:hover {
+  border-color: var(--primary);
+  background: var(--surface-muted);
+  color: var(--primary);
+}
+
+.demo-button-danger {
+  border-color: var(--danger-line);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.demo-button-danger:hover {
+  background: color-mix(in oklab, var(--danger-soft) 80%, var(--danger) 20%);
+  color: var(--danger);
+}
+
+.demo-button:disabled,
+.demo-button-secondary:disabled,
+.demo-button-danger:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.demo-button:focus-visible,
+.demo-button-secondary:focus-visible,
+.demo-button-danger:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.demo-badge,
+.demo-badge-info,
+.demo-badge-warning,
+.demo-badge-success,
+.demo-badge-danger {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  padding: 0.2rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.demo-badge-info {
+  border-color: var(--primary);
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.demo-badge-warning {
+  border-color: var(--warning-line);
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.demo-badge-success {
+  border-color: var(--success-line);
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.demo-badge-danger {
+  border-color: var(--danger-line);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.demo-alert {
+  border: 1px solid var(--warning-line);
+  border-radius: var(--radius-md);
+  background: var(--warning-soft);
+  color: var(--text);
+  padding: 0.85rem 1rem;
+}
+
+.demo-alert-danger {
+  border-color: var(--danger-line);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.demo-field-error {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--danger);
+  font-size: 0.8rem;
+}
+
+.demo-input[aria-invalid="true"] {
+  border-color: var(--danger-line);
+}
+
+.nav-link {
+  color: var(--text-muted);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.nav-link:hover,
+.nav-link.is-active {
+  color: var(--primary);
+}
+
+.nav-link.is-active {
+  font-weight: 700;
+}
+
+button,
+a {
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}

@@ -1,6 +1,6 @@
 {
   "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules", "src-old", "src-step1", "src-step2"],
+  "exclude": ["node_modules", "src-old", "src-step1", "src-step2", "src-step3"],
   "compilerOptions": {
     "target": "ES2022",
     "jsx": "react-jsx",

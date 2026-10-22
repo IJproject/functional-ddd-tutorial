@@ -1,1 +1,0 @@
-ALTER TABLE "subscription_invoice" ADD COLUMN "previous_plan_id" text;
